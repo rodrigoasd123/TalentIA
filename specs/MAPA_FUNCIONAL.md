@@ -23,6 +23,7 @@ Este mapa distribuye la línea base consolidada por capacidad sin modificar el a
 - `SPEC-004` permanece archivada e inmutable como evidencia de consolidación.
 - `SPEC-005` conserva la propiedad completa de la importación histórica.
 - `SPEC-006` a `SPEC-016` son vistas derivadas del comportamiento ya verificado; no autorizan cambios nuevos.
-- Las vistas derivadas contienen `spec.md`, `acceptance.md` y `verification.md`; no duplican el plan ni las tareas históricas de SPEC-004/005.
+- Las vistas derivadas contienen `spec.md`, `acceptance.md`, `plan.md`, `tasks.md` y `verification.md`.
+- Sus planes y tareas reconstruyen retrospectivamente la trazabilidad de SPEC-004/005; no representan una segunda implementación ni cambios de comportamiento.
 - Todo cambio futuro debe refinar la spec propietaria y añadir requisitos/criterios nuevos sin renumerar los heredados.
 - `SPEC-017` permanece en borrador hasta aprobación explícita; no autoriza modificar el frontend.

@@ -15,7 +15,7 @@ Mantener un laboratorio reproducible, migrable y recuperable, con CI y una ruta 
 
 ## Alcance vigente
 
-- Python 3.12+, instalación por `requirements.txt` y ejecución sin activar PowerShell.
+- Python 3.12 como versión validada, instalación por `requirements.txt` y ejecución sin activar PowerShell.
 - FastAPI y Streamlit como procesos separados.
 - SQLite gobernado por Alembic; seed ficticio reproducible.
 - Dockerfile/Compose para laboratorio.
