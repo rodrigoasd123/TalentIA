@@ -17,6 +17,8 @@ meses preguntaría "¿por qué está esto así?".
 | [003](ADR-003-anonimizacion-antes-de-toda-llamada-al-modelo.md) | La anonimización precede a toda llamada al modelo | Aceptada |
 | [004](ADR-004-el-total-lo-calcula-el-backend.md) | El total lo calcula el backend, no el modelo | Aceptada |
 | [005](ADR-005-gmail-api-y-secretos-cifrados-en-caliente.md) | Gmail API con OAuth y secretos cifrados en caliente | Aceptada |
+| [006](ADR-006-sqlite-local-con-alembic-y-sqlalchemy-portable.md) | SQLite local con Alembic y SQLAlchemy portable | Aceptada |
+| [007](ADR-007-agentes-langgraph-trazados-con-mlflow.md) | Agentes LangGraph trazados centralmente con MLflow | Aceptada |
 
 ## Cómo se relacionan
 

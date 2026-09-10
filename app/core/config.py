@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     storage_path: Path = Path("./storage")
     max_upload_mb: int = 10
     max_resume_chars: int = 60_000
+    import_max_file_mb: int = Field(default=20, ge=1, le=100)
+    import_max_rows: int = Field(default=10_000, ge=1, le=100_000)
+    import_storage_path: Path = Path("./storage/imports")
 
     # ── Feature flags (lo irreversible arranca apagado) ──────────────────────
     ff_ai_auto_shortlist: bool = False
@@ -96,6 +99,12 @@ class Settings(BaseSettings):
     @field_validator("storage_path")
     @classmethod
     def _resolve_storage(cls, value: Path) -> Path:
+        value.mkdir(parents=True, exist_ok=True)
+        return value.resolve()
+
+    @field_validator("import_storage_path")
+    @classmethod
+    def _resolve_import_storage(cls, value: Path) -> Path:
         value.mkdir(parents=True, exist_ok=True)
         return value.resolve()
 

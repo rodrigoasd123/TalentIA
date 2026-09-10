@@ -223,13 +223,15 @@ def candidate_to_model(candidate: Candidate) -> CandidateModel:
         id=candidate.id,
         tenant_id=candidate.tenant_id,
         full_name=candidate.full_name,
-        email=str(candidate.email),
+        email=str(candidate.email) if candidate.email else None,
         phone=candidate.phone,
         national_id=candidate.national_id,
         location=candidate.location,
         source=candidate.source,
         consent=candidate.consent.model_dump(mode="json") if candidate.consent else None,
         tags=list(candidate.tags),
+        processing_status=candidate.processing_status,
+        legal_basis_status=candidate.legal_basis_status,
         created_at=candidate.created_at,
         updated_at=candidate.updated_at,
         version=candidate.version,
@@ -241,25 +243,29 @@ def candidate_to_entity(model: CandidateModel) -> Candidate:
         **_base_fields(model),
         tenant_id=model.tenant_id,
         full_name=model.full_name,
-        email=EmailAddress(value=model.email),
+        email=EmailAddress(value=model.email) if model.email else None,
         phone=model.phone,
         national_id=model.national_id,
         location=model.location,
         source=model.source,
         consent=ConsentRecord.model_validate(model.consent) if model.consent else None,
         tags=list(model.tags or []),
+        processing_status=model.processing_status,
+        legal_basis_status=model.legal_basis_status,
     )
 
 
 def apply_candidate(model: CandidateModel, candidate: Candidate) -> CandidateModel:
     model.full_name = candidate.full_name
-    model.email = str(candidate.email)
+    model.email = str(candidate.email) if candidate.email else None
     model.phone = candidate.phone
     model.national_id = candidate.national_id
     model.location = candidate.location
     model.source = candidate.source
     model.consent = candidate.consent.model_dump(mode="json") if candidate.consent else None
     model.tags = list(candidate.tags)
+    model.processing_status = candidate.processing_status
+    model.legal_basis_status = candidate.legal_basis_status
     model.version = candidate.version
     return model
 

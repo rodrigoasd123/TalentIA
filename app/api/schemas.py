@@ -228,10 +228,52 @@ class HealthResponse(BaseModel):
     version: str
 
 
+class ImportValidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mapping: dict[str, str]
+    expected_version: int | None = Field(default=None, ge=1)
+    template_name: str = Field(default="", max_length=120)
+
+
+class ImportSelectSheetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sheet_name: str = Field(min_length=1, max_length=120)
+    expected_version: int | None = Field(default=None, ge=1)
+
+
+class ImportConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    idempotency_key: str = Field(min_length=8, max_length=80)
+    expected_version: int | None = Field(default=None, ge=1)
+
+
+class ImportCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=3, max_length=500)
+
+
 __all__ = [
-    "AgentHealthResponse", "CredentialTestRequest", "CredentialTestResponse",
-    "DimensionOut", "ErrorDetail", "ErrorResponse", "EvaluationResponse",
-    "EvaluationRunRequest", "EvidenceOut", "FilterResultOut", "HealthResponse",
-    "IntakeResponse", "JobCreateRequest", "JobUpdateRequest", "JobSummary", "ResumeSummary", "SettingItem", "SettingsResponse",
+    "AgentHealthResponse",
+    "CredentialTestRequest",
+    "CredentialTestResponse",
+    "DimensionOut",
+    "ErrorDetail",
+    "ErrorResponse",
+    "EvaluationResponse",
+    "EvaluationRunRequest",
+    "EvidenceOut",
+    "FilterResultOut",
+    "HealthResponse",
+    "ImportCancelRequest",
+    "ImportConfirmRequest",
+    "ImportSelectSheetRequest",
+    "ImportValidateRequest",
+    "IntakeResponse",
+    "JobCreateRequest",
+    "JobSummary",
+    "JobUpdateRequest",
+    "ResumeSummary",
+    "SettingItem",
+    "SettingsResponse",
     "SettingsUpdateRequest",
 ]

@@ -259,7 +259,7 @@ class DecisionTrailService:
         trail = DecisionTrail(
             application_id=application_id,
             candidate_name=candidate.full_name if candidate else "(candidato eliminado)",
-            candidate_email=candidate.email.masked() if candidate else "",
+            candidate_email=candidate.email.masked() if candidate and candidate.email else "",
             job_code=job.code if job else "",
             job_title=job.title if job else "",
             current_status=application.status.value,

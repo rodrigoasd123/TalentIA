@@ -4,7 +4,7 @@ TalentIA consolida PostulaIA con **VERA ATS**. El ATS principal permite administ
 
 > **Entorno de laboratorio:** usa únicamente datos ficticios. No cargues CV reales ni despliegues el sistema como servicio compartido sin aprobación legal, de privacidad y seguridad.
 
-## Inicio rápido del ATS en Windows
+## Inicio rápido del ATS en Windows (Python 3.12+)
 
 No necesitas activar PowerShell. Desde la carpeta del proyecto:
 
@@ -12,6 +12,7 @@ No necesitas activar PowerShell. Desde la carpeta del proyecto:
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m alembic upgrade head
 .\.venv\Scripts\python.exe scripts\seed.py --reset
 ```
 
@@ -30,6 +31,46 @@ En la segunda inicia la interfaz:
 Visita `http://localhost:8501`. La documentación de la API está en `http://127.0.0.1:8000/docs`. En desarrollo local la interfaz usa una sesión limitada de recruiter; los entornos distintos de `development` exigen autenticación real.
 
 El adaptador simulado funciona sin API key. Gemini se configura opcionalmente desde **Configuración** y el secreto queda cifrado en la base local; nunca debe escribirse en el repositorio. Los correos permanecen en borrador y `DRY_RUN`.
+
+`alembic upgrade head` es la vía normal para actualizar el esquema. `seed.py
+--reset` elimina y recrea únicamente la base local configurada, por lo que debe
+usarse solo con datos prescindibles. Una base creada por versiones anteriores
+sin `alembic_version` debe respaldarse y recrearse; el sistema no adopta ni
+marca automáticamente un esquema desconocido.
+
+## Importación histórica CSV/XLSX
+
+La página **Importación Histórica** permite cargar un archivo, seleccionar una
+hoja XLSX, revisar el mapeo sugerido, corregirlo y guardar una plantilla. La
+validación ocurre en staging y no modifica candidatos ni candidaturas. Solo un
+HR Manager puede confirmar filas elegibles.
+
+- Límites iniciales: 20 MB y 10 000 filas, configurables con
+  `VERA_IMPORT_MAX_FILE_MB` y `VERA_IMPORT_MAX_ROWS`.
+- Identidad fuerte: documento, correo normalizado o teléfono normalizado. Un
+  nombre sin esos datos permanece en revisión manual y no crea un candidato.
+- Todo candidato histórico nuevo entra como `restricted_review` y con estado
+  legal `unknown`; queda fuera de IA, redescubrimiento, contacto automático e
+  intercambio con proveedores hasta una revisión autorizada.
+- El archivo se guarda con una clave generada bajo
+  `VERA_IMPORT_STORAGE_PATH`; nunca se utiliza el nombre recibido como ruta.
+
+Para probar la confirmación en el laboratorio usa
+`manager@vera-lab.test / Laboratorio-VERA-2026!`. Todos los datos de prueba
+deben ser ficticios.
+
+## Ejecución con Docker
+
+El contenedor también usa Python 3.12 y SQLite en un volumen local compartido:
+
+```powershell
+docker compose build
+docker compose run --rm api python scripts/seed.py --reset
+docker compose up
+```
+
+API: `http://localhost:8000`; Streamlit: `http://localhost:8501`. Este compose
+es para el piloto local y no sustituye controles de producción.
 
 ## Recorrido recomendado
 
@@ -52,6 +93,8 @@ Este comando mantiene la carga múltiple, OCR, ranking documental y consulta RAG
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q --basetemp .pytest-tmp
+.\.venv\Scripts\ruff.exe check app ats_frontend tests
+.\.venv\Scripts\mypy.exe
 ```
 
 ---

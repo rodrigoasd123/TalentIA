@@ -14,6 +14,21 @@ Esta sección prevalece sobre las descripciones iniciales que entren en conflict
 - **Evidencia:** 256 pruebas aprobadas, seed reproducible, smoke de API/Streamlit y escáner de publicación aprobados. CI ejecuta escáner y pytest.
 - **Límites vigentes:** laboratorio local y datos ficticios; SQLite y sesión de desarrollo no son aptos para producción multiusuario; Gmail permanece en borrador/DRY_RUN; no existe RSC, scraping ni automatización de LinkedIn; no cargar CV reales ni desplegar como servicio compartido sin revisión legal, de privacidad y seguridad.
 
+## Restricción de agentes de IA aprobada (2026-09-10)
+
+- Todo componente catalogado como AI Agent usará LangGraph; las capacidades
+  deterministas siguen como servicios Python.
+- Los agentes dependen del puerto `LLMProvider`; Gemini será el primer adaptador
+  y no aparecerá directamente en graphs, routers ni Streamlit.
+- MLflow Tracing se integra centralmente con redacción de PII. Su caída, o la de
+  Gemini, no bloquea el core ATS ni participa en commits de negocio.
+- La free tier solo admite datos sintéticos. Enviar CV reales o PII permanece
+  deshabilitado hasta aprobación explícita de Security/Legal.
+- Estado, nodos, schemas, tools, guards, prompts versionados, límites,
+  Human-in-the-Loop/checkpointing y pruebas por agente son obligatorios.
+- Esta decisión está desarrollada en ADR-007 y no autoriza crear agentes antes
+  de completar sus prerrequisitos de fase.
+
 ## 1. Nombre, misión y usuarios
 
 - **Nombre observado:** PostulaIA.

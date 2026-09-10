@@ -98,6 +98,8 @@ class RegisterCandidateUseCase:
                 granted_at=date.today(),
                 expires_at=date.today() + timedelta(days=30 * consent_months),
             ),
+            processing_status="allowed",
+            legal_basis_status="consent",
         )
 
         duplicates = self.uow.candidates.find_potential_duplicates(candidate)
@@ -119,7 +121,7 @@ class RegisterCandidateUseCase:
         result = IntakeResult(
             candidate=stored,
             duplicates=[
-                {"id": d.id, "name": d.full_name, "email": d.email.masked()}
+                {"id": d.id, "name": d.full_name, "email": d.email.masked() if d.email else ""}
                 for d in duplicates
             ],
         )

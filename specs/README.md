@@ -5,6 +5,7 @@
 - [`SPEC-002`](./002-interaccion-conversacional-basica/spec.md): Interacción conversacional básica (en verificación)
 - [`SPEC-003`](./003-cache-vectorial-respuestas/spec.md): Caché vectorial y respuestas reutilizables (en verificación)
 - [`SPEC-004`](./archive/004-consolidacion-ats-piloto/spec.md): Consolidación como TalentIA ATS piloto gobernado (verificada y archivada)
+- [`SPEC-005`](./005-importacion-historica-csv-xlsx/spec.md): Importación histórica gobernada desde CSV y XLSX (verificada)
 
 ## Contexto y gobierno
 

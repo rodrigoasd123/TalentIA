@@ -202,7 +202,7 @@ class ResumeExtraction(BaseModel):
 
 class Candidate(Entity):
     full_name: str
-    email: EmailAddress
+    email: EmailAddress | None = None
     phone: str = ""
     national_id: str = ""
     location: str = ""
@@ -210,10 +210,18 @@ class Candidate(Entity):
     consent: ConsentRecord | None = None
     tags: list[str] = Field(default_factory=list)
     tenant_id: str = "default"
+    processing_status: str = "allowed"
+    legal_basis_status: str = "consent"
 
     @property
     def can_be_processed(self) -> bool:
-        return self.consent is not None and self.consent.is_valid
+        if self.processing_status == "restricted_review":
+            return False
+        if self.legal_basis_status == "unknown":
+            return False
+        if self.legal_basis_status == "consent":
+            return self.consent is not None and self.consent.is_valid
+        return True
 
 
 class ResumeDocument(Entity):

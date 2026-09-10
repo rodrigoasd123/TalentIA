@@ -8,24 +8,37 @@ detecta.
 
 from __future__ import annotations
 
-from typing import Any
+import csv
+import io
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, File, Form, Query, Response, UploadFile, status
 
+from app.api.dependencies import ActorDep, CurrentUserDep, UowDep, requires
+from app.api.schemas import (
+    ImportCancelRequest,
+    ImportConfirmRequest,
+    ImportSelectSheetRequest,
+    ImportValidateRequest,
+    IntakeResponse,
+    JobCreateRequest,
+    JobUpdateRequest,
+)
 from app.application.services.analytics_service import AnalyticsService
-from app.application.services.audit_service import Actor, AuditService
+from app.application.services.audit_service import AuditService
 from app.application.services.decision_trail import DecisionTrailService
 from app.application.services.email_service import EmailService
 from app.application.services.ranking_service import RankingService
 from app.application.services.review_service import ReviewService
 from app.application.use_cases.evaluate_application import EvaluateApplicationUseCase
+from app.application.use_cases.historical_import import HistoricalImportUseCase
 from app.application.use_cases.intake import IntakePipelineUseCase
-from app.api.dependencies import ActorDep, CurrentUserDep, UowDep, requires
-from app.api.schemas import IntakeResponse, JobCreateRequest, JobUpdateRequest
+from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.domain.entities import Job, JobRequirements
 from app.domain.enums import JobStatus, Permission
+from app.infrastructure.imports.tabular_reader import neutralize_spreadsheet_formula
 from app.infrastructure.llm.factory import build_llm_from_settings
 from app.infrastructure.security.passwords import dummy_verify, verify_password
 from app.infrastructure.security.tokens import TokenService
@@ -33,6 +46,48 @@ from app.infrastructure.security.tokens import TokenService
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1")
+
+
+def _import_batch_payload(batch) -> dict[str, Any]:
+    return {
+        "id": batch.id,
+        "filename": batch.filename,
+        "source": batch.source,
+        "sheet_name": batch.sheet_name,
+        "status": batch.status.value,
+        "row_count": batch.row_count,
+        "suggested_mapping": batch.suggested_mapping,
+        "column_mapping": batch.column_mapping,
+        "summary": batch.summary,
+        "created_by": batch.created_by,
+        "confirmed_by": batch.confirmed_by,
+        "confirmed_at": batch.confirmed_at.isoformat() if batch.confirmed_at else None,
+        "version": batch.version,
+    }
+
+
+def _mask(value: str, keep: int = 2) -> str:
+    if not value:
+        return ""
+    return value[:keep] + "***"
+
+
+def _import_row_payload(row, *, reveal_pii: bool) -> dict[str, Any]:
+    data = dict(row.normalized_data)
+    if not reveal_pii:
+        for field in ("full_name", "email", "phone", "national_id", "linkedin_url"):
+            if field in data:
+                data[field] = _mask(data[field])
+    return {
+        "id": row.id,
+        "row_number": row.row_number,
+        "classification": row.classification.value,
+        "data": data,
+        "errors": row.errors,
+        "signals": row.signals,
+        "candidate_id": row.candidate_id,
+        "application_id": row.application_id,
+    }
 
 
 # ── Autenticación ────────────────────────────────────────────────────────────
@@ -98,7 +153,7 @@ def login(
     }
 
 
-def _security_event(action: str, user_id: str, attempts: int, severity: str = "warning"):  # noqa: ANN202
+def _security_event(action: str, user_id: str, attempts: int, severity: str = "warning"):
     from app.domain.entities import AuditEvent
     from app.domain.enums import ActorType, Severity
 
@@ -306,6 +361,192 @@ async def intake_application(
     )
 
 
+# ── Importación histórica ───────────────────────────────────────────────────
+
+
+@router.post(
+    "/imports/historical",
+    status_code=status.HTTP_201_CREATED,
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_UPLOAD))],
+)
+def upload_historical_import(
+    uow: UowDep,
+    actor: ActorDep,
+    file: Annotated[UploadFile, File()],
+    source: Annotated[str, Form()] = "historical",
+    sheet_name: Annotated[str, Form()] = "",
+) -> dict[str, Any]:
+    max_bytes = get_settings().import_max_file_mb * 1024 * 1024
+    content = file.file.read(max_bytes + 1)
+    batch, reused = HistoricalImportUseCase(uow).upload(
+        content=content,
+        filename=file.filename or "import",
+        source=source,
+        sheet_name=sheet_name,
+        actor=actor,
+    )
+    return {**_import_batch_payload(batch), "reused": reused}
+
+
+@router.get(
+    "/imports/templates",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_READ))],
+)
+def list_import_templates(uow: UowDep, source: str | None = Query(None)) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": template.id,
+            "name": template.name,
+            "source": template.source,
+            "mapping": template.column_mapping,
+            "version": template.version,
+        }
+        for template in uow.imports.list_templates(source)
+    ]
+
+
+@router.get(
+    "/imports/{batch_id}",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_READ))],
+)
+def get_import_batch(batch_id: str, uow: UowDep) -> dict[str, Any]:
+    batch = uow.imports.get_batch(batch_id)
+    if batch is None:
+        raise NotFoundError(f"No existe el lote {batch_id}")
+    return _import_batch_payload(batch)
+
+
+@router.post(
+    "/imports/{batch_id}/select-sheet",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_UPLOAD))],
+)
+def select_import_sheet(
+    batch_id: str,
+    payload: ImportSelectSheetRequest,
+    uow: UowDep,
+    actor: ActorDep,
+) -> dict[str, Any]:
+    batch = HistoricalImportUseCase(uow).select_sheet(
+        batch_id=batch_id,
+        sheet_name=payload.sheet_name,
+        expected_version=payload.expected_version,
+        actor=actor,
+    )
+    return _import_batch_payload(batch)
+
+
+@router.post(
+    "/imports/{batch_id}/validate",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_UPLOAD))],
+)
+def validate_import_batch(
+    batch_id: str,
+    payload: ImportValidateRequest,
+    uow: UowDep,
+    actor: ActorDep,
+) -> dict[str, Any]:
+    batch = HistoricalImportUseCase(uow).validate(
+        batch_id=batch_id,
+        mapping=payload.mapping,
+        expected_version=payload.expected_version,
+        template_name=payload.template_name,
+        actor=actor,
+    )
+    return _import_batch_payload(batch)
+
+
+@router.get(
+    "/imports/{batch_id}/rows",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_READ))],
+)
+def list_import_rows(
+    batch_id: str,
+    uow: UowDep,
+    user: CurrentUserDep,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    if uow.imports.get_batch(batch_id) is None:
+        raise NotFoundError(f"No existe el lote {batch_id}")
+    reveal_pii = user.has(Permission.CANDIDATE_PII_READ)
+    rows = uow.imports.list_rows(batch_id, offset=offset, limit=limit)
+    return {
+        "total": uow.imports.count_rows(batch_id),
+        "offset": offset,
+        "limit": limit,
+        "rows": [_import_row_payload(row, reveal_pii=reveal_pii) for row in rows],
+    }
+
+
+@router.post(
+    "/imports/{batch_id}/confirm",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_CONFIRM))],
+)
+def confirm_import_batch(
+    batch_id: str,
+    payload: ImportConfirmRequest,
+    uow: UowDep,
+    actor: ActorDep,
+) -> dict[str, Any]:
+    batch = HistoricalImportUseCase(uow).confirm(
+        batch_id=batch_id,
+        confirmation_key=payload.idempotency_key,
+        expected_version=payload.expected_version,
+        actor=actor,
+    )
+    return _import_batch_payload(batch)
+
+
+@router.post(
+    "/imports/{batch_id}/cancel",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_CONFIRM))],
+)
+def cancel_import_batch(
+    batch_id: str,
+    payload: ImportCancelRequest,
+    uow: UowDep,
+    actor: ActorDep,
+) -> dict[str, Any]:
+    batch = HistoricalImportUseCase(uow).cancel(
+        batch_id=batch_id, reason=payload.reason, actor=actor
+    )
+    return _import_batch_payload(batch)
+
+
+@router.get(
+    "/imports/{batch_id}/errors.csv",
+    tags=["importaciones"],
+    dependencies=[Depends(requires(Permission.IMPORT_READ))],
+)
+def import_error_report(batch_id: str, uow: UowDep) -> Response:
+    batch = uow.imports.get_batch(batch_id)
+    if batch is None:
+        raise NotFoundError(f"No existe el lote {batch_id}")
+    rows = uow.imports.list_rows(batch_id, limit=batch.row_count + 1)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["row_number", "field", "message"])
+    for row in rows:
+        for error in row.errors:
+            writer.writerow([
+                row.row_number,
+                neutralize_spreadsheet_formula(error.get("field", "")),
+                neutralize_spreadsheet_formula(error.get("message", "")),
+            ])
+    return Response(
+        content=output.getvalue(), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="errores-{batch_id[:8]}.csv"'},
+    )
+
+
 # ── Pipeline y candidaturas ──────────────────────────────────────────────────
 
 
@@ -392,7 +633,7 @@ def candidate_360(application_id: str, uow: UowDep, actor: ActorDep) -> dict[str
         "candidate": {
             "id": candidate.id,
             "full_name": candidate.full_name,
-            "email": str(candidate.email),
+            "email": str(candidate.email or ""),
             "phone": candidate.phone,
             "location": candidate.location,
             "tags": candidate.tags,
@@ -429,7 +670,7 @@ def candidate_360(application_id: str, uow: UowDep, actor: ActorDep) -> dict[str
     }
 
 
-def _evaluation_payload(evaluation) -> dict[str, Any]:  # noqa: ANN001
+def _evaluation_payload(evaluation) -> dict[str, Any]:
     return {
         "id": evaluation.id,
         "created_at": evaluation.created_at.isoformat(),

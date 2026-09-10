@@ -34,6 +34,7 @@ from app.application.services.audit_service import Actor, AuditService
 from app.application.unit_of_work import UnitOfWork
 from app.core.exceptions import (
     ApplicationNotFound,
+    ConsentMissingOrExpired,
     EmailAlreadySent,
     HumanApprovalRequired,
     NotFoundError,
@@ -124,6 +125,10 @@ class EmailService:
         job = self.uow.jobs.get(application.job_id)
         if candidate is None or job is None:
             raise NotFoundError("Faltan datos de candidato o vacante")
+        if not candidate.can_be_processed:
+            raise ConsentMissingOrExpired(
+                "El candidato está restringido y no puede recibir comunicaciones"
+            )
 
         template = self.uow.templates.get_by_code(template_code)
         if template is None:
@@ -132,6 +137,10 @@ class EmailService:
             raise PolicyDenied(
                 f"La plantilla «{template_code}» no está aprobada. No se preparan "
                 "comunicaciones con plantillas sin aprobar."
+            )
+        if candidate.email is None:
+            raise ValidationError(
+                "El candidato no tiene un correo validado para preparar una comunicación"
             )
 
         key = self.idempotency_key(application_id, template.id, template.template_version)
@@ -375,6 +384,10 @@ class EmailService:
         template = self.uow.templates.get(message.template_id)
         if application is None or candidate is None or template is None:
             raise NotFoundError("Faltan datos para validar el envío")
+        if not candidate.can_be_processed:
+            raise ConsentMissingOrExpired(
+                "El candidato está restringido y no puede recibir comunicaciones"
+            )
 
         flags = self.uow.settings.feature_flags()
         dry_run = flags["DRY_RUN"] if force_dry_run is None else force_dry_run

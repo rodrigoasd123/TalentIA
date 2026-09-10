@@ -149,6 +149,41 @@ class SqlCandidateRepository(BaseRepository):
         )
         return m.candidate_to_entity(model) if model else None
 
+    def find_by_strong_identifiers(
+        self, *, email: str = "", phone: str = "", national_id: str = ""
+    ) -> list[Candidate]:
+        from sqlalchemy import or_
+
+        conditions = []
+        if email:
+            conditions.append(CandidateModel.email == email.strip().lower())
+        digits = _digits(phone)
+        if national_id:
+            conditions.append(CandidateModel.national_id == national_id.strip())
+        if not conditions and len(digits) < 8:
+            return []
+        matches: dict[str, CandidateModel] = {}
+        if conditions:
+            for row in self.session.scalars(
+                select(CandidateModel).where(or_(*conditions))
+            ):
+                matches[row.id] = row
+        if len(digits) >= 8:
+            phone_suffix = digits[-8:]
+            for row in self.session.scalars(select(CandidateModel)):
+                if _digits(row.phone).endswith(phone_suffix):
+                    matches[row.id] = row
+        return [m.candidate_to_entity(row) for row in matches.values()]
+
+    def find_by_normalized_name(self, name: str) -> list[Candidate]:
+        normalized = " ".join(name.lower().split())
+        rows = self.session.scalars(select(CandidateModel)).all()
+        return [
+            m.candidate_to_entity(row)
+            for row in rows
+            if " ".join(row.full_name.lower().split()) == normalized
+        ]
+
     def update(self, candidate: Candidate) -> Candidate:
         model = self.session.get(CandidateModel, candidate.id)
         if model is None:
@@ -170,7 +205,9 @@ class SqlCandidateRepository(BaseRepository):
         personas por una coincidencia de teléfono es un error difícil de deshacer:
         la decisión es de una persona.
         """
-        conditions = [CandidateModel.email == str(candidate.email)]
+        conditions = []
+        if candidate.email:
+            conditions.append(CandidateModel.email == str(candidate.email))
         if candidate.phone:
             normalized = _digits(candidate.phone)
             if len(normalized) >= 8:
@@ -180,6 +217,8 @@ class SqlCandidateRepository(BaseRepository):
 
         from sqlalchemy import or_
 
+        if not conditions:
+            return []
         stmt = select(CandidateModel).where(
             or_(*conditions), CandidateModel.id != candidate.id
         )

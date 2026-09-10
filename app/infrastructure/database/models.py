@@ -120,13 +120,15 @@ class CandidateModel(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String(32), default="default", index=True)
     full_name: Mapped[str] = mapped_column(String(200))
-    email: Mapped[str] = mapped_column(String(255), index=True)
+    email: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     phone: Mapped[str] = mapped_column(String(40), default="")
     national_id: Mapped[str] = mapped_column(String(40), default="")
     location: Mapped[str] = mapped_column(String(160), default="")
     source: Mapped[str] = mapped_column(String(40), default="direct")
     consent: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     tags: Mapped[list] = mapped_column(JSON, default=list)
+    processing_status: Mapped[str] = mapped_column(String(32), default="allowed", index=True)
+    legal_basis_status: Mapped[str] = mapped_column(String(32), default="consent")
 
     __table_args__ = (
         # Un candidato por correo y tenant. La unicidad se garantiza en la base
@@ -345,15 +347,84 @@ class WorkflowRunModel(Base, TimestampMixin):
     dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+# ── Importación histórica ───────────────────────────────────────────────────
+
+
+class ImportBatchModel(Base, TimestampMixin):
+    __tablename__ = "import_batches"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(32), default="default", index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    storage_path: Mapped[str] = mapped_column(String(500))
+    checksum: Mapped[str] = mapped_column(String(64), index=True)
+    source: Mapped[str] = mapped_column(String(120), default="historical")
+    sheet_name: Mapped[str] = mapped_column(String(120), default="")
+    status: Mapped[str] = mapped_column(String(32), default="uploaded", index=True)
+    column_mapping: Mapped[dict] = mapped_column(JSON, default=dict)
+    suggested_mapping: Mapped[dict] = mapped_column(JSON, default=dict)
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    row_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str] = mapped_column(String(64))
+    confirmed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmation_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    cancellation_reason: Mapped[str] = mapped_column(Text, default="")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "checksum", name="uq_import_batch_checksum"),
+        UniqueConstraint("confirmation_key", name="uq_import_confirmation_key"),
+    )
+
+
+class ImportRowModel(Base):
+    __tablename__ = "import_rows"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    batch_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("import_batches.id", ondelete="CASCADE"), index=True
+    )
+    row_number: Mapped[int] = mapped_column(Integer)
+    raw_data: Mapped[dict] = mapped_column(JSON, default=dict)
+    normalized_data: Mapped[dict] = mapped_column(JSON, default=dict)
+    classification: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    errors: Mapped[list] = mapped_column(JSON, default=list)
+    signals: Mapped[list] = mapped_column(JSON, default=list)
+    candidate_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    application_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("batch_id", "row_number", name="uq_import_row_number"),
+        Index("ix_import_row_batch_classification", "batch_id", "classification"),
+    )
+
+
+class ImportMappingTemplateModel(Base, TimestampMixin):
+    __tablename__ = "import_mapping_templates"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(32), default="default", index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    source: Mapped[str] = mapped_column(String(120), default="historical")
+    column_mapping: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[str] = mapped_column(String(64))
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_import_mapping_template_name"),
+    )
+
+
 ALL_MODELS = (
     RuntimeSettingModel, UserModel, JobModel, CandidateModel, ResumeModel,
     ApplicationModel, EvaluationModel, HumanReviewModel, EmailTemplateModel,
-    EmailModel, AuditEventModel, WorkflowRunModel,
+    EmailModel, AuditEventModel, WorkflowRunModel, ImportBatchModel,
+    ImportRowModel, ImportMappingTemplateModel,
 )
 
 __all__ = [
     "ALL_MODELS", "ApplicationModel", "AuditEventModel", "Base", "CandidateModel",
     "EmailModel", "EmailTemplateModel", "EvaluationModel", "HumanReviewModel",
     "JobModel", "ResumeModel", "RuntimeSettingModel", "UserModel",
-    "WorkflowRunModel", "utcnow",
+    "WorkflowRunModel", "ImportBatchModel", "ImportRowModel",
+    "ImportMappingTemplateModel", "utcnow",
 ]
