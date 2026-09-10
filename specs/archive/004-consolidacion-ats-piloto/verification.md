@@ -3,7 +3,7 @@
 ## Entorno
 
 - Fecha: 2026-09-10
-- Revisión/commit: árbol de trabajo previo a publicación
+- Revisión/commit: `239ceb60b5c0d80b7f3ca67c8da69f67857ab35b` publicado en `rodrigoasd123/TalentIA`
 - Plataforma: Windows, Python 3.13.7, SQLite, proveedor LLM simulado
 
 ## Evidencia por criterio
@@ -22,7 +22,7 @@
 | AC-010 | FR-014, SEC-008, SEC-009 | pruebas de correo, políticas y `DRY_RUN` | APROBADO |
 | AC-011 | FR-016, NFR-003, NFR-004, NFR-006 | seed reproducible, API/UI smoke, suite sin red | APROBADO |
 | AC-012 | FR-017, NFR-007, NFR-008 | 41 pruebas heredadas dentro de la regresión | APROBADO |
-| AC-013 | SEC-001, SEC-010, SEC-011 | escáner local aprobado; SHA remoto pendiente | PENDIENTE DE PUSH |
+| AC-013 | SEC-001, SEC-010, SEC-011 | escáner aprobado y SHA remoto `239ceb60b5c0d80b7f3ca67c8da69f67857ab35b` confirmado | APROBADO |
 
 ## Comandos ejecutados
 
@@ -30,7 +30,7 @@
 |---|---|---|
 | `python scripts/seed.py --reset` | APROBADO | 5 usuarios, 4 vacantes, 9 candidatos, 9 CV, 10 candidaturas ficticias |
 | `python -m pytest -q --basetemp .pytest-tmp` | APROBADO | 256 pruebas; una advertencia de deprecación externa TestClient/httpx |
-| `python scripts/check_repository.py` | APROBADO | 213 archivos revisados, sin secreto ni artefacto prohibido |
+| `python scripts/check_repository.py` | APROBADO | 214 archivos revisados, sin secreto ni artefacto prohibido |
 | Smoke API 8010 + Streamlit 8510 | APROBADO | `api_ready=True`, `ui_ready=True`; procesos detenidos |
 
 ## Hallazgos
@@ -49,6 +49,6 @@
 
 ## Veredicto
 
-- [ ] VERIFICADO
+- [x] VERIFICADO
 - [ ] REQUIERE CORRECCIONES
-- [x] NO VERIFICABLE TODAVÍA — falta publicar y comprobar el SHA remoto de AC-013.
+- [ ] NO VERIFICABLE

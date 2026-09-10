@@ -1,6 +1,18 @@
 # Contexto del proyecto — PostulaIA
 
 > Estado: contexto inicial observado el 2026-08-20. Los campos marcados como `POR CONFIRMAR` no se deducen de forma fiable del repositorio.
+## Actualización consolidada — SPEC-004 (2026-09-10)
+
+Esta sección prevalece sobre las descripciones iniciales que entren en conflicto con ella.
+
+- **Nombre y flujo principal:** TalentIA. El producto principal es un ATS piloto con FastAPI y un cliente Streamlit; el analizador documental anterior permanece como rollback temporal.
+- **Capacidades entregadas:** alta y aprobación humana de vacantes, ingreso consentido de candidaturas PDF/DOCX, OCR local de respaldo, evaluación explicable, filtros determinísticos, anonimización antes del LLM, revisión humana, pipeline, Candidate 360, dashboard, auditoría y consulta Boolean manual para LinkedIn.
+- **Arquitectura:** `app/domain` contiene reglas puras; `app/application` casos de uso y unidad de trabajo; `app/infrastructure` SQLite, documentos, seguridad y proveedores; `app/api` expone FastAPI; `ats_frontend` consume la API sin ejecutar reglas de negocio.
+- **Gobierno de IA:** el modelo propone dimensiones estructuradas; los filtros, total, estados y acciones autorizadas se calculan en backend. El sistema rechaza instrucciones incrustadas, retira PII antes del proveedor y conserva evidencia/auditoría.
+- **Persistencia:** SQLite local para el ATS y caché FAISS/SQLite con TTL de 24 horas para el analizador heredado. `.env`, claves, bases, almacenamiento y temporales están excluidos de Git.
+- **Operación:** `python scripts/seed.py --reset`; API con `python -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000`; interfaz con `python -m streamlit run ats_frontend/streamlit_app.py`.
+- **Evidencia:** 256 pruebas aprobadas, seed reproducible, smoke de API/Streamlit y escáner de publicación aprobados. CI ejecuta escáner y pytest.
+- **Límites vigentes:** laboratorio local y datos ficticios; SQLite y sesión de desarrollo no son aptos para producción multiusuario; Gmail permanece en borrador/DRY_RUN; no existe RSC, scraping ni automatización de LinkedIn; no cargar CV reales ni desplegar como servicio compartido sin revisión legal, de privacidad y seguridad.
 
 ## 1. Nombre, misión y usuarios
 

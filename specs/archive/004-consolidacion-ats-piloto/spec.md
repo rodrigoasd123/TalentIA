@@ -1,7 +1,7 @@
 ---
 id: SPEC-004
 titulo: Consolidación de PostulaIA como ATS piloto gobernado
-estado: VERIFICANDO
+estado: VERIFICADO
 responsable_producto: Usuario
 creado: 2026-09-10
 actualizado: 2026-09-10
