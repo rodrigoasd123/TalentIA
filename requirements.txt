@@ -1,3 +1,5 @@
+# Entorno validado: Python 3.12 (ver docs/INSTALACION_WINDOWS.md).
+# Instalar siempre con: .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 streamlit>=1.37.0,<2.0.0
 pdfplumber>=0.10.0,<1.0.0
 pypdf>=5.0.0,<7.0.0

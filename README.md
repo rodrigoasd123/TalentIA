@@ -4,7 +4,10 @@ TalentIA consolida PostulaIA con **VERA ATS**. El ATS principal permite administ
 
 > **Entorno de laboratorio:** usa únicamente datos ficticios. No cargues CV reales ni despliegues el sistema como servicio compartido sin aprobación legal, de privacidad y seguridad.
 
-## Inicio rápido del ATS en Windows (Python 3.12+)
+## Inicio rápido del ATS en Windows (Python 3.12)
+
+La versión reproducible y validada por CI y Docker es **Python 3.12**. Otras
+versiones pueden funcionar, pero no forman parte de la matriz de pruebas.
 
 No necesitas activar PowerShell. Desde la carpeta del proyecto:
 
@@ -29,6 +32,12 @@ En la segunda inicia la interfaz:
 ```
 
 Visita `http://localhost:8501`. La documentación de la API está en `http://127.0.0.1:8000/docs`. En desarrollo local la interfaz usa una sesión limitada de recruiter; los entornos distintos de `development` exigen autenticación real.
+
+Si PowerShell bloquea `Activate.ps1`, `pip` muestra `Permission denied` o
+aparece `ModuleNotFoundError`, consulta la
+[guía de instalación y solución de problemas](docs/INSTALACION_WINDOWS.md).
+Los comandos anteriores invocan directamente el Python de `.venv`, por lo que
+no necesitan cambiar la política de ejecución del sistema.
 
 El adaptador simulado funciona sin API key. Gemini se configura opcionalmente desde **Configuración** y el secreto queda cifrado en la base local; nunca debe escribirse en el repositorio. Los correos permanecen en borrador y `DRY_RUN`.
 
