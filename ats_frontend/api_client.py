@@ -28,17 +28,24 @@ class ApiError(Exception):
 
 
 class VeraApiClient:
-    def __init__(self, base_url: str = DEFAULT_BASE_URL, *, timeout: float = 180.0) -> None:
+    def __init__(
+        self, base_url: str = DEFAULT_BASE_URL, *, timeout: float = 180.0,
+        access_token: str = "",
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.access_token = access_token
 
     # ── Transporte ───────────────────────────────────────────────────────────
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         url = f"{self.base_url}{path}"
+        headers = dict(kwargs.pop("headers", {}))
+        if self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                response = client.request(method, url, **kwargs)
+                response = client.request(method, url, headers=headers, **kwargs)
         except httpx.ConnectError as exc:
             raise ApiError(
                 f"No se pudo conectar con el backend en {self.base_url}. "
@@ -78,6 +85,12 @@ class VeraApiClient:
 
     def metrics(self) -> dict[str, Any]:
         return self._request("GET", "/metrics")
+
+    def login(self, email: str, password: str) -> dict[str, Any]:
+        return self._request(
+            "POST", f"{API_PREFIX}/auth/login",
+            json={"email": email, "password": password},
+        )
 
     # ── Configuración ────────────────────────────────────────────────────────
 
@@ -299,5 +312,65 @@ class VeraApiClient:
             raise ApiError(*self._describe_error(response))
         return response.text
 
+    # ── Importación histórica ───────────────────────────────────────────────
 
-__all__ = ["ApiError", "DEFAULT_BASE_URL", "VeraApiClient"]
+    def upload_historical_import(
+        self, *, filename: str, content: bytes, source: str = "historical",
+        sheet_name: str = "", content_type: str = "application/octet-stream",
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST", f"{API_PREFIX}/imports/historical",
+            data={"source": source, "sheet_name": sheet_name},
+            files={"file": (filename, content, content_type)},
+        )
+
+    def get_import(self, batch_id: str) -> dict[str, Any]:
+        return self._request("GET", f"{API_PREFIX}/imports/{batch_id}")
+
+    def select_import_sheet(
+        self, batch_id: str, *, sheet_name: str, expected_version: int
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{API_PREFIX}/imports/{batch_id}/select-sheet",
+            json={"sheet_name": sheet_name, "expected_version": expected_version},
+        )
+
+    def validate_import(
+        self, batch_id: str, *, mapping: dict[str, str], expected_version: int,
+        template_name: str = "",
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST", f"{API_PREFIX}/imports/{batch_id}/validate",
+            json={
+                "mapping": mapping,
+                "expected_version": expected_version,
+                "template_name": template_name,
+            },
+        )
+
+    def import_rows(self, batch_id: str, *, offset: int = 0, limit: int = 100) -> dict[str, Any]:
+        return self._request(
+            "GET", f"{API_PREFIX}/imports/{batch_id}/rows",
+            params={"offset": offset, "limit": limit},
+        )
+
+    def confirm_import(
+        self, batch_id: str, *, idempotency_key: str, expected_version: int,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST", f"{API_PREFIX}/imports/{batch_id}/confirm",
+            json={"idempotency_key": idempotency_key, "expected_version": expected_version},
+        )
+
+    def cancel_import(self, batch_id: str, *, reason: str) -> dict[str, Any]:
+        return self._request(
+            "POST", f"{API_PREFIX}/imports/{batch_id}/cancel", json={"reason": reason}
+        )
+
+    def import_templates(self, source: str = "") -> list[dict[str, Any]]:
+        params = {"source": source} if source else None
+        return self._request("GET", f"{API_PREFIX}/imports/templates", params=params)
+
+
+__all__ = ["DEFAULT_BASE_URL", "ApiError", "VeraApiClient"]

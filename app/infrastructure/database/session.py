@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import get_settings
+from app.core.config import PROJECT_ROOT, Environment, get_settings
 from app.core.logging import get_logger
 from app.infrastructure.database.models import Base
 
@@ -103,13 +103,30 @@ def get_session() -> Iterator[Session]:
 
 
 def init_database(*, drop_all: bool = False) -> None:
-    """Crea el esquema. En producción esto lo hace Alembic, no esta función."""
+    """Actualiza el esquema mediante Alembic.
+
+    Las pruebas en memoria son la única excepción: una conexión SQLite en
+    memoria no se comparte con el motor temporal que abriría Alembic.
+    """
     engine = get_engine()
+    settings = get_settings()
+    if settings.environment is Environment.TESTING:
+        if drop_all:
+            Base.metadata.drop_all(engine)
+        Base.metadata.create_all(engine)
+        return
+
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(PROJECT_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
     if drop_all:
-        logger.warning("Eliminando todas las tablas")
-        Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    logger.info("Esquema de base de datos listo", tables=len(Base.metadata.tables))
+        logger.warning("Reiniciando el esquema local mediante migraciones Alembic")
+        command.downgrade(config, "base")
+    command.upgrade(config, "head")
+    logger.info("Esquema de base de datos migrado", revision="head")
 
 
 def reset_engine() -> None:

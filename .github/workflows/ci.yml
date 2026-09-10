@@ -11,9 +11,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.txt
       - run: python scripts/check_repository.py
+      - run: >-
+          ruff check app/domain/imports.py app/infrastructure/imports
+          app/infrastructure/repositories/import_repository.py
+          app/application/use_cases/historical_import.py
+          ats_frontend/pages/4_Importacion_Historica.py
+          tests/ats/test_historical_import.py migrations app/domain/ports.py
+      - run: mypy --strict --ignore-missing-imports app/domain/imports.py
+      - run: VERA_DATABASE_URL=sqlite:///./ci-migration.db python -m alembic upgrade head
       - run: python -m pytest -q --basetemp .pytest-tmp

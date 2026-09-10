@@ -1,0 +1,13 @@
+.git
+.venv
+.pytest_cache
+.pytest-tmp*
+__pycache__
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+.env
+.vera_dev_key
+storage
+data/cache

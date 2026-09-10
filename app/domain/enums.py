@@ -37,6 +37,9 @@ class Permission(StrEnum):
     AUDIT_READ = "audit:read"
     SETTINGS_READ = "settings:read"
     SETTINGS_WRITE = "settings:write"
+    IMPORT_UPLOAD = "import:upload"
+    IMPORT_READ = "import:read"
+    IMPORT_CONFIRM = "import:confirm"
 
 
 #: Matriz de permisos por rol. Es la fuente de verdad del RBAC y la referencia
@@ -52,6 +55,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.REVIEW_DECIDE, Permission.EMAIL_PREPARE,
             Permission.INTERVIEW_MANAGE, Permission.AUDIT_READ,
             Permission.SETTINGS_READ,
+            Permission.IMPORT_UPLOAD, Permission.IMPORT_READ,
         }
     ),
     Role.HIRING_MANAGER: frozenset(
@@ -61,6 +65,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.APPLICATION_TRANSITION, Permission.EVALUATION_OVERRIDE,
             Permission.REVIEW_DECIDE, Permission.EMAIL_APPROVE,
             Permission.INTERVIEW_MANAGE, Permission.AUDIT_READ,
+            Permission.IMPORT_READ, Permission.IMPORT_CONFIRM,
         }
     ),
     Role.INTERVIEWER: frozenset(
@@ -76,9 +81,15 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.JOB_READ, Permission.CANDIDATE_READ,
             Permission.APPLICATION_READ, Permission.AUDIT_READ,
             Permission.SETTINGS_READ,
+            Permission.IMPORT_READ,
         }
     ),
 }
+
+
+class ProcessingStatus(StrEnum):
+    ALLOWED = "allowed"
+    RESTRICTED_REVIEW = "restricted_review"
 
 
 class JobStatus(StrEnum):

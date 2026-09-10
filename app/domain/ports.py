@@ -11,6 +11,7 @@ remoto). Abstraer por costumbre lo que nunca va a cambiar solo añade ruido.
 
 from __future__ import annotations
 
+import builtins
 from typing import Any, Protocol, runtime_checkable
 
 from app.domain.entities import (
@@ -27,7 +28,6 @@ from app.domain.entities import (
 )
 from app.domain.enums import ApplicationStatus
 
-
 # ── Persistencia ─────────────────────────────────────────────────────────────
 
 
@@ -37,7 +37,9 @@ class JobRepository(Protocol):
     def get(self, job_id: str) -> Job | None: ...
     def get_by_code(self, code: str) -> Job | None: ...
     def update(self, job: Job) -> Job: ...
-    def list(self, *, status: str | None = None, limit: int = 50, cursor: str | None = None) -> list[Job]: ...
+    def list(
+        self, *, status: str | None = None, limit: int = 50, cursor: str | None = None
+    ) -> list[Job]: ...
 
 
 @runtime_checkable
@@ -46,8 +48,12 @@ class CandidateRepository(Protocol):
     def get(self, candidate_id: str) -> Candidate | None: ...
     def get_by_email(self, email: str) -> Candidate | None: ...
     def update(self, candidate: Candidate) -> Candidate: ...
-    def list(self, *, limit: int = 50, cursor: str | None = None) -> list[Candidate]: ...
-    def find_potential_duplicates(self, candidate: Candidate) -> list[Candidate]: ...
+    def list(self, *, limit: int = 50, cursor: str | None = None) -> builtins.list[Candidate]: ...
+    def find_potential_duplicates(self, candidate: Candidate) -> builtins.list[Candidate]: ...
+    def find_by_strong_identifiers(
+        self, *, email: str = "", phone: str = "", national_id: str = ""
+    ) -> builtins.list[Candidate]: ...
+    def find_by_normalized_name(self, name: str) -> builtins.list[Candidate]: ...
 
 
 @runtime_checkable
@@ -56,7 +62,9 @@ class ApplicationRepository(Protocol):
     def get(self, application_id: str) -> Application | None: ...
     def get_by_idempotency_key(self, key: str) -> Application | None: ...
     def update(self, application: Application) -> Application: ...
-    def list_for_job(self, job_id: str, *, status: ApplicationStatus | None = None) -> list[Application]: ...
+    def list_for_job(
+        self, job_id: str, *, status: ApplicationStatus | None = None
+    ) -> list[Application]: ...
     def list_for_candidate(self, candidate_id: str) -> list[Application]: ...
 
 
@@ -83,7 +91,9 @@ class ReviewRepository(Protocol):
     def add(self, item: HumanReviewItem) -> HumanReviewItem: ...
     def get(self, item_id: str) -> HumanReviewItem | None: ...
     def update(self, item: HumanReviewItem) -> HumanReviewItem: ...
-    def list_queue(self, *, status: str | None = None, assigned_to: str | None = None) -> list[HumanReviewItem]: ...
+    def list_queue(
+        self, *, status: str | None = None, assigned_to: str | None = None
+    ) -> list[HumanReviewItem]: ...
     def find_open_for_application(self, application_id: str) -> HumanReviewItem | None: ...
 
 
@@ -112,8 +122,14 @@ class AuditRepository(Protocol):
     lo que no se puede llamar no se puede usar por error."""
 
     def append(self, event: AuditEvent) -> AuditEvent: ...
-    def list(self, *, resource_id: str | None = None, trace_id: str | None = None,
-             action: str | None = None, limit: int = 100) -> list[AuditEvent]: ...
+    def list(
+        self,
+        *,
+        resource_id: str | None = None,
+        trace_id: str | None = None,
+        action: str | None = None,
+        limit: int = 100,
+    ) -> list[AuditEvent]: ...
     def last_hash(self) -> str: ...
     def verify_chain(self) -> tuple[bool, str | None]: ...
 
@@ -153,7 +169,7 @@ class LLMPort(Protocol):
         temperature: float = 0.1,
         max_output_tokens: int = 4096,
         timeout_seconds: int = 60,
-    ) -> "LLMResponse": ...
+    ) -> LLMResponse: ...
 
     def list_models(self) -> list[str]: ...
 
@@ -173,9 +189,7 @@ class EmailPort(Protocol):
     @property
     def is_configured(self) -> bool: ...
 
-    def send(
-        self, *, to: str, subject: str, body: str, idempotency_key: str
-    ) -> dict[str, str]: ...
+    def send(self, *, to: str, subject: str, body: str, idempotency_key: str) -> dict[str, str]: ...
 
 
 @runtime_checkable
@@ -188,7 +202,7 @@ class StoragePort(Protocol):
 
 @runtime_checkable
 class TextExtractorPort(Protocol):
-    def extract(self, *, content: bytes, filename: str) -> "ExtractedText": ...
+    def extract(self, *, content: bytes, filename: str) -> ExtractedText: ...
 
 
 class ExtractedText(Protocol):
@@ -226,9 +240,23 @@ class SettingsStorePort(Protocol):
 
 
 __all__ = [
-    "ApplicationRepository", "AuditRepository", "CandidateRepository", "ClockPort",
-    "EmailPort", "EmailRepository", "EvaluationRepository", "ExtractedText",
-    "JobRepository", "LLMPort", "LLMResponse", "ResumeRepository",
-    "ReviewRepository", "SchedulerPort", "SettingsStorePort", "StoragePort",
-    "TextExtractorPort", "UserRepository", "WorkflowRepository",
+    "ApplicationRepository",
+    "AuditRepository",
+    "CandidateRepository",
+    "ClockPort",
+    "EmailPort",
+    "EmailRepository",
+    "EvaluationRepository",
+    "ExtractedText",
+    "JobRepository",
+    "LLMPort",
+    "LLMResponse",
+    "ResumeRepository",
+    "ReviewRepository",
+    "SchedulerPort",
+    "SettingsStorePort",
+    "StoragePort",
+    "TextExtractorPort",
+    "UserRepository",
+    "WorkflowRepository",
 ]

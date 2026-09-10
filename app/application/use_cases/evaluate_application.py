@@ -138,7 +138,7 @@ class EvaluateApplicationUseCase:
                 resume_id=resume.id,
                 resume_text=resume.raw_text,
                 candidate_name=candidate.full_name,
-                candidate_email=str(candidate.email),
+                candidate_email=str(candidate.email or ""),
                 requirements=job.requirements,
                 job_title=job.title,
                 job_department=job.department,
@@ -175,7 +175,7 @@ class EvaluateApplicationUseCase:
                 action=action,
                 outcome=outcome,
                 actor=actor,
-                candidate_email=str(candidate.email),
+                candidate_email=str(candidate.email or ""),
                 flags=flags,
                 dry_run=effective_dry_run,
             )

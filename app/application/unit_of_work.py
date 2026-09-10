@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.infrastructure.database.session import get_session_factory
+from app.infrastructure.repositories.import_repository import SqlImportRepository
 from app.infrastructure.repositories.sqlalchemy_repos import (
     SqlApplicationRepository,
     SqlAuditRepository,
@@ -59,6 +60,7 @@ class UnitOfWork:
         self.audit = SqlAuditRepository(self.session)
         self.workflows = SqlWorkflowRepository(self.session)
         self.settings = SettingsStore(self.session)
+        self.imports = SqlImportRepository(self.session)
 
     # ── Gestor de contexto ───────────────────────────────────────────────────
 
