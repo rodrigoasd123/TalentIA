@@ -1,0 +1,101 @@
+code: VAC-003
+title: Especialista DevOps / SRE
+department: Tecnología — Infraestructura y Fiabilidad
+location: Lima, Perú (híbrido)
+employment_type: full_time
+status: open
+opening_date: "2026-08-20"
+closing_date: "2026-10-10"
+salary_min: 9000
+salary_max: 13000
+currency: PEN
+
+description: >
+  Responsabilidad sobre disponibilidad, rendimiento y observabilidad de las
+  plataformas productivas. Infraestructura como código, administración de clústeres
+  Kubernetes, pipelines de despliegue continuo, definición de objetivos de nivel de
+  servicio y participación en la gestión de incidentes con guardia rotativa.
+
+requirements:
+  version: 1
+  minimum_score: 70.0
+  review_threshold: 5.0
+  min_years_experience: 4.0
+  # Sin requisito de titulación: la experiencia en producción predice mejor el
+  # desempeño en este rol y exigir grado excluiría perfiles competentes.
+  education_level: ""
+
+  mandatory_skills:
+    - kubernetes
+    - terraform
+    - linux
+
+  optional_skills:
+    - prometheus
+    - grafana
+    - python
+    - go
+    - docker
+    - cicd
+    - jenkins
+    - gitlab
+
+  certifications:
+    - cka
+    - ckad
+
+  languages:
+    - language: english
+      level: b2
+
+  hard_filters:
+    - field: years_experience
+      operator: gte
+      value: 4
+      label: Mínimo 4 años en infraestructura, DevOps o SRE
+      mandatory: true
+      legal_basis: >
+        El puesto incluye guardia rotativa y decisiones sobre entornos productivos
+        sin supervisión inmediata.
+
+    - field: skills
+      operator: contains_all
+      value: [kubernetes, terraform, linux]
+      label: Kubernetes, Terraform y Linux
+      mandatory: true
+      legal_basis: >
+        Son las tres tecnologías sobre las que se ejecuta y se gestiona la totalidad
+        de la plataforma productiva.
+
+    - field: skills
+      operator: contains_any
+      value: [aws, azure, google cloud]
+      label: Experiencia en un proveedor de nube
+      mandatory: true
+      legal_basis: >
+        La infraestructura es íntegramente cloud; se admite cualquier proveedor
+        porque los conceptos son transferibles.
+
+    - field: languages
+      operator: min_level
+      value:
+        language: english
+        level: b2
+      label: Inglés B2 o superior
+      mandatory: true
+      legal_basis: >
+        El soporte de los proveedores de infraestructura y la documentación técnica
+        se gestionan en inglés.
+
+    - field: certifications
+      operator: contains_any
+      value: [cka, ckad, aws, azure]
+      label: Certificación en contenedores o nube
+      mandatory: false
+      legal_basis: Criterio valorable, no excluyente.
+
+  weights:
+    technical: 35
+    experience: 30
+    projects: 20
+    semantic: 15

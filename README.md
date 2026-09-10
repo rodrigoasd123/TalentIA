@@ -1,4 +1,61 @@
-# PostulaIA RR. HH. — Revisión asistida de CV
+# TalentIA — ATS gobernado de selección
+
+TalentIA consolida PostulaIA con **VERA ATS**. El ATS principal permite administrar vacantes, candidaturas, evaluación explicable, revisión humana, pipeline, Candidate 360 y auditoría. El analizador documental anterior permanece disponible como rollback.
+
+> **Entorno de laboratorio:** usa únicamente datos ficticios. No cargues CV reales ni despliegues el sistema como servicio compartido sin aprobación legal, de privacidad y seguridad.
+
+## Inicio rápido del ATS en Windows
+
+No necesitas activar PowerShell. Desde la carpeta del proyecto:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe scripts\seed.py --reset
+```
+
+Abre dos terminales. En la primera inicia la API:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+En la segunda inicia la interfaz:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run ats_frontend/streamlit_app.py
+```
+
+Visita `http://localhost:8501`. La documentación de la API está en `http://127.0.0.1:8000/docs`. En desarrollo local la interfaz usa una sesión limitada de recruiter; los entornos distintos de `development` exigen autenticación real.
+
+El adaptador simulado funciona sin API key. Gemini se configura opcionalmente desde **Configuración** y el secreto queda cifrado en la base local; nunca debe escribirse en el repositorio. Los correos permanecen en borrador y `DRY_RUN`.
+
+## Recorrido recomendado
+
+1. En **Ingreso**, crea y aprueba una vacante o usa las fixtures sembradas.
+2. Registra una candidatura ficticia con consentimiento y carga PDF/DOCX.
+3. Ejecuta la evaluación: filtros y total se calculan en backend; el modelo solo propone dimensiones estructuradas.
+4. Resuelve alertas desde **Revisión** y mueve estados autorizados en el pipeline.
+5. Consulta Candidate 360 y verifica la cadena en **Auditoría**.
+6. Desde **Vacantes**, genera una consulta Boolean para copiar manualmente a LinkedIn Recruiter. La aplicación no navega ni extrae datos de LinkedIn.
+
+## Rollback al analizador documental anterior
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run frontend/streamlit_postulacion.py
+```
+
+Este comando mantiene la carga múltiple, OCR, ranking documental y consulta RAG previos; su base de datos no es la fuente de verdad del ATS.
+
+## Pruebas
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q --basetemp .pytest-tmp
+```
+
+---
+# Analizador documental heredado
 
 PostulaIA ayuda a un equipo de Recursos Humanos a comparar varios CV en PDF frente a un perfil de puesto. Extrae requisitos verificables, calcula una coincidencia documental reproducible y muestra la evidencia por página. El resultado sirve para priorizar la revisión; **no aprueba, rechaza ni recomienda contratar candidatos**.
 

@@ -1,0 +1,97 @@
+code: VAC-002
+title: Ingeniero/a de Datos
+department: Datos y Analítica
+location: Remoto — Latinoamérica
+employment_type: full_time
+status: open
+opening_date: "2026-09-01"
+closing_date: "2026-10-15"
+salary_min: 4500
+salary_max: 6500
+currency: USD
+
+description: >
+  Diseño, construcción y mantenimiento de pipelines de datos por lotes y en tiempo
+  real. Modelado analítico, controles de calidad, optimización de procesos y
+  documentación del linaje de datos. Stack orientado a Python, SQL, orquestación de
+  flujos y procesamiento distribuido sobre almacenes analíticos.
+
+requirements:
+  version: 1
+  minimum_score: 68.0
+  review_threshold: 5.0
+  min_years_experience: 3.0
+  education_level: grado
+
+  mandatory_skills:
+    - python
+    - sql
+    - airflow
+
+  optional_skills:
+    - dbt
+    - terraform
+    - kafka
+    - spark
+    - power bi
+    - tableau
+    - docker
+
+  certifications: []
+
+  languages:
+    - language: english
+      level: b1
+
+  hard_filters:
+    - field: years_experience
+      operator: gte
+      value: 3
+      label: Mínimo 3 años en ingeniería de datos
+      mandatory: true
+      legal_basis: >
+        El diseño autónomo de pipelines productivos requiere experiencia previa
+        acreditada en entornos con volumen real.
+
+    - field: skills
+      operator: contains_all
+      value: [python, sql]
+      label: Python y SQL acreditados
+      mandatory: true
+      legal_basis: Son las herramientas centrales del trabajo diario del puesto.
+
+    - field: skills
+      operator: contains_any
+      value: [airflow, dagster, prefect]
+      label: Orquestador de flujos de datos
+      mandatory: true
+      legal_basis: >
+        Toda la plataforma de datos se orquesta con estas herramientas; se admite
+        cualquiera de ellas porque el concepto es transferible.
+
+    - field: skills
+      operator: contains_any
+      value: [spark, bigquery, snowflake, redshift, databricks]
+      label: Procesamiento distribuido o almacén analítico
+      mandatory: true
+      legal_basis: >
+        El volumen de datos gestionado excede la capacidad de procesamiento en una
+        sola máquina.
+
+    - field: languages
+      operator: min_level
+      value:
+        language: english
+        level: b1
+      label: Inglés B1 o superior
+      mandatory: true
+      legal_basis: >
+        La documentación de las herramientas del stack solo está disponible en
+        inglés.
+
+  weights:
+    technical: 35
+    experience: 25
+    projects: 20
+    semantic: 15
+    education: 5

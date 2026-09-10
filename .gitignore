@@ -14,10 +14,16 @@ __pycache__/
 # Data / SQLite databases generated locally
 data/*.db
 data/cache/
+vera.db*
+*.db-shm
+*.db-wal
 *.sqlite3
+storage/
 
 # Environment credentials
-.env
+.env*
+!.env.example
+.vera_dev_key
 
 # Temporary files
 tmp/
@@ -31,3 +37,4 @@ skills-lock.json
 # Local application logs
 postulaia.stdout.log
 postulaia.stderr.log
+*.log

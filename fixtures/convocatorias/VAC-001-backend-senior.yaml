@@ -1,0 +1,105 @@
+# Criterios de VAC-001 en formato consumible por VERA.
+#
+# Este fichero es la versión ejecutable de las bases de convocatoria. Cada filtro
+# obligatorio lleva su `legal_basis`: obligar a escribir por qué un criterio
+# excluye es la forma más simple de evitar que se cuelen requisitos que nadie
+# puede justificar.
+
+code: VAC-001
+title: Ingeniero/a de Software Backend Senior
+department: Tecnología — Plataforma
+location: Lima, Perú (híbrido)
+employment_type: full_time
+status: open
+opening_date: "2026-08-15"
+closing_date: "2026-09-30"
+salary_min: 8000
+salary_max: 11000
+currency: PEN
+
+description: >
+  Desarrollo y mantenimiento de microservicios backend de alta disponibilidad en
+  Python. Diseño de APIs REST, modelado de datos en PostgreSQL, participación en
+  decisiones de arquitectura y acompañamiento técnico al equipo. Entorno de
+  microservicios desplegados en contenedores con pipelines de integración continua.
+
+requirements:
+  version: 1
+  minimum_score: 72.0
+  review_threshold: 6.0
+  min_years_experience: 5.0
+  education_level: grado
+
+  mandatory_skills:
+    - python
+    - fastapi
+    - postgresql
+
+  optional_skills:
+    - docker
+    - kubernetes
+    - aws
+    - kafka
+    - redis
+    - cicd
+    - microservicios
+    - prometheus
+
+  certifications: []
+
+  languages:
+    - language: english
+      level: b2
+
+  hard_filters:
+    - field: years_experience
+      operator: gte
+      value: 5
+      label: Mínimo 5 años de experiencia backend
+      mandatory: true
+      legal_basis: >
+        El puesto exige decisiones de arquitectura sin supervisión directa, lo que
+        requiere trayectoria acreditada en entornos productivos.
+
+    - field: skills
+      operator: contains_all
+      value: [python, postgresql]
+      label: Python y PostgreSQL acreditados
+      mandatory: true
+      legal_basis: >
+        Son el lenguaje y el motor de datos de todos los servicios que mantendrá
+        la persona seleccionada.
+
+    - field: skills
+      operator: contains_any
+      value: [fastapi, django, flask, spring, express]
+      label: Framework web backend
+      mandatory: true
+      legal_basis: >
+        Se admite cualquier framework equivalente porque la competencia
+        transferible es el desarrollo de APIs, no una herramienta concreta.
+
+    - field: languages
+      operator: min_level
+      value:
+        language: english
+        level: b2
+      label: Inglés B2 o superior
+      mandatory: true
+      legal_basis: >
+        La documentación técnica y la comunicación con proveedores del área se
+        realizan en inglés.
+
+    - field: skills
+      operator: contains_any
+      value: [docker, kubernetes, aws, azure, google cloud]
+      label: Experiencia en contenedores o nube
+      mandatory: false
+      legal_basis: Criterio valorable, no excluyente.
+
+  weights:
+    technical: 30
+    experience: 25
+    projects: 20
+    semantic: 15
+    education: 10
