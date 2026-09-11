@@ -35,13 +35,21 @@ from app.application.services.ranking_service import RankingService
 from app.application.services.review_service import ReviewService
 from app.application.use_cases.evaluate_application import EvaluateApplicationUseCase
 from app.application.use_cases.historical_import import HistoricalImportUseCase
-from app.application.use_cases.intake import IntakePipelineUseCase
+from app.application.use_cases.intake import IntakePipelineUseCase, UploadResumeUseCase
 from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.domain.entities import Candidate, Job, JobRequirements
-from app.domain.enums import CandidateStatus, JobStatus, Permission
-from app.domain.value_objects import EmailAddress
+from app.domain.enums import (
+    ApplicationStatus,
+    CandidateStatus,
+    CriterionMode,
+    FilterOperator,
+    JobStatus,
+    Permission,
+    ReviewReason,
+)
+from app.domain.value_objects import EmailAddress, HardFilter
 from app.infrastructure.imports.tabular_reader import neutralize_spreadsheet_formula
 from app.infrastructure.llm.factory import build_llm_from_settings
 from app.infrastructure.security.passwords import dummy_verify, verify_password
@@ -257,6 +265,10 @@ def me(user: CurrentUserDep) -> dict[str, Any]:
 
 
 def _job_payload(job: Job) -> dict[str, Any]:
+    language_filter = next(
+        (f for f in job.requirements.hard_filters if f.operator is FilterOperator.MIN_LEVEL),
+        None,
+    )
     return {
         "id": job.id,
         "code": job.code,
@@ -272,7 +284,25 @@ def _job_payload(job: Job) -> dict[str, Any]:
         "hard_filter_count": len(job.requirements.hard_filters),
         "weights": {d.value: w for d, w in job.requirements.weights.weights.items()},
         "requirements_version": job.requirements.version,
+        "language_required": language_filter is not None,
+        "language_level": str(language_filter.value.get("level", "b2")) if language_filter else "b2",
+        "language_mode": language_filter.effective_mode.value if language_filter else "weighted",
+        "language_penalty_percent": language_filter.effective_penalty_percent if language_filter else 15.0,
     }
+
+
+def _language_filter(level: str, mode: str, penalty: float) -> HardFilter:
+    normalized = level.strip().lower()
+    return HardFilter(
+        field="languages",
+        operator=FilterOperator.MIN_LEVEL,
+        value={"language": "english", "level": normalized},
+        label=f"Inglés {normalized.upper()} o superior",
+        mandatory=True,
+        legal_basis="Competencia lingüística requerida para las funciones del puesto",
+        mode=CriterionMode(mode),
+        penalty_percent=penalty,
+    )
 
 
 @router.post(
@@ -296,6 +326,10 @@ def create_job(payload: JobCreateRequest, uow: UowDep, actor: ActorDep) -> dict[
             minimum_score=payload.minimum_score,
             review_threshold=payload.review_threshold,
             min_years_experience=payload.min_years_experience,
+            hard_filters=(
+                [_language_filter(payload.language_level, payload.language_mode, payload.language_penalty_percent)]
+                if payload.language_required else []
+            ),
         ),
     )
     stored = uow.jobs.add(job)
@@ -333,6 +367,29 @@ def update_job(job_id: str, payload: JobUpdateRequest, uow: UowDep, actor: Actor
         job.requirements.mandatory_skills = sorted(
             {s.strip().lower() for s in payload.mandatory_skills if s.strip()}
         )
+        changed_criteria = True
+    language_fields = (
+        payload.language_required,
+        payload.language_level,
+        payload.language_mode,
+        payload.language_penalty_percent,
+    )
+    if any(value is not None for value in language_fields):
+        existing = next(
+            (f for f in job.requirements.hard_filters if f.operator is FilterOperator.MIN_LEVEL),
+            None,
+        )
+        keep = [f for f in job.requirements.hard_filters if f.operator is not FilterOperator.MIN_LEVEL]
+        required = payload.language_required if payload.language_required is not None else existing is not None
+        if required:
+            old_value = existing.value if existing else {"level": "b2"}
+            level = payload.language_level or str(old_value.get("level", "b2"))
+            mode = payload.language_mode or (existing.effective_mode.value if existing else "weighted")
+            penalty = payload.language_penalty_percent
+            if penalty is None:
+                penalty = existing.effective_penalty_percent if existing else 15.0
+            keep.append(_language_filter(level, mode, penalty))
+        job.requirements.hard_filters = keep
         changed_criteria = True
     if changed_criteria:
         job.requirements.version += 1
@@ -737,6 +794,8 @@ def list_applications(uow: UowDep, job_id: str | None = Query(None)) -> list[dic
     for application in applications:
         candidate = uow.candidates.get(application.candidate_id)
         job = uow.jobs.get(application.job_id)
+        resume = uow.resumes.get(application.resume_id) if application.resume_id else None
+        open_review = uow.reviews.find_open_for_application(application.id)
         rows.append(
             {
                 "id": application.id,
@@ -745,12 +804,61 @@ def list_applications(uow: UowDep, job_id: str | None = Query(None)) -> list[dic
                 "job_id": application.job_id,
                 "job_code": job.code if job else "—",
                 "status": application.status.value,
+                "resume_id": resume.id if resume else None,
+                "has_resume": resume is not None,
+                "has_open_review": open_review is not None,
                 "score": application.final_score,
                 "applied_at": application.applied_at.isoformat(),
                 "hours_in_stage": round(application.hours_in_stage, 1),
             }
         )
     return rows
+
+
+@router.post(
+    "/applications/{application_id}/resume",
+    tags=["candidaturas"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_WRITE))],
+)
+async def attach_resume(
+    application_id: str,
+    uow: UowDep,
+    actor: ActorDep,
+    resume: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Carga y asocia un CV a una postulación existente de forma auditada."""
+    application = uow.applications.get(application_id)
+    if application is None:
+        raise NotFoundError(f"No existe la candidatura {application_id}")
+    content = await resume.read()
+    document = UploadResumeUseCase(uow).execute(
+        candidate_id=application.candidate_id,
+        content=content,
+        filename=resume.filename or "cv",
+        actor=actor,
+    )
+    previous_resume = application.resume_id
+    application.resume_id = document.id
+    if application.status is ApplicationStatus.NEW:
+        application.move_to(ApplicationStatus.RESUME_PROCESSED)
+    else:
+        application.touch()
+    uow.applications.update(application)
+    AuditService(uow.audit).record(
+        action="application.resume_attached",
+        actor=actor,
+        resource_type="application",
+        resource_id=application.id,
+        previous_state={"resume_id": previous_resume},
+        new_state={"resume_id": document.id, "status": application.status.value},
+    )
+    return {
+        "application_id": application.id,
+        "resume_id": document.id,
+        "filename": document.filename,
+        "status": application.status.value,
+        "reused": previous_resume == document.id,
+    }
 
 
 @router.get(
@@ -835,6 +943,7 @@ def _evaluation_payload(evaluation) -> dict[str, Any]:
         "created_at": evaluation.created_at.isoformat(),
         "is_current": evaluation.is_current,
         "score": float(evaluation.total_score) if evaluation.total_score else None,
+        "score_calculated": bool(evaluation.dimension_scores),
         "recommendation": evaluation.recommendation.value,
         "passed_hard_filters": evaluation.passed_hard_filters,
         "evidence_rate": evaluation.evidence_verification_rate,
@@ -850,7 +959,8 @@ def _evaluation_payload(evaluation) -> dict[str, Any]:
         "cost_usd": evaluation.cost_usd,
         "hard_filters": [
             {"label": f.filter_label, "passed": f.passed, "mandatory": f.mandatory,
-             "explanation": f.explanation}
+             "explanation": f.explanation, "status": f.status.value,
+             "mode": f.mode.value, "penalty_percent": f.penalty_percent}
             for f in evaluation.hard_filter_results
         ],
         "dimensions": [
@@ -991,7 +1101,49 @@ def review_queue(uow: UowDep, status: str | None = Query(None)) -> list[dict[str
     dependencies=[Depends(requires(Permission.REVIEW_DECIDE))],
 )
 def review_statistics(uow: UowDep) -> dict[str, Any]:
-    return ReviewService(uow).statistics()
+    result = ReviewService(uow).statistics()
+    state_count = sum(
+        1
+        for application in uow.applications.list_all(limit=100000)
+        if application.status is ApplicationStatus.HUMAN_REVIEW
+    )
+    result["applications_in_review_state"] = state_count
+    result["queue_difference"] = state_count - result["pending"]
+    return result
+
+
+@router.post(
+    "/applications/{application_id}/reviews",
+    tags=["revisión"],
+    dependencies=[Depends(requires(Permission.REVIEW_DECIDE))],
+)
+def request_manual_review(
+    application_id: str,
+    uow: UowDep,
+    actor: ActorDep,
+    reason: str = Body(ReviewReason.CRITERION_UNVERIFIED.value, embed=True),
+    note: str = Body("", embed=True),
+) -> dict[str, Any]:
+    application = uow.applications.get(application_id)
+    if application is None:
+        raise NotFoundError(f"No existe la candidatura {application_id}")
+    try:
+        review_reason = ReviewReason(reason)
+    except ValueError as exc:
+        raise ValidationError(f"Motivo de revisión no admitido: {reason}") from exc
+    item, created = ReviewService(uow).request_manual_validation(
+        application=application,
+        actor=actor,
+        reason=review_reason,
+        note=note,
+    )
+    return {
+        "id": item.id,
+        "application_id": application.id,
+        "status": item.status.value,
+        "application_status": application.status.value,
+        "created": created,
+    }
 
 
 @router.post(
@@ -1384,6 +1536,13 @@ def verify_audit(uow: UowDep) -> dict[str, Any]:
             "La cadena es íntegra: ningún evento ha sido modificado ni eliminado."
             if ok
             else f"Se detectó una inconsistencia a partir del evento {broken}."
+        ),
+        "diagnostic": (
+            None
+            if ok
+            else "La cadena registrada no coincide desde ese evento. Puede ocurrir si "
+            "una base fue importada, una fila histórica cambió o falta un evento. "
+            "TalentIA no repara la cadena automáticamente para no ocultar evidencia."
         ),
     }
 

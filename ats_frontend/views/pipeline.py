@@ -158,24 +158,67 @@ def render() -> None:
         job_id = next((job["id"] for job in jobs if job["code"] == selected_job), None)
 
     try:
-        columns = session.client().pipeline(job_id)
         applications = session.client().list_applications(job_id)
     except ApiError as exc:
         design.api_error(exc, "No se pudo cargar el pipeline")
         return
 
+    q1, q2, q3 = st.columns([1.5, 1, 1])
+    with q1:
+        query = st.text_input("Buscar candidato o ID", key="pipeline_search")
+    with q2:
+        status_filter = st.selectbox(
+            "Estado",
+            ["Todos"] + APPLICATION_STAGES,
+            format_func=lambda value: value if value == "Todos" else app_status(value),
+            key="pipeline_status_filter",
+        )
+    with q3:
+        cv_filter = st.selectbox(
+            "CV",
+            ["Todos", "Asociado", "Pendiente"],
+            key="pipeline_cv_filter",
+        )
+
+    visible_applications = applications
+    if query.strip():
+        needle = query.strip().lower()
+        visible_applications = [
+            item for item in visible_applications
+            if needle in f"{item['candidate_name']} {item['id']} {item['job_code']}".lower()
+        ]
+    if status_filter != "Todos":
+        visible_applications = [
+            item for item in visible_applications if item["status"] == status_filter
+        ]
+    if cv_filter != "Todos":
+        expected = cv_filter == "Asociado"
+        visible_applications = [
+            item for item in visible_applications if item.get("has_resume") is expected
+        ]
+    columns = {
+        status: [item for item in visible_applications if item["status"] == status]
+        for status in APPLICATION_STAGES
+    }
+
+    review_state_count = sum(
+        1 for item in applications if item["status"] == "human_review"
+    )
+    open_review_count = sum(1 for item in applications if item.get("has_open_review"))
     design.metric_grid(
         [
-            ("Postulaciones", str(len(applications)), "En el filtro actual"),
-            ("Revisión humana", str(len(columns.get("human_review", []))), ""),
+            ("Postulaciones", str(len(visible_applications)), "En los filtros actuales"),
+            ("Estado revisión", str(review_state_count), "Etapa del pipeline"),
+            ("Casos abiertos", str(open_review_count), "Cola humana real"),
             ("Preselección", str(len(columns.get("shortlisted", []))), ""),
-            (
-                "Cerradas",
-                str(sum(len(columns.get(status, [])) for status in TERMINAL_STATUSES)),
-                "",
-            ),
         ]
     )
+    if review_state_count != open_review_count:
+        st.info(
+            "Las cifras de revisión representan conceptos distintos: "
+            f"{review_state_count} postulaciones están en esa etapa y "
+            f"{open_review_count} tienen un caso abierto en la cola."
+        )
 
     board_tab, table_tab, action_tab = st.tabs(["Tablero", "Tabla", "Cambiar estado"])
     with board_tab:
@@ -186,12 +229,12 @@ def render() -> None:
     with table_tab:
         visible = [
             item
-            for item in applications
+            for item in visible_applications
             if not (only_active and item["status"] in TERMINAL_STATUSES)
         ]
         _render_table(visible)
     with action_tab:
-        _transition_panel(applications)
+        _transition_panel(visible_applications)
 
 
 render()

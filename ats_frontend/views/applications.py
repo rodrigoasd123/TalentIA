@@ -147,7 +147,21 @@ def _render_list(applications: list[dict]) -> None:
         design.empty_state("Sin postulaciones", "Aún no hay candidatos en proceso.")
         return
 
-    query = st.text_input("Buscar en postulaciones", key="applications_search")
+    f1, f2, f3 = st.columns([1.5, 1, 1])
+    with f1:
+        query = st.text_input("Buscar en postulaciones", key="applications_search")
+    with f2:
+        job_filter = st.selectbox(
+            "Vacante",
+            ["Todas"] + sorted({item["job_code"] for item in applications}),
+            key="applications_job_filter",
+        )
+    with f3:
+        cv_filter = st.selectbox(
+            "Documento",
+            ["Todos", "Con CV", "CV pendiente"],
+            key="applications_cv_filter",
+        )
     filtered = applications
     if query.strip():
         needle = query.strip().lower()
@@ -159,6 +173,11 @@ def _render_list(applications: list[dict]) -> None:
                 [item["candidate_name"], item["job_code"], item["status"], item["id"]]
             ).lower()
         ]
+    if job_filter != "Todas":
+        filtered = [item for item in filtered if item["job_code"] == job_filter]
+    if cv_filter != "Todos":
+        expected = cv_filter == "Con CV"
+        filtered = [item for item in filtered if item.get("has_resume") is expected]
 
     st.dataframe(
         [
@@ -166,6 +185,7 @@ def _render_list(applications: list[dict]) -> None:
                 "Candidato": item["candidate_name"],
                 "Vacante": item["job_code"],
                 "Estado": app_status(item["status"]),
+                "CV": "Asociado" if item.get("has_resume") else "Pendiente",
                 "Puntaje": score(item.get("score")),
                 "Registro": date_short(item.get("applied_at")),
                 "Tiempo en etapa": days_from_hours(item.get("hours_in_stage")),
@@ -175,6 +195,53 @@ def _render_list(applications: list[dict]) -> None:
         width="stretch",
         hide_index=True,
     )
+
+    missing = [item for item in applications if not item.get("has_resume")]
+    if missing and session.has_permission("candidate:write"):
+        st.divider()
+        st.subheader(f"CV pendientes de asociar · {len(missing)}")
+        st.caption(
+            "Una etapa avanzada no reemplaza al documento: selecciona la postulación "
+            "correcta y carga el CV recibido."
+        )
+        selected = st.selectbox(
+            "Postulación sin CV",
+            options=[item["id"] for item in missing],
+            format_func=lambda value: next(
+                f"{item['candidate_name']} · {item['job_code']} · {app_status(item['status'])}"
+                for item in missing if item["id"] == value
+            ),
+            key="missing_resume_application",
+        )
+        uploaded = st.file_uploader(
+            "CV para asociar",
+            type=["pdf", "docx"],
+            key="missing_resume_file",
+        )
+        errors = _validate_file(uploaded) if uploaded is not None else []
+        for error in errors:
+            st.error(error)
+        confirmed = st.checkbox(
+            "Confirmo que este CV corresponde a la persona y postulación seleccionadas",
+            key="confirm_resume_association",
+        )
+        if st.button(
+            "Asociar CV a la postulación",
+            type="primary",
+            disabled=uploaded is None or bool(errors) or not confirmed,
+        ):
+            try:
+                with st.spinner("Validando y asociando el documento..."):
+                    session.client().attach_resume(
+                        selected,
+                        filename=uploaded.name,
+                        content=uploaded.getvalue(),
+                        content_type=uploaded.type or "application/octet-stream",
+                    )
+                st.success("CV asociado correctamente. La acción quedó auditada.")
+                st.rerun()
+            except ApiError as exc:
+                design.api_error(exc, "No se pudo asociar el CV")
 
 
 def render() -> None:

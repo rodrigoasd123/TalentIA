@@ -188,6 +188,7 @@ class ReviewReason(StrEnum):
     DATA_CONFLICT = "data_conflict"
     POSSIBLE_DUPLICATE = "possible_duplicate"
     HARD_FILTER_FAILED = "hard_filter_failed"
+    CRITERION_UNVERIFIED = "criterion_unverified"
     LLM_FAILURE = "llm_failure"
     BUDGET_EXCEEDED = "budget_exceeded"
 
@@ -206,6 +207,7 @@ REVIEW_SLA_HOURS: dict[ReviewReason, int] = {
     ReviewReason.LOW_PARSE_CONFIDENCE: 24,
     ReviewReason.DATA_CONFLICT: 24,
     ReviewReason.HARD_FILTER_FAILED: 24,
+    ReviewReason.CRITERION_UNVERIFIED: 24,
     ReviewReason.SCORE_OVERRIDE: 24,
     ReviewReason.LLM_FAILURE: 24,
     ReviewReason.BUDGET_EXCEEDED: 24,
@@ -359,6 +361,17 @@ class ScoringDimension(StrEnum):
     LANGUAGES = "languages"
 
 
+class CriterionMode(StrEnum):
+    EXCLUDENT = "excludent"
+    WEIGHTED = "weighted"
+
+
+class CriterionStatus(StrEnum):
+    PASSED = "passed"
+    FAILED = "failed"
+    UNVERIFIED = "unverified"
+
+
 __all__ = [
     "LANGUAGE_LEVEL_ORDER", "REVIEW_SLA_HOURS", "ROLE_PERMISSIONS",
     "SENSITIVE_EMAIL_KINDS", "TERMINAL_STATUSES", "ActionType", "ActorType",
@@ -366,5 +379,5 @@ __all__ = [
     "FilterOperator", "InjectionCategory", "JobStatus", "LanguageLevel",
     "PIICategory", "Permission", "PolicyDecision", "Recommendation",
     "ReviewReason", "ReviewStatus", "Role", "ScoringDimension", "Severity",
-    "WorkflowStatus",
+    "WorkflowStatus", "CriterionMode", "CriterionStatus",
 ]

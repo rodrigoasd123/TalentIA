@@ -17,7 +17,12 @@ import unicodedata
 from typing import Any
 
 from app.domain.entities import ResumeExtraction
-from app.domain.enums import LANGUAGE_LEVEL_ORDER, FilterOperator, LanguageLevel
+from app.domain.enums import (
+    LANGUAGE_LEVEL_ORDER,
+    CriterionStatus,
+    FilterOperator,
+    LanguageLevel,
+)
 from app.domain.value_objects import FilterResult, HardFilter
 
 #: Sinónimos habituales para que "JS" y "JavaScript" no cuenten como cosas
@@ -129,6 +134,13 @@ class HardFilterEngine:
                 explanation=f"Operador no soportado: {hard_filter.operator.value}",
             )
         passed, actual, explanation = handler(hard_filter, facts)
+        status = (
+            CriterionStatus.PASSED
+            if passed
+            else CriterionStatus.UNVERIFIED
+            if actual is None
+            else CriterionStatus.FAILED
+        )
         return FilterResult(
             filter_label=hard_filter.label,
             field=hard_filter.field,
@@ -137,15 +149,18 @@ class HardFilterEngine:
             expected=hard_filter.value,
             actual=actual,
             explanation=explanation,
+            status=status,
+            mode=hard_filter.effective_mode,
+            penalty_percent=hard_filter.effective_penalty_percent,
         )
 
     @staticmethod
     def all_mandatory_passed(results: list[FilterResult]) -> bool:
-        return all(r.passed for r in results if r.mandatory)
+        return not any(r.mandatory and r.is_blocking for r in results)
 
     @staticmethod
     def failed_mandatory(results: list[FilterResult]) -> list[FilterResult]:
-        return [r for r in results if r.mandatory and not r.passed]
+        return [r for r in results if r.mandatory and r.is_blocking]
 
     @staticmethod
     def missing_requirements(results: list[FilterResult]) -> list[str]:

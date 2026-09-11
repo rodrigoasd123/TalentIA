@@ -296,6 +296,20 @@ class TalentIAApiClient:
     def candidate_360(self, application_id: str) -> dict[str, Any]:
         return self._request("GET", f"{API_PREFIX}/applications/{application_id}/360")
 
+    def attach_resume(
+        self,
+        application_id: str,
+        *,
+        filename: str,
+        content: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{API_PREFIX}/applications/{application_id}/resume",
+            files={"resume": (filename, content, content_type)},
+        )
+
     def evaluate_application(
         self, application_id: str, *, dry_run: bool | None = None
     ) -> dict[str, Any]:
@@ -331,6 +345,15 @@ class TalentIAApiClient:
 
     def review_statistics(self) -> dict[str, Any]:
         return self._request("GET", f"{API_PREFIX}/reviews/statistics")
+
+    def request_manual_review(
+        self, application_id: str, *, reason: str, note: str = ""
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{API_PREFIX}/applications/{application_id}/reviews",
+            json={"reason": reason, "note": note},
+        )
 
     def claim_review(self, item_id: str) -> dict[str, Any]:
         return self._request("POST", f"{API_PREFIX}/reviews/{item_id}/claim")

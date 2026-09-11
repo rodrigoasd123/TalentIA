@@ -315,6 +315,7 @@ class ScoreCalculationNode(Node):
 
         dimension_scores = self._build_dimension_scores(state)
         total = policy.compute_total(dimension_scores, requirements.weights)
+        total = policy.apply_criterion_penalties(total, state.get("filter_results", []))
 
         evidence_report = state.get("evidence_report")
         evidence_rate = evidence_report.verification_rate if evidence_report else 0.0

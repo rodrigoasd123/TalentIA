@@ -45,6 +45,7 @@ _PRIORITY_BY_REASON: dict[ReviewReason, Severity] = {
     ReviewReason.SENIOR_CANDIDATE: Severity.HIGH,
     ReviewReason.AMBIGUOUS_REJECTION: Severity.HIGH,
     ReviewReason.HARD_FILTER_FAILED: Severity.MEDIUM,
+    ReviewReason.CRITERION_UNVERIFIED: Severity.MEDIUM,
     ReviewReason.SCORE_BORDERLINE: Severity.MEDIUM,
     ReviewReason.LOW_PARSE_CONFIDENCE: Severity.MEDIUM,
     ReviewReason.DATA_CONFLICT: Severity.MEDIUM,
@@ -132,6 +133,63 @@ class ReviewService:
             sla_hours=stored.sla_hours,
         )
         return stored
+
+    def request_manual_validation(
+        self,
+        *,
+        application: Application,
+        actor: Actor,
+        reason: ReviewReason = ReviewReason.CRITERION_UNVERIFIED,
+        note: str = "",
+    ) -> tuple[HumanReviewItem, bool]:
+        """Crea un caso humano explícito o devuelve el que ya está abierto."""
+        existing = self.uow.reviews.find_open_for_application(application.id)
+        if existing is not None:
+            return existing, False
+
+        evaluation = self.uow.evaluations.get_current(application.id)
+        item = HumanReviewItem(
+            application_id=application.id,
+            evaluation_id=evaluation.id if evaluation else None,
+            reasons=[reason],
+            priority=self._priority([reason]),
+            status=ReviewStatus.PENDING,
+            sla_hours=self._sla([reason]),
+            context={
+                "score": float(application.final_score)
+                if application.final_score is not None else None,
+                "summary": note.strip()[:600],
+                "requested_manually": True,
+            },
+        )
+        stored = self.uow.reviews.add(item)
+
+        previous = application.status
+        if (
+            previous is not ApplicationStatus.HUMAN_REVIEW
+            and ApplicationStateMachine.can_transition(
+                previous, ApplicationStatus.HUMAN_REVIEW
+            )
+        ):
+            application.move_to(ApplicationStatus.HUMAN_REVIEW)
+            self.uow.applications.update(application)
+            self.audit.record_status_change(
+                actor=actor,
+                application_id=application.id,
+                previous=previous.value,
+                new=ApplicationStatus.HUMAN_REVIEW.value,
+                reason="Validación humana solicitada",
+                approved_by=actor.actor_id,
+            )
+
+        self.audit.record(
+            action="human_review.requested_manually",
+            actor=actor,
+            resource_type="application",
+            resource_id=application.id,
+            new_state={"review_id": stored.id, "reason": reason.value},
+        )
+        return stored, True
 
     @staticmethod
     def _priority(reasons: list[ReviewReason]) -> Severity:

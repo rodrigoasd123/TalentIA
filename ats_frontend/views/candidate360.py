@@ -242,14 +242,47 @@ def render() -> None:
         )
         return
 
+    f1, f2, f3 = st.columns([1, 1, 1.5])
+    with f1:
+        job_filter = st.selectbox(
+            "Vacante",
+            ["Todas"] + sorted({item["job_code"] for item in applications}),
+            key="candidate360_job_filter",
+        )
+    with f2:
+        cv_filter = st.selectbox(
+            "CV",
+            ["Todos", "Asociado", "Pendiente"],
+            key="candidate360_cv_filter",
+        )
+    with f3:
+        candidate_query = st.text_input(
+            "Buscar candidato", key="candidate360_search"
+        )
+    filtered = applications
+    if job_filter != "Todas":
+        filtered = [item for item in filtered if item["job_code"] == job_filter]
+    if cv_filter != "Todos":
+        expected = cv_filter == "Asociado"
+        filtered = [item for item in filtered if item.get("has_resume") is expected]
+    if candidate_query.strip():
+        needle = candidate_query.strip().lower()
+        filtered = [
+            item for item in filtered
+            if needle in f"{item['candidate_name']} {item['id']}".lower()
+        ]
+    if not filtered:
+        design.empty_state("Sin coincidencias", "Ajusta los filtros del expediente.")
+        return
+
     preselected = st.session_state.get("selected_application")
-    options = [item["id"] for item in applications]
+    options = [item["id"] for item in filtered]
     index = options.index(preselected) if preselected in options else 0
     selected = st.selectbox(
         "Postulación",
         options=options,
         index=index,
-        format_func=lambda value: _application_label(value, applications),
+        format_func=lambda value: _application_label(value, filtered),
     )
     st.session_state["selected_application"] = selected
 

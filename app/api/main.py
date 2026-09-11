@@ -309,6 +309,22 @@ def list_jobs(session: SessionDep) -> list[JobSummary]:
             mandatory_skills=job.requirements.mandatory_skills,
             hard_filter_count=len(job.requirements.hard_filters),
             weights={d.value: w for d, w in job.requirements.weights.weights.items()},
+            requirements_version=job.requirements.version,
+            language_required=any(
+                f.operator.value == "min_level" for f in job.requirements.hard_filters
+            ),
+            language_level=next(
+                (str(f.value.get("level", "b2")) for f in job.requirements.hard_filters if f.operator.value == "min_level"),
+                "b2",
+            ),
+            language_mode=next(
+                (f.effective_mode.value for f in job.requirements.hard_filters if f.operator.value == "min_level"),
+                "weighted",
+            ),
+            language_penalty_percent=next(
+                (f.effective_penalty_percent for f in job.requirements.hard_filters if f.operator.value == "min_level"),
+                15.0,
+            ),
         )
         for job in jobs
     ]
@@ -406,6 +422,7 @@ def run_evaluation(payload: EvaluationRunRequest, store: StoreDep) -> Evaluation
         model=evaluation.model_name,
         is_simulated=bool(info["is_simulated"]),
         total_score=result.total_score,
+        score_calculated=bool(evaluation.dimension_scores),
         recommendation=evaluation.recommendation.value,
         passed_hard_filters=evaluation.passed_hard_filters,
         requires_human_review=evaluation.requires_human_review,
@@ -416,6 +433,9 @@ def run_evaluation(payload: EvaluationRunRequest, store: StoreDep) -> Evaluation
                 passed=f.passed,
                 mandatory=f.mandatory,
                 explanation=f.explanation,
+                status=f.status.value,
+                mode=f.mode.value,
+                penalty_percent=f.penalty_percent,
             )
             for f in evaluation.hard_filter_results
         ],

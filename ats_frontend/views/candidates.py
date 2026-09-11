@@ -303,7 +303,7 @@ sources = [
     "Todas",
     *sorted({item.get("source", "") for item in candidates if item.get("source")}),
 ]
-filters = st.container(horizontal=True, wrap=True)
+filters = st.container(horizontal=True)
 query = filters.text_input(
     "Buscar candidatos",
     placeholder="Nombre, cliente, perfil, reclutador o vacante",

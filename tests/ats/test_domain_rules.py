@@ -13,6 +13,8 @@ from app.core.exceptions import InvalidStateTransition, InvalidScoringWeights
 from app.domain.entities import DimensionScore, ResumeExtraction
 from app.domain.enums import (
     ApplicationStatus,
+    CriterionMode,
+    CriterionStatus,
     FilterOperator,
     LanguageLevel,
     Permission,
@@ -94,6 +96,33 @@ def test_filtro_de_idioma_respeta_el_orden_de_niveles(extraccion: ResumeExtracti
 
     extraccion.languages = [LanguageSkill(language="english", level=LanguageLevel.B1)]
     assert not HardFilterEngine().evaluate([filtro], extraccion)[0].passed
+
+
+def test_idioma_ausente_es_no_acreditado_y_no_bloquea(extraccion: ResumeExtraction) -> None:
+    extraccion.languages = []
+    filtro = HardFilter(
+        field="languages", operator=FilterOperator.MIN_LEVEL,
+        value={"language": "english", "level": "b2"}, label="Inglés B2",
+        legal_basis="Documentación técnica en inglés",
+    )
+    resultado = HardFilterEngine().evaluate([filtro], extraccion)[0]
+
+    assert resultado.status is CriterionStatus.UNVERIFIED
+    assert resultado.mode is CriterionMode.WEIGHTED
+    assert resultado.penalty_percent == 15.0
+    assert HardFilterEngine.all_mandatory_passed([resultado])
+
+
+def test_penalizacion_ponderada_no_anula_el_resto_del_puntaje() -> None:
+    resultado = FilterResult(
+        filter_label="Inglés B2", field="languages", passed=False, mandatory=True,
+        expected="b2", actual=None, explanation="No acreditado",
+        status=CriterionStatus.UNVERIFIED, mode=CriterionMode.WEIGHTED,
+        penalty_percent=15,
+    )
+
+    total = ScoringPolicy.apply_criterion_penalties(Score(value=80), [resultado])
+    assert float(total) == pytest.approx(68.0)
 
 
 def test_tecnologias_dentro_de_la_experiencia_tambien_cuentan() -> None:

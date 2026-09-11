@@ -36,6 +36,10 @@ def _payload_from_form(prefix: str) -> dict:
         "review_threshold": float(st.session_state.get(f"{prefix}_review_threshold", 5)),
         "min_years_experience": float(st.session_state.get(f"{prefix}_min_years", 0)),
         "criteria_approved": bool(st.session_state.get(f"{prefix}_approved", False)),
+        "language_required": bool(st.session_state.get(f"{prefix}_language_required", False)),
+        "language_level": st.session_state.get(f"{prefix}_language_level", "b2").lower(),
+        "language_mode": st.session_state.get(f"{prefix}_language_mode", "weighted"),
+        "language_penalty_percent": float(st.session_state.get(f"{prefix}_language_penalty", 15)),
     }
 
 
@@ -210,6 +214,16 @@ def render() -> None:  # noqa: C901 - Gestión de vacantes concentrada para RR. 
                     value=0.0,
                     key="new_min_years",
                 )
+                st.subheader("Idioma")
+                st.checkbox("Requerir inglés", key="new_language_required")
+                l1, l2, l3 = st.columns(3)
+                l1.selectbox("Nivel mínimo", ["b1", "b2", "c1", "c2"], index=1, key="new_language_level")
+                l2.selectbox(
+                    "Tratamiento", ["weighted", "excludent"], key="new_language_mode",
+                    format_func=lambda value: "Ponderado" if value == "weighted" else "Excluyente",
+                )
+                l3.slider("Penalización máxima (%)", 0, 100, 15, key="new_language_penalty")
+                st.caption("No acreditado siempre requiere revisión; solo un incumplimiento demostrado puede ser excluyente.")
                 st.checkbox(
                     "Confirmo que una persona revisó y aprobó estos criterios",
                     key="new_approved",
@@ -270,6 +284,30 @@ def render() -> None:  # noqa: C901 - Gestión de vacantes concentrada para RR. 
                         max_value=80.0,
                         value=float(selected_job["min_years_experience"]),
                         key="edit_min_years",
+                    )
+                    st.subheader("Idioma")
+                    st.checkbox(
+                        "Requerir inglés", value=bool(selected_job.get("language_required")),
+                        key="edit_language_required",
+                    )
+                    levels = ["b1", "b2", "c1", "c2"]
+                    current_level = selected_job.get("language_level", "b2")
+                    l1, l2, l3 = st.columns(3)
+                    l1.selectbox(
+                        "Nivel mínimo", levels,
+                        index=levels.index(current_level) if current_level in levels else 1,
+                        key="edit_language_level",
+                    )
+                    l2.selectbox(
+                        "Tratamiento", ["weighted", "excludent"],
+                        index=0 if selected_job.get("language_mode", "weighted") == "weighted" else 1,
+                        key="edit_language_mode",
+                        format_func=lambda value: "Ponderado" if value == "weighted" else "Excluyente",
+                    )
+                    l3.slider(
+                        "Penalización máxima (%)", 0, 100,
+                        int(selected_job.get("language_penalty_percent", 15)),
+                        key="edit_language_penalty",
                     )
                     st.warning("Si cambias criterios, la aprobación anterior deja de ser válida.")
                     st.checkbox("Confirmo la actualización de criterios", key="edit_confirm")

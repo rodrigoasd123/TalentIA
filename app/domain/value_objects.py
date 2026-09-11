@@ -16,6 +16,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.domain.enums import (
     LANGUAGE_LEVEL_ORDER,
+    CriterionMode,
+    CriterionStatus,
     FilterOperator,
     LanguageLevel,
     ScoringDimension,
@@ -151,6 +153,24 @@ class HardFilter(BaseModel):
     label: str = Field(min_length=1, max_length=160)
     mandatory: bool = True
     legal_basis: str = Field(min_length=3, max_length=300)
+    mode: CriterionMode | None = None
+    penalty_percent: float | None = Field(default=None, ge=0, le=100)
+
+    @property
+    def effective_mode(self) -> CriterionMode:
+        if self.mode is not None:
+            return self.mode
+        # Compatibilidad: los idiomas heredados pasan a ponderados; los demás
+        # filtros conservan su comportamiento excluyente.
+        if self.operator is FilterOperator.MIN_LEVEL:
+            return CriterionMode.WEIGHTED
+        return CriterionMode.EXCLUDENT
+
+    @property
+    def effective_penalty_percent(self) -> float:
+        if self.penalty_percent is not None:
+            return self.penalty_percent
+        return 15.0 if self.effective_mode is CriterionMode.WEIGHTED else 0.0
 
     @model_validator(mode="after")
     def _validate_operator_value(self) -> Self:
@@ -179,6 +199,13 @@ class FilterResult(BaseModel):
     expected: Any
     actual: Any
     explanation: str
+    status: CriterionStatus = CriterionStatus.FAILED
+    mode: CriterionMode = CriterionMode.EXCLUDENT
+    penalty_percent: float = Field(default=0.0, ge=0, le=100)
+
+    @property
+    def is_blocking(self) -> bool:
+        return self.mode is CriterionMode.EXCLUDENT and self.status is CriterionStatus.FAILED
 
     def __str__(self) -> str:
         return f"{'✓' if self.passed else '✗'} {self.filter_label}: {self.explanation}"

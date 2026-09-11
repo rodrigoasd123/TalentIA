@@ -88,6 +88,11 @@ class JobSummary(BaseModel):
     mandatory_skills: list[str]
     hard_filter_count: int
     weights: dict[str, float]
+    requirements_version: int = 1
+    language_required: bool = False
+    language_level: str = "b2"
+    language_mode: str = "weighted"
+    language_penalty_percent: float = 15.0
 
 
 class JobCreateRequest(BaseModel):
@@ -102,6 +107,10 @@ class JobCreateRequest(BaseModel):
     review_threshold: float = Field(default=5.0, ge=0, le=50)
     min_years_experience: float = Field(default=0.0, ge=0, le=80)
     criteria_approved: bool = False
+    language_required: bool = False
+    language_level: str = "b2"
+    language_mode: Literal["weighted", "excludent"] = "weighted"
+    language_penalty_percent: float = Field(default=15.0, ge=0, le=100)
 
 
 class JobUpdateRequest(BaseModel):
@@ -115,6 +124,10 @@ class JobUpdateRequest(BaseModel):
     review_threshold: float | None = Field(default=None, ge=0, le=50)
     min_years_experience: float | None = Field(default=None, ge=0, le=80)
     criteria_approved: bool | None = None
+    language_required: bool | None = None
+    language_level: str | None = None
+    language_mode: Literal["weighted", "excludent"] | None = None
+    language_penalty_percent: float | None = Field(default=None, ge=0, le=100)
 
 
 class CandidateCreateRequest(BaseModel):
@@ -212,6 +225,9 @@ class FilterResultOut(BaseModel):
     passed: bool
     mandatory: bool
     explanation: str
+    status: str = "failed"
+    mode: str = "excludent"
+    penalty_percent: float = 0.0
 
 
 class EvidenceOut(BaseModel):
@@ -241,6 +257,7 @@ class EvaluationResponse(BaseModel):
     is_simulated: bool
 
     total_score: float
+    score_calculated: bool = True
     recommendation: str
     passed_hard_filters: bool
     requires_human_review: bool

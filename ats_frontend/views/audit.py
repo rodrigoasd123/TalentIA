@@ -47,6 +47,14 @@ def render() -> None:
         st.success(integrity.get("message", "Cadena íntegra."))
     else:
         st.error(integrity.get("message", "La cadena presenta inconsistencias."))
+        st.warning(
+            integrity.get("diagnostic")
+            or "La evidencia histórica debe investigarse; no se modifica automáticamente."
+        )
+        st.caption(
+            "Acción recomendada: conserva una copia de la base, identifica el evento "
+            "indicado y revisa si la base fue importada o alterada fuera de TalentIA."
+        )
 
     design.metric_grid(
         [

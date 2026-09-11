@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 
 from app.core.config import reset_settings_cache
 from app.infrastructure.database.session import reset_engine
+from app.application.unit_of_work import UnitOfWork
+from app.infrastructure.database.session import session_scope
 
 
 @pytest.fixture
@@ -124,3 +126,73 @@ def test_sourcing_solo_devuelve_una_consulta_para_ejecucion_manual(client: TestC
     assert response.json()["execution"] == "manual"
     assert response.json()["opens_linkedin"] is False
     assert '"python"' in response.json()["boolean_query"]
+
+
+def _create_application(client: TestClient, code: str = "LAB-022") -> dict:
+    job = client.post(
+        "/api/v1/jobs",
+        json={"code": code, "title": "Vacante de integridad", "criteria_approved": True},
+    ).json()
+    response = client.post(
+        "/api/v1/intake",
+        data={
+            "full_name": f"Persona {code}",
+            "email": f"{code.lower()}@example.test",
+            "job_id": job["id"],
+            "consent_granted": "true",
+        },
+        files={"resume": ("cv.docx", _docx_bytes(), "application/octet-stream")},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_lista_identifica_y_endpoint_asocia_cv_faltante(client: TestClient) -> None:
+    created = _create_application(client)
+    with session_scope() as database_session:
+        uow = UnitOfWork(database_session)
+        application = uow.applications.get(created["application_id"])
+        assert application is not None
+        application.resume_id = None
+        uow.applications.update(application)
+
+    before = client.get("/api/v1/applications").json()
+    row = next(item for item in before if item["id"] == created["application_id"])
+    assert row["has_resume"] is False
+    assert row["resume_id"] is None
+
+    attached = client.post(
+        f"/api/v1/applications/{created['application_id']}/resume",
+        files={"resume": ("cv-recuperado.docx", _docx_bytes(), "application/octet-stream")},
+    )
+    assert attached.status_code == 200, attached.text
+    assert attached.json()["resume_id"] == created["resume_id"]
+
+    after = client.get("/api/v1/applications").json()
+    row = next(item for item in after if item["id"] == created["application_id"])
+    assert row["has_resume"] is True
+
+
+def test_solicitud_revision_manual_es_idempotente(client: TestClient) -> None:
+    created = _create_application(client, "LAB-023")
+    url = f"/api/v1/applications/{created['application_id']}/reviews"
+    payload = {
+        "reason": "criterion_unverified",
+        "note": "Validar nivel de inglés por llamada.",
+    }
+    first = client.post(url, json=payload)
+    second = client.post(url, json=payload)
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json()["created"] is True
+    assert second.json()["created"] is False
+    assert first.json()["id"] == second.json()["id"]
+
+    rows = client.get("/api/v1/applications").json()
+    row = next(item for item in rows if item["id"] == created["application_id"])
+    assert row["has_open_review"] is True
+
+    statistics = client.get("/api/v1/reviews/statistics").json()
+    assert statistics["pending"] == 1
+    assert "applications_in_review_state" in statistics

@@ -14,7 +14,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.domain.entities import DimensionScore, ResumeExtraction
-from app.domain.enums import Recommendation, ReviewReason, ScoringDimension
+from app.domain.enums import (
+    CriterionMode,
+    CriterionStatus,
+    Recommendation,
+    ReviewReason,
+    ScoringDimension,
+)
 from app.domain.value_objects import FilterResult, Score, ScoringWeights
 
 #: Umbral de confianza de extracción por debajo del cual el caso se revisa.
@@ -90,6 +96,18 @@ class ScoringPolicy:
             if weights.weight_of(dimension) > 0
         ]
 
+    @staticmethod
+    def apply_criterion_penalties(total: Score, results: list[FilterResult]) -> Score:
+        """Reduce el total solo por criterios ponderados no satisfechos."""
+        penalty = sum(
+            item.penalty_percent
+            for item in results
+            if item.mode is CriterionMode.WEIGHTED
+            and item.status is not CriterionStatus.PASSED
+        )
+        factor = max(0.0, 1.0 - min(penalty, 100.0) / 100.0)
+        return Score(value=round(float(total) * factor, 2))
+
     # ── Decisión ─────────────────────────────────────────────────────────────
 
     def decide(
@@ -127,9 +145,11 @@ class ScoringPolicy:
         ):
             reasons.append(ReviewReason.EVIDENCE_UNVERIFIABLE)
 
-        failed_mandatory = [r for r in filter_results if r.mandatory and not r.passed]
+        failed_mandatory = [r for r in filter_results if r.mandatory and r.is_blocking]
         if failed_mandatory:
             reasons.append(ReviewReason.HARD_FILTER_FAILED)
+        if any(r.status is CriterionStatus.UNVERIFIED for r in filter_results):
+            reasons.append(ReviewReason.CRITERION_UNVERIFIED)
 
         if extraction is not None:
             if extraction.average_confidence < MIN_PARSE_CONFIDENCE:
