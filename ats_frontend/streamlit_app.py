@@ -155,11 +155,6 @@ def _sidebar_status() -> None:
             st.error("API no disponible")
             st.caption(str(exc))
 
-    with st.sidebar.expander("Preferencias", expanded=False):
-        st.radio("Densidad", ["Cómoda", "Compacta"], key="ui_density", horizontal=True)
-        st.selectbox("Acento", ["Azul", "Verde", "Ambar"], key="ui_accent")
-        st.toggle("Mostrar detalles técnicos", key="ui_show_details")
-
     session.render_sidebar_footer()
 
 

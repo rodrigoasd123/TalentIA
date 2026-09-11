@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -33,9 +34,22 @@ from app.application.use_cases.intake import (  # noqa: E402
     RegisterCandidateUseCase,
 )
 from app.core.logging import configure_logging, get_logger  # noqa: E402
-from app.domain.entities import EmailTemplate, ResumeDocument, User  # noqa: E402
-from app.domain.enums import DocumentType, EmailTemplateKind, JobStatus, Role  # noqa: E402
-from app.domain.value_objects import EmailAddress  # noqa: E402
+from app.domain.entities import (  # noqa: E402
+    Application,
+    Candidate,
+    EmailTemplate,
+    ResumeDocument,
+    User,
+)
+from app.domain.enums import (  # noqa: E402
+    ApplicationStatus,
+    CandidateStatus,
+    DocumentType,
+    EmailTemplateKind,
+    JobStatus,
+    Role,
+)
+from app.domain.value_objects import ConsentRecord, EmailAddress  # noqa: E402
 from app.infrastructure.database.session import init_database  # noqa: E402
 from app.infrastructure.fixtures_loader import load_all_jobs, load_all_resumes  # noqa: E402
 from app.infrastructure.security.passwords import hash_password  # noqa: E402
@@ -246,8 +260,101 @@ def seed_candidates(uow: UnitOfWork, jobs: list, actor: Actor) -> dict[str, int]
                     actor=actor,
                 )
                 stats["applications"] += 1
-            except Exception as exc:  # noqa: BLE001 — duplicado esperado al resembrar
+            except Exception as exc:
                 logger.debug("Candidatura omitida", reason=str(exc)[:120])
+    return stats
+
+
+def seed_capacity_demo(uow: UnitOfWork, jobs: list) -> dict[str, int]:
+    """Crea 50 perfiles ficticios repartidos por todo el pipeline."""
+    first_names = [
+        "Ana",
+        "Bruno",
+        "Carla",
+        "Diego",
+        "Elena",
+        "Fabian",
+        "Gabriela",
+        "Hector",
+        "Ines",
+        "Javier",
+    ]
+    last_names = ["Salazar", "Mendoza", "Rojas", "Torres", "Vargas"]
+    candidate_statuses = list(CandidateStatus)
+    application_statuses = list(ApplicationStatus)
+    sources = ["LinkedIn", "Referido", "Portal TCS", "Universidad", "Importacion CSV"]
+    recruiters = ["Laura Gomez", "Carlos Ruiz", "Sofia Perez"]
+    clients = ["TCS Peru", "Banca Digital", "Retail Cloud", "Telecom LATAM"]
+    skills = [
+        "Python, FastAPI y SQL",
+        "Java, Spring Boot y AWS",
+        "React, TypeScript y UX",
+        "Data Engineering y Azure",
+        "QA Automation y DevOps",
+    ]
+    requested_roles = [
+        "Backend Developer",
+        "Cloud Engineer",
+        "Frontend Developer",
+        "Data Engineer",
+        "QA Engineer",
+    ]
+    now = datetime.now(UTC)
+    stats = {"candidates": 0, "resumes": 0, "applications": 0}
+
+    for index in range(1, 51):
+        email = f"candidato.demo{index:02d}@talentia-lab.test"
+        candidate = uow.candidates.get_by_email(email)
+        if candidate is None:
+            full_name = (
+                f"{first_names[(index - 1) % 10]} {last_names[(index - 1) % 5]} Demo {index:02d}"
+            )
+            candidate = Candidate(
+                full_name=full_name,
+                email=EmailAddress(value=email),
+                phone=f"+51 900 10{index:03d}",
+                location=["Lima", "Arequipa", "Trujillo", "Cusco", "Remoto"][(index - 1) % 5],
+                source=sources[(index - 1) % len(sources)],
+                consent=ConsentRecord(
+                    purpose="demostracion del laboratorio",
+                    granted_at=date.today(),
+                    expires_at=date.today() + timedelta(days=365),
+                ),
+                client=clients[(index - 1) % len(clients)],
+                candidate_status=candidate_statuses[(index - 1) % len(candidate_statuses)],
+                record_date=date.today() - timedelta(days=index),
+                recruiter=recruiters[(index - 1) % len(recruiters)],
+                q=f"Q{((index - 1) % 4) + 1}",
+                reported_age=23 + (index % 23),
+                bgc=["Pendiente", "Validado", "No aplica"][(index - 1) % 3],
+                technical_knowledge=skills[(index - 1) % len(skills)],
+                salary_expectation=3500 + (index % 10) * 500,
+                requested=requested_roles[(index - 1) % len(requested_roles)],
+                role_ctc=4200 + (index % 10) * 550,
+                ctc_variation_pct=float(((index % 9) - 4) * 2.5),
+                availability=["Inmediata", "15 dias", "30 dias"][(index - 1) % 3],
+                tags=["demo", f"cohorte-{((index - 1) % 5) + 1}"],
+                notes=f"Registro ficticio de demostracion {index:02d}.",
+            )
+            uow.candidates.add(candidate)
+            stats["candidates"] += 1
+
+        key = f"demo-capacidad-{index:02d}"
+        if uow.applications.get_by_idempotency_key(key) is None:
+            uow.applications.add(
+                Application(
+                    candidate_id=candidate.id,
+                    job_id=jobs[(index - 1) % len(jobs)].id,
+                    status=application_statuses[(index - 1) % len(application_statuses)],
+                    source=sources[(index - 1) % len(sources)],
+                    applied_at=now - timedelta(days=60 - index),
+                    entered_stage_at=now - timedelta(days=(index % 12) + 1),
+                    final_score=None if index <= 8 else float(55 + (index % 41)),
+                    idempotency_key=key,
+                )
+            )
+            stats["applications"] += 1
+
     return stats
 
 
@@ -268,6 +375,9 @@ def main() -> int:
         templates = seed_templates(uow)
         jobs = seed_jobs(uow)
         stats = seed_candidates(uow, jobs, actor)
+        capacity_stats = seed_capacity_demo(uow, jobs)
+        for key in stats:
+            stats[key] += capacity_stats[key]
 
     print("\n  Siembra completada")
     print(f"  {'Usuarios':<16} {users} creados")
@@ -297,14 +407,16 @@ def main() -> int:
                     f"{outcome.summary['recommendation']:<10} → "
                     f"{outcome.summary['status']}"
                 )
-            except Exception as exc:  # noqa: BLE001 — se informa y se continúa
+            except Exception as exc:
                 failed += 1
                 print(f"    {application.id[:8]}  ERROR: {str(exc)[:80]}")
         print(f"\n  {evaluated} evaluadas, {failed} con error")
 
         with UnitOfWork() as uow:
             ok, broken = uow.audit.verify_chain()
-            print(f"  Cadena de auditoría íntegra: {ok}" + (f" (roto en {broken})" if broken else ""))
+            print(
+                f"  Cadena de auditoría íntegra: {ok}" + (f" (roto en {broken})" if broken else "")
+            )
 
     return 0
 
