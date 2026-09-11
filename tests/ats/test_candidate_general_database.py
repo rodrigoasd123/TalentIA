@@ -18,6 +18,13 @@ from app.infrastructure.database.models import Base
 from app.infrastructure.database.session import reset_engine
 
 
+def _age_for(birth_date: date) -> int:
+    today = date.today()
+    return today.year - birth_date.year - (
+        (today.month, today.day) < (birth_date.month, birth_date.day)
+    )
+
+
 @pytest.fixture
 def uow() -> UnitOfWork:
     engine = create_engine("sqlite:///:memory:")
@@ -66,7 +73,7 @@ def test_candidate_general_fields_round_trip_and_age(uow: UnitOfWork) -> None:
     assert stored is not None
     assert stored.client == "Cliente Uno"
     assert stored.candidate_status is CandidateStatus.APTO
-    assert stored.age == 35
+    assert stored.age == _age_for(date(1990, 9, 11))
     assert stored.equifax_debt == 125.5
 
 
@@ -149,7 +156,7 @@ def test_candidate_api_create_update_and_csv_report(api_client: TestClient) -> N
     assert created.status_code == 201, created.text
     candidate = created.json()
     assert candidate["candidate_status"] == "pendiente_contacto"
-    assert candidate["age"] == 31
+    assert candidate["age"] == _age_for(date(1995, 2, 10))
 
     updated = api_client.patch(
         f"/api/v1/candidates/{candidate['id']}",
