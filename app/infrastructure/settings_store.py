@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.core.crypto import SecretCipher, SecretDecryptionError, mask_secret
 from app.core.logging import get_logger
 from app.infrastructure.database.models import RuntimeSettingModel
+from app.infrastructure.llm.model_catalog import provider_for_model
 from app.infrastructure.llm.openai_compatible_adapter import DEFAULT_GENAI_LAB_BASE_URL
 
 logger = get_logger(__name__)
@@ -260,7 +261,11 @@ class SettingsStore:
     # ── Consultas de conveniencia ────────────────────────────────────────────
 
     def llm_config(self) -> dict[str, Any]:
-        provider = self.get("llm.provider", "genai_lab")
+        model = self.get("llm.model", "gemini-2.5-flash")
+        try:
+            provider = provider_for_model(model)
+        except ValueError:
+            provider = self.get("llm.provider", "genai_lab")
         legacy_key = self.get("llm.api_key", "")
         if provider == "genai_lab":
             api_key = self.get("llm.genai_lab_api_key", "") or legacy_key
@@ -274,7 +279,7 @@ class SettingsStore:
             "provider": provider,
             "api_key": api_key,
             "base_url": self.get("llm.base_url", DEFAULT_GENAI_LAB_BASE_URL),
-            "model": self.get("llm.model", "gemini-2.5-flash"),
+            "model": model,
             "temperature": self.get_float("llm.temperature", 0.1),
             "budget_usd": self.get_float("llm.budget_usd_per_job", 5.0),
             "enable_bias_audit": self.get_bool("llm.enable_bias_audit", True),

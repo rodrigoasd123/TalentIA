@@ -186,6 +186,9 @@ class TalentIAApiClient:
     def list_models(self) -> list[str]:
         return self._request("GET", f"{API_PREFIX}/config/models").get("models", [])
 
+    def llm_observability(self) -> dict[str, Any]:
+        return self._request("GET", f"{API_PREFIX}/observability/llm")
+
     # ── Análisis documental integrado ──────────────────────────────────────
 
     def screen_documents(

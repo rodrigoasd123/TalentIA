@@ -45,3 +45,5 @@ skills-lock.json
 postulaia.stdout.log
 postulaia.stderr.log
 *.log
+mlruns/
+mlflow.db*

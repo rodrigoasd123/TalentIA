@@ -15,14 +15,11 @@ from api_client import ApiError  # noqa: E402
 from talentia import design, session  # noqa: E402
 from talentia.formatters import role_label  # noqa: E402
 
-from app.infrastructure.llm.gemini_adapter import FALLBACK_MODELS  # noqa: E402
 from app.infrastructure.llm.model_catalog import (  # noqa: E402
-    GENAI_LAB_CHAT_MODELS,
     GENAI_LAB_EMBEDDING_MODELS,
     GENAI_LAB_TRANSCRIPTION_MODELS,
-)
-from app.infrastructure.llm.openai_compatible_adapter import (  # noqa: E402
-    DEFAULT_GENAI_LAB_BASE_URL,
+    SELECTABLE_LLM_MODELS,
+    provider_for_model,
 )
 
 
@@ -37,21 +34,6 @@ def _value(items: dict[str, dict], key: str, default: str = "") -> str:
     if item.get("is_secret"):
         return default
     return item.get("value") or default
-
-
-def _is_set(items: dict[str, dict], key: str) -> bool:
-    item = items.get(key)
-    return bool(item and item.get("is_set"))
-
-
-def _masked(items: dict[str, dict], key: str) -> str:
-    item = items.get(key)
-    return str(item.get("value", "")) if item else ""
-
-
-def _flag(items: dict[str, dict], key: str, default: bool = False) -> bool:
-    value = _value(items, key, "true" if default else "false").strip().lower()
-    return value in {"1", "true", "yes", "si", "sí", "on"}
 
 
 def _preferences() -> None:
@@ -92,142 +74,49 @@ def _technical_settings() -> None:  # noqa: C901 - Configuración técnica agrup
     if current.get("is_simulated"):
         st.warning("El proveedor de IA está en modo simulado o sin credenciales reales.")
 
-    st.subheader("Proveedor de IA")
-    provider = st.selectbox(
-        "Proveedor",
-        options=["genai_lab", "gemini", "mock"],
-        index=["genai_lab", "gemini", "mock"].index(
-            _value(items, "llm.provider", "genai_lab")
-            if _value(items, "llm.provider", "genai_lab")
-            in {"genai_lab", "gemini", "mock"}
-            else "genai_lab"
-        ),
-        format_func=lambda value: {
-            "genai_lab": "GenAI Lab (gateway)",
-            "gemini": "Google Gemini directo",
-            "mock": "Simulado local",
-        }[value],
-        disabled=not can_write,
-    )
-    provider_key = (
-        "llm.genai_lab_api_key" if provider == "genai_lab" else "llm.gemini_api_key"
-    )
-    legacy_lab_key = provider == "genai_lab" and _is_set(items, "llm.api_key")
-    if _is_set(items, provider_key) or legacy_lab_key:
-        masked_key = (
-            _masked(items, provider_key)
-            if _is_set(items, provider_key)
-            else _masked(items, "llm.api_key")
-        )
-        st.success(f"Clave guardada para este proveedor: {masked_key}")
-        st.caption("Deja el campo vacío para conservarla.")
-    api_key = st.text_input(
-        "Nueva API key",
-        type="password",
-        value="",
-        disabled=provider == "mock" or not can_write,
-    )
-
-    base_url = _value(items, "llm.base_url", DEFAULT_GENAI_LAB_BASE_URL)
-    if provider == "genai_lab":
-        base_url = DEFAULT_GENAI_LAB_BASE_URL
-        st.caption("Gateway configurado automáticamente para este laboratorio.")
-
-    known_models = (
-        list(GENAI_LAB_CHAT_MODELS)
-        if provider == "genai_lab"
-        else list(FALLBACK_MODELS) if provider == "gemini" else ["mock"]
-    )
+    st.subheader("Modelo de IA")
+    known_models = list(SELECTABLE_LLM_MODELS)
     saved_model = _value(items, "llm.model", "gemini-2.5-flash")
     if saved_model not in known_models:
-        if provider == "genai_lab":
-            st.warning(
-                f"El modelo guardado «{saved_model}» ya no está disponible. "
-                "Selecciona un modelo vigente."
-            )
-            saved_model = (
-                "genailab-maas-gpt-4o"
-                if "genailab-maas-gpt-4o" in known_models
-                else known_models[0]
-            )
-        else:
-            known_models.insert(0, saved_model)
+        st.warning(f"El modelo guardado «{saved_model}» ya no está disponible.")
+        saved_model = known_models[0]
     model = st.selectbox(
         "Modelo",
         options=known_models,
         index=known_models.index(saved_model),
-        disabled=provider == "mock" or not can_write,
-    )
-
-    c1, c2 = st.columns(2)
-    with c1:
-        temperature = st.slider(
-            "Temperatura",
-            min_value=0.0,
-            max_value=1.0,
-            value=float(_value(items, "llm.temperature", "0.1") or 0.1),
-            step=0.05,
-            disabled=not can_write,
-        )
-    with c2:
-        budget = st.number_input(
-            "Presupuesto por vacante (USD)",
-            min_value=0.0,
-            max_value=1000.0,
-            value=float(_value(items, "llm.budget_usd_per_job", "5.0") or 5.0),
-            step=0.5,
-            disabled=not can_write,
-        )
-
-    bias_audit = st.toggle(
-        "Auditoría de sesgo con modelo",
-        value=_flag(items, "llm.enable_bias_audit", True),
         disabled=not can_write,
+        help="TalentIA selecciona automáticamente el proveedor y la clave correspondiente.",
     )
+    provider = provider_for_model(model)
+    provider_label = "Google Gemini directo" if provider == "gemini" else "GenAI Lab"
+    st.caption(f"Proveedor asignado automáticamente: {provider_label}.")
 
-    if can_write:
-        b1, b2 = st.columns(2)
-        with b1:
-            if st.button("Verificar conexión", width="stretch"):
-                try:
-                    result = session.client().test_credentials(
-                        provider=provider, api_key=api_key, model=model, base_url=base_url
-                    )
-                    if result.get("ok"):
-                        st.success(result.get("message", "Conexión verificada."))
-                    else:
-                        st.error(result.get("message", "No se pudo verificar."))
-                except ApiError as exc:
-                    design.api_error(exc, "No se pudo verificar")
-        with b2:
-            if st.button("Guardar IA", type="primary", width="stretch"):
-                values = {
-                    "llm.provider": provider,
-                    "llm.model": model,
-                    "llm.base_url": base_url.strip(),
-                    "llm.temperature": str(temperature),
-                    "llm.budget_usd_per_job": str(budget),
-                    "llm.enable_bias_audit": "true" if bias_audit else "false",
-                }
-                if api_key.strip():
-                    values[provider_key] = api_key.strip()
-                try:
-                    session.client().update_settings(
-                        values, updated_by=session.current_user().get("email", "ui")
-                    )
-                    st.success("Configuración guardada.")
-                    st.rerun()
-                except ApiError as exc:
-                    design.api_error(exc, "No se pudo guardar")
+    if can_write and model != str(current.get("model", "")):
+        try:
+            session.client().update_settings(
+                {"llm.model": model},
+                updated_by=session.current_user().get("email", "ui"),
+            )
+            st.success(f"Modelo {model} activado.")
+            st.rerun()
+        except ApiError as exc:
+            design.api_error(exc, "No se pudo activar el modelo")
 
-    if provider == "genai_lab":
-        st.caption(
-            f"Catálogo validado: {len(GENAI_LAB_CHAT_MODELS)} modelos de generación. "
-            f"Además están registrados {', '.join(GENAI_LAB_EMBEDDING_MODELS)} "
-            f"(embeddings) y {', '.join(GENAI_LAB_TRANSCRIPTION_MODELS)} "
-            "(audio), que no son válidos para evaluar texto y por eso no aparecen "
-            "en el selector."
-        )
+    if can_write and st.button("Verificar modelo", width="stretch"):
+        try:
+            result = session.client().test_credentials(provider=provider, model=model)
+            if result.get("ok"):
+                st.success(result.get("message", "Conexión verificada."))
+            else:
+                st.error(result.get("message", "No se pudo verificar."))
+        except ApiError as exc:
+            design.api_error(exc, "No se pudo verificar")
+
+    st.caption(
+        "Las credenciales están cifradas y se asignan internamente. "
+        f"Los modelos de {', '.join(GENAI_LAB_EMBEDDING_MODELS)} (embeddings) y "
+        f"{', '.join(GENAI_LAB_TRANSCRIPTION_MODELS)} (audio) no aparecen aquí."
+    )
 
     st.subheader("Integraciones")
     try:

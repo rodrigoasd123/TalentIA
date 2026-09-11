@@ -101,11 +101,13 @@ def test_cada_proveedor_usa_su_propia_clave_cifrada(sesion: Session) -> None:
     store.set("llm.genai_lab_api_key", "sk-clave-laboratorio")
     store.set("llm.gemini_api_key", "AIzaSyClaveGoogle")
 
-    store.set("llm.provider", "genai_lab")
+    store.set("llm.model", "genailab-maas-gpt-4o")
     assert store.llm_config()["api_key"] == "sk-clave-laboratorio"
+    assert store.llm_config()["provider"] == "genai_lab"
 
-    store.set("llm.provider", "gemini")
+    store.set("llm.model", "gemini-3.6-flash")
     assert store.llm_config()["api_key"] == "AIzaSyClaveGoogle"
+    assert store.llm_config()["provider"] == "gemini"
 
 
 def test_una_clave_fuera_del_catalogo_se_rechaza(sesion: Session) -> None:

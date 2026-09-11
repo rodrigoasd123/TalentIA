@@ -29,6 +29,14 @@ prescindibles. Inicia la API y la interfaz en terminales separadas:
 .\.venv\Scripts\python.exe -m streamlit run ats_frontend/streamlit_app.py
 ```
 
+El inicio integrado también levanta MLflow. Su panel queda disponible en
+`http://127.0.0.1:5000` y registra por llamada el modelo, proveedor, tokens,
+latencia y estado, sin almacenar prompts, respuestas ni API keys:
+
+```powershell
+.\scripts\start_lab.ps1
+```
+
 Interfaz: `http://localhost:8501`. API: `http://127.0.0.1:8000/docs`.
 
 En laboratorios donde esos puertos suelen estar ocupados, el siguiente script

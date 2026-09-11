@@ -42,6 +42,28 @@ GENAI_LAB_TRANSCRIPTION_MODELS: tuple[str, ...] = (
     "azure/gpt-realtime-whisper",
 )
 
+GEMINI_DIRECT_MODELS: tuple[str, ...] = (
+    "gemini-3.6-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+)
+
+# El selector es único. Los nombres Gemini duplicados en el gateway se muestran
+# una sola vez y se enrutan a Google AI Studio.
+SELECTABLE_LLM_MODELS: tuple[str, ...] = GEMINI_DIRECT_MODELS + tuple(
+    model for model in GENAI_LAB_CHAT_MODELS if not model.startswith("gemini-")
+)
+
 GENAI_LAB_ALL_MODELS = (
     GENAI_LAB_CHAT_MODELS
     + GENAI_LAB_EMBEDDING_MODELS
@@ -60,10 +82,24 @@ def gateway_model_id(model: str) -> str:
     }
     return aliases.get(model, model)
 
+
+def provider_for_model(model: str) -> str:
+    """Selecciona internamente el proveedor; la UI solo necesita el modelo."""
+    if model == "mock":
+        return "mock"
+    if model.startswith("gemini-"):
+        return "gemini"
+    if model in GENAI_LAB_CHAT_MODELS:
+        return "genai_lab"
+    raise ValueError(f"Modelo no admitido: {model}")
+
 __all__ = [
+    "GEMINI_DIRECT_MODELS",
     "GENAI_LAB_ALL_MODELS",
     "GENAI_LAB_CHAT_MODELS",
     "GENAI_LAB_EMBEDDING_MODELS",
     "GENAI_LAB_TRANSCRIPTION_MODELS",
+    "SELECTABLE_LLM_MODELS",
     "gateway_model_id",
+    "provider_for_model",
 ]

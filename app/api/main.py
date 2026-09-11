@@ -63,15 +63,33 @@ from app.infrastructure.fixtures_loader import (
 )
 from app.infrastructure.llm.factory import build_llm_from_settings, describe_provider
 from app.infrastructure.llm.gemini_adapter import GeminiAdapter
-from app.infrastructure.llm.model_catalog import GENAI_LAB_CHAT_MODELS
+from app.infrastructure.llm.model_catalog import (
+    SELECTABLE_LLM_MODELS,
+    provider_for_model,
+)
 from app.infrastructure.llm.openai_compatible_adapter import (
     DEFAULT_GENAI_LAB_BASE_URL,
     OpenAICompatibleAdapter,
 )
+from app.infrastructure.observability.mlflow_tracker import MLFLOW_TRACKER
 from app.infrastructure.settings_store import SettingsStore
 
 logger = get_logger(__name__)
 API_PREFIX = "/api/v1"
+
+
+def _validate_json_object(text: str) -> None:
+    """Acepta JSON puro o envuelto en texto/bloques Markdown."""
+    cleaned = text.strip()
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        parsed = json.loads(cleaned[start : end + 1])
+    if not isinstance(parsed, dict):
+        raise ValueError("La respuesta no es un objeto JSON")
 
 
 @asynccontextmanager
@@ -185,6 +203,16 @@ def metrics() -> dict[str, object]:
     return METRICS.snapshot()
 
 
+@app.get(
+    f"{API_PREFIX}/observability/llm",
+    tags=["observabilidad"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
+def llm_observability() -> dict[str, object]:
+    """Estado de MLflow y consumo agregado por proveedor/modelo."""
+    return MLFLOW_TRACKER.status()
+
+
 # ── Configuración ────────────────────────────────────────────────────────────
 
 
@@ -212,14 +240,15 @@ def update_settings(
     Las claves ausentes no se tocan. Un secreto se conserva omitiéndolo, lo que
     permite reenviar el formulario del panel sin borrar la API key guardada.
     """
-    provider = payload.values.get("llm.provider", store.get("llm.provider", "genai_lab"))
     model = payload.values.get("llm.model")
-    if provider == "genai_lab" and model and model not in GENAI_LAB_CHAT_MODELS:
-        raise ValidationError(
-            f"El modelo «{model}» no pertenece al catálogo de generación vigente "
-            "de GenAI Lab. Selecciona uno de la lista actualizada."
-        )
-    applied = store.set_many(payload.values, updated_by=payload.updated_by)
+    values = dict(payload.values)
+    if model:
+        if model not in SELECTABLE_LLM_MODELS:
+            raise ValidationError(
+                f"El modelo «{model}» no pertenece al catálogo de generación vigente."
+            )
+        values["llm.provider"] = provider_for_model(model)
+    applied = store.set_many(values, updated_by=payload.updated_by)
     session.commit()
     logger.info("Configuración modificada", keys=applied, updated_by=payload.updated_by)
     return read_settings(store)
@@ -237,7 +266,11 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
     Si no se envía clave, se usa la ya guardada: así el panel puede comprobar la
     credencial existente sin obligar a reescribirla.
     """
-    if payload.provider == "mock":
+    try:
+        provider = provider_for_model(payload.model)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    if provider == "mock":
         return CredentialTestResponse(
             ok=True,
             message="Adaptador simulado activo. No requiere credenciales.",
@@ -246,13 +279,13 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
 
     stored_key_name = (
         "llm.genai_lab_api_key"
-        if payload.provider == "genai_lab"
+        if provider == "genai_lab"
         else "llm.gemini_api_key"
     )
     api_key = payload.api_key or store.get(stored_key_name, "")
-    if not api_key and payload.provider == "genai_lab":
+    if not api_key and provider == "genai_lab":
         api_key = store.get("llm.api_key", "")
-    if payload.provider == "genai_lab":
+    if provider == "genai_lab":
         base_url = payload.base_url or store.get(
             "llm.base_url", DEFAULT_GENAI_LAB_BASE_URL
         )
@@ -262,7 +295,7 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
     else:
         adapter = GeminiAdapter(api_key=api_key, model=payload.model)
     ok, message = adapter.verify_credentials()
-    if ok and payload.provider in {"genai_lab", "gemini"}:
+    if ok and provider in {"genai_lab", "gemini"}:
         try:
             probe = adapter.generate_json(
                 system_instruction="Responde con un objeto json válido.",
@@ -271,7 +304,7 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
                 max_output_tokens=256,
                 timeout_seconds=60,
             )
-            json.loads(probe.text)
+            _validate_json_object(probe.text)
             message = (
                 f"Clave y generación verificadas con el modelo {payload.model}."
             )
@@ -288,19 +321,8 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
 
 @app.get(f"{API_PREFIX}/config/models", tags=["configuración"], dependencies=[Depends(requires(Permission.SETTINGS_READ))])
 def list_models(store: StoreDep) -> dict[str, list[str]]:
-    """Modelos disponibles para la clave configurada."""
-    config = store.llm_config()
-    if config["provider"] == "mock":
-        return {"models": ["mock"]}
-    if config["provider"] == "genai_lab":
-        adapter = OpenAICompatibleAdapter(
-            api_key=str(config["api_key"]),
-            model=str(config["model"]),
-            base_url=str(config["base_url"]),
-        )
-        return {"models": adapter.list_models() or list(GENAI_LAB_CHAT_MODELS)}
-    adapter = GeminiAdapter(api_key=str(config["api_key"]), model=str(config["model"]))
-    return {"models": adapter.list_models()}
+    """Catálogo único; el proveedor y la credencial se resuelven internamente."""
+    return {"models": list(SELECTABLE_LLM_MODELS)}
 
 
 # ── Agente ───────────────────────────────────────────────────────────────────

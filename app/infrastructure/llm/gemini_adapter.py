@@ -27,6 +27,7 @@ from app.core.crypto import mask_secret
 from app.core.exceptions import LLMError, LLMNotConfigured, LLMTimeout
 from app.core.logging import get_logger
 from app.infrastructure.llm.base import LLMResponse
+from app.infrastructure.llm.model_catalog import GEMINI_DIRECT_MODELS
 
 logger = get_logger(__name__)
 
@@ -35,19 +36,7 @@ DEFAULT_MODEL = "gemini-2.5-flash"
 
 #: Modelos que el panel ofrece cuando no se puede consultar la lista real
 #: (por ejemplo, sin conexión). Sirve para que el desplegable nunca esté vacío.
-FALLBACK_MODELS: tuple[str, ...] = (
-    "gemini-3.6-flash",
-    "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-)
+FALLBACK_MODELS: tuple[str, ...] = GEMINI_DIRECT_MODELS
 
 #: Umbrales de seguridad del proveedor. Se ponen al mínimo de bloqueo porque un
 #: CV legítimo puede mencionar términos médicos, militares o judiciales, y que el

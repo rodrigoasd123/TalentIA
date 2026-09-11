@@ -80,8 +80,15 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
         )
     )
 
-    funnel_tab, sources_tab, tracking_tab, equity_tab, exports_tab = st.tabs(
-        ["Embudo", "Fuentes y tiempos", "Seguimiento", "Equidad", "Exportaciones"]
+    funnel_tab, sources_tab, tracking_tab, equity_tab, ai_tab, exports_tab = st.tabs(
+        [
+            "Embudo",
+            "Fuentes y tiempos",
+            "Seguimiento",
+            "Equidad",
+            "Observabilidad IA",
+            "Exportaciones",
+        ]
     )
 
     with funnel_tab:
@@ -208,6 +215,52 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
                             st.caption(f"Recomendación: {finding.get('recommendation', '-')}")
                 else:
                     st.success("No se detectaron patrones anómalos en la muestra actual.")
+
+    with ai_tab:
+        st.subheader("Consumo de modelos")
+        try:
+            telemetry = session.client().llm_observability()
+        except ApiError as exc:
+            design.api_error(exc, "No se pudo cargar la observabilidad de IA")
+            telemetry = {}
+        if telemetry:
+            installed = bool(telemetry.get("installed"))
+            enabled = bool(telemetry.get("enabled"))
+            design.badge_row(
+                [
+                    (
+                        "MLflow instalado" if installed else "MLflow no instalado",
+                        "success" if installed else "warning",
+                    ),
+                    (
+                        "Registro activo" if enabled else "Registro desactivado",
+                        "success" if enabled else "muted",
+                    ),
+                ]
+            )
+            usage = telemetry.get("usage", []) or []
+            if usage:
+                st.dataframe(
+                    [
+                        {
+                            "Proveedor": row.get("provider"),
+                            "Modelo": row.get("model"),
+                            "Llamadas": row.get("calls", 0),
+                            "Errores": row.get("errors", 0),
+                            "Tokens entrada": row.get("prompt_tokens", 0),
+                            "Tokens salida": row.get("completion_tokens", 0),
+                            "Tokens totales": row.get("total_tokens", 0),
+                            "Latencia media (s)": row.get("avg_latency_seconds", 0),
+                        }
+                        for row in usage
+                    ],
+                    width="stretch",
+                    hide_index=True,
+                )
+            else:
+                st.info("Aún no hay llamadas registradas desde el último arranque.")
+            st.link_button("Abrir panel MLflow", str(telemetry.get("ui_url")))
+            st.caption(str(telemetry.get("privacy", "")))
 
     with exports_tab:
         st.subheader("Disponibilidad de exportaciones")

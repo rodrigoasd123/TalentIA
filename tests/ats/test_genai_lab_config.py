@@ -8,11 +8,14 @@ import pytest
 from app.core.exceptions import LLMError
 from app.infrastructure.llm.gemini_adapter import FALLBACK_MODELS
 from app.infrastructure.llm.model_catalog import (
+    GEMINI_DIRECT_MODELS,
     GENAI_LAB_ALL_MODELS,
     GENAI_LAB_CHAT_MODELS,
     GENAI_LAB_EMBEDDING_MODELS,
     GENAI_LAB_TRANSCRIPTION_MODELS,
+    SELECTABLE_LLM_MODELS,
     gateway_model_id,
+    provider_for_model,
 )
 from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
 
@@ -22,6 +25,15 @@ def test_selector_gemini_prioriza_modelos_validados_en_el_laboratorio() -> None:
         "gemini-3.6-flash",
         "gemini-flash-lite-latest",
     )
+
+
+def test_selector_unico_resuelve_proveedor_sin_mostrar_credenciales() -> None:
+    assert len(SELECTABLE_LLM_MODELS) == len(set(SELECTABLE_LLM_MODELS))
+    assert set(GEMINI_DIRECT_MODELS).issubset(SELECTABLE_LLM_MODELS)
+    assert provider_for_model("gemini-3.6-flash") == "gemini"
+    assert provider_for_model("genailab-maas-gpt-4o") == "genai_lab"
+    with pytest.raises(ValueError, match="no admitido"):
+        provider_for_model("modelo-inventado")
 
 
 def test_catalogo_conserva_identificadores_y_separa_capacidades() -> None:
@@ -88,6 +100,22 @@ def test_parsea_respuesta_openai_y_sus_tokens() -> None:
     assert response.text == '{"ok":true}'
     assert response.total_tokens == 16
     assert response.finish_reason == "stop"
+
+
+def test_parsea_contadores_de_tokens_de_responses_api() -> None:
+    adapter = OpenAICompatibleAdapter(
+        api_key="key",
+        base_url="https://lab.example/v1",
+        model="genailab-maas-gpt-5.4",
+    )
+    response = adapter._parse(
+        {
+            "choices": [{"message": {"content": '{"ok":true}'}}],
+            "usage": {"input_tokens": 20, "output_tokens": 7},
+        }
+    )
+    assert response.prompt_tokens == 20
+    assert response.completion_tokens == 7
 
 
 def test_error_no_expone_la_clave() -> None:

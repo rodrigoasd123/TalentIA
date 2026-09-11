@@ -1,6 +1,7 @@
 param(
     [int]$ApiPort = 8000,
-    [int]$UiPort = 8501
+    [int]$UiPort = 8501,
+    [int]$MlflowPort = 5000
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,6 +45,24 @@ function Find-FreePort([int]$PreferredPort) {
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 $resolvedApiPort = Find-FreePort $ApiPort
 $resolvedUiPort = Find-FreePort $UiPort
+$resolvedMlflowPort = Find-FreePort $MlflowPort
+$mlflowDatabase = (Join-Path $projectRoot "mlflow.db").Replace("\", "/")
+$mlflowTrackingUri = "sqlite:///$mlflowDatabase"
+
+$mlflowStart = @{
+    FilePath = $python
+    ArgumentList = @(
+        "-m", "mlflow", "ui",
+        "--backend-store-uri", $mlflowTrackingUri,
+        "--host", "127.0.0.1", "--port", "$resolvedMlflowPort"
+    )
+    WorkingDirectory = $projectRoot
+    WindowStyle = "Hidden"
+    RedirectStandardOutput = Join-Path $logDirectory "mlflow.stdout.log"
+    RedirectStandardError = Join-Path $logDirectory "mlflow.stderr.log"
+    PassThru = $true
+}
+$mlflowProcess = Start-Process @mlflowStart
 
 & $python -m alembic upgrade head
 if ($LASTEXITCODE -ne 0) {
@@ -62,7 +81,17 @@ $apiStart = @{
     RedirectStandardError = Join-Path $logDirectory "api.stderr.log"
     PassThru = $true
 }
-$apiProcess = Start-Process @apiStart
+$previousMlflowUiUrl = $env:TALENTIA_MLFLOW_UI_URL
+$previousMlflowTrackingUri = $env:TALENTIA_MLFLOW_TRACKING_URI
+$env:TALENTIA_MLFLOW_UI_URL = "http://127.0.0.1:$resolvedMlflowPort"
+$env:TALENTIA_MLFLOW_TRACKING_URI = $mlflowTrackingUri
+try {
+    $apiProcess = Start-Process @apiStart
+}
+finally {
+    $env:TALENTIA_MLFLOW_UI_URL = $previousMlflowUiUrl
+    $env:TALENTIA_MLFLOW_TRACKING_URI = $previousMlflowTrackingUri
+}
 
 $apiUrl = "http://127.0.0.1:$resolvedApiPort"
 $ready = $false
@@ -107,5 +136,6 @@ finally {
 Write-Host "TalentIA iniciado."
 Write-Host "Interfaz: http://127.0.0.1:$resolvedUiPort"
 Write-Host "API:      $apiUrl/docs"
-Write-Host "Procesos: API=$($apiProcess.Id), UI=$($uiProcess.Id)"
+Write-Host "MLflow:   http://127.0.0.1:$resolvedMlflowPort"
+Write-Host "Procesos: API=$($apiProcess.Id), UI=$($uiProcess.Id), MLflow=$($mlflowProcess.Id)"
 Write-Host "Logs:     $logDirectory"

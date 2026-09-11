@@ -93,6 +93,17 @@ class Settings(BaseSettings):
     # ── Observabilidad ───────────────────────────────────────────────────────
     log_level: str = "INFO"
     log_json: bool = True
+    mlflow_enabled: bool = True
+    mlflow_tracking_uri: str = ""
+    mlflow_experiment_name: str = "TalentIA-LLM"
+    mlflow_ui_url: str = "http://127.0.0.1:5000"
+
+    @property
+    def resolved_mlflow_tracking_uri(self) -> str:
+        if self.mlflow_tracking_uri:
+            return self.mlflow_tracking_uri
+        database = Path("./mlflow.db").resolve().as_posix()
+        return f"sqlite:///{database}"
 
     # ── Umbrales por defecto del pipeline de evaluación ──────────────────────
     default_minimum_score: float = 70.0

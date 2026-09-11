@@ -16,6 +16,7 @@ from app.domain.ports import LLMPort
 from app.infrastructure.llm.gemini_adapter import DEFAULT_MODEL, GeminiAdapter
 from app.infrastructure.llm.mock_adapter import MockLLMAdapter
 from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
+from app.infrastructure.observability.mlflow_tracker import ObservedLLMAdapter
 
 logger = get_logger(__name__)
 
@@ -40,7 +41,9 @@ def build_llm(
                 "Configura la clave en el panel para obtener resultados reales."
             )
             return MockLLMAdapter()
-        return GeminiAdapter(api_key=api_key, model=model, default_timeout=timeout_seconds)
+        return ObservedLLMAdapter(
+            GeminiAdapter(api_key=api_key, model=model, default_timeout=timeout_seconds)
+        )
 
     if normalized == "genai_lab":
         if not api_key or not base_url:
@@ -48,11 +51,13 @@ def build_llm(
                 "Se solicitó GenAI Lab sin URL base o API key; se usa el simulador."
             )
             return MockLLMAdapter()
-        return OpenAICompatibleAdapter(
-            api_key=api_key,
-            model=model,
-            base_url=base_url,
-            default_timeout=timeout_seconds,
+        return ObservedLLMAdapter(
+            OpenAICompatibleAdapter(
+                api_key=api_key,
+                model=model,
+                base_url=base_url,
+                default_timeout=timeout_seconds,
+            )
         )
 
     if normalized == "mock":

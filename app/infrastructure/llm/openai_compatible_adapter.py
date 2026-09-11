@@ -122,7 +122,9 @@ class OpenAICompatibleAdapter:
             payload["max_tokens"] = max_output_tokens
         timeout = timeout_seconds or self._default_timeout
         try:
-            with httpx.Client(timeout=timeout, verify=self._verify_ssl) as client:
+            with httpx.Client(
+                timeout=timeout, verify=self._verify_ssl, trust_env=False
+            ) as client:
                 response = client.post(
                     self._endpoint("chat/completions"),
                     headers=self._headers(),
@@ -146,7 +148,9 @@ class OpenAICompatibleAdapter:
         if not self.is_configured:
             return list(GENAI_LAB_CHAT_MODELS)
         try:
-            with httpx.Client(timeout=20, verify=self._verify_ssl) as client:
+            with httpx.Client(
+                timeout=20, verify=self._verify_ssl, trust_env=False
+            ) as client:
                 response = client.get(self._endpoint("models"), headers=self._headers())
             if response.status_code != 200:
                 return list(GENAI_LAB_CHAT_MODELS)
@@ -172,7 +176,9 @@ class OpenAICompatibleAdapter:
         if not self._api_key:
             return False, "No se ha introducido ninguna API key."
         try:
-            with httpx.Client(timeout=20, verify=self._verify_ssl) as client:
+            with httpx.Client(
+                timeout=20, verify=self._verify_ssl, trust_env=False
+            ) as client:
                 response = client.get(self._endpoint("models"), headers=self._headers())
         except httpx.HTTPError as exc:
             return False, f"No se pudo conectar con GenAI Lab: {type(exc).__name__}"
@@ -216,8 +222,12 @@ class OpenAICompatibleAdapter:
         usage = data.get("usage") or {}
         return LLMResponse(
             text=str(content),
-            prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
-            completion_tokens=int(usage.get("completion_tokens", 0) or 0),
+            prompt_tokens=int(
+                usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0
+            ),
+            completion_tokens=int(
+                usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0
+            ),
             model=str(data.get("model") or self._model),
             finish_reason=str(choice.get("finish_reason", "")),
         )
