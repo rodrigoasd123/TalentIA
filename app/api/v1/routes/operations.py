@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import csv
 import io
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, File, Form, Query, Response, UploadFile, status
 
 from app.api.dependencies import ActorDep, CurrentUserDep, UowDep, requires
 from app.api.schemas import (
+    CandidateCreateRequest,
+    CandidateUpdateRequest,
     ImportCancelRequest,
     ImportConfirmRequest,
     ImportSelectSheetRequest,
@@ -36,8 +39,9 @@ from app.application.use_cases.intake import IntakePipelineUseCase
 from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.domain.entities import Job, JobRequirements
+from app.domain.entities import Candidate, Job, JobRequirements
 from app.domain.enums import JobStatus, Permission
+from app.domain.value_objects import EmailAddress
 from app.infrastructure.imports.tabular_reader import neutralize_spreadsheet_formula
 from app.infrastructure.llm.factory import build_llm_from_settings
 from app.infrastructure.security.passwords import dummy_verify, verify_password
@@ -70,6 +74,46 @@ def _mask(value: str, keep: int = 2) -> str:
     if not value:
         return ""
     return value[:keep] + "***"
+
+
+def _candidate_payload(candidate: Candidate, *, reveal_sensitive: bool) -> dict[str, Any]:
+    sensitive = {
+        "national_id": candidate.national_id,
+        "bgc": candidate.bgc,
+        "equifax_debt": candidate.equifax_debt,
+        "salary_expectation": candidate.salary_expectation,
+        "role_ctc": candidate.role_ctc,
+        "ctc_variation_pct": candidate.ctc_variation_pct,
+        "notes": candidate.notes,
+    }
+    if not reveal_sensitive:
+        sensitive = {
+            "national_id": _mask(candidate.national_id), "bgc": "RESTRINGIDO",
+            "equifax_debt": None, "salary_expectation": None, "role_ctc": None,
+            "ctc_variation_pct": None, "notes": "RESTRINGIDO",
+        }
+    return {
+        "id": candidate.id, "full_name": candidate.full_name,
+        "email": (
+            str(candidate.email or "")
+            if reveal_sensitive
+            else _mask(str(candidate.email or ""))
+        ),
+        "phone": candidate.phone if reveal_sensitive else _mask(candidate.phone),
+        "location": candidate.location, "client": candidate.client,
+        "candidate_status": candidate.candidate_status.value,
+        "record_date": candidate.record_date.isoformat() if candidate.record_date else None,
+        "recruiter": candidate.recruiter, "source": candidate.source, "q": candidate.q,
+        "birth_date": (
+            candidate.birth_date.isoformat()
+            if candidate.birth_date and reveal_sensitive
+            else None
+        ),
+        "age": candidate.age if reveal_sensitive else None,
+        "technical_knowledge": candidate.technical_knowledge,
+        "requested": candidate.requested, "availability": candidate.availability,
+        "version": candidate.version, **sensitive,
+    }
 
 
 def _import_row_payload(row, *, reveal_pii: bool) -> dict[str, Any]:
@@ -550,6 +594,104 @@ def import_error_report(batch_id: str, uow: UowDep) -> Response:
 # ── Pipeline y candidaturas ──────────────────────────────────────────────────
 
 
+@router.post(
+    "/candidates", tags=["candidatos"], status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(requires(Permission.CANDIDATE_WRITE))],
+)
+def create_candidate(
+    payload: CandidateCreateRequest, uow: UowDep, actor: ActorDep,
+) -> dict[str, Any]:
+    if payload.email and uow.candidates.get_by_email(payload.email.strip().lower()):
+        raise ValidationError("Ya existe un candidato con ese correo")
+    data = payload.model_dump()
+    reported_age = data.pop("age")
+    data.pop("email")
+    record_date = data.pop("record_date")
+    candidate = Candidate(
+        **data,
+        email=EmailAddress(value=payload.email) if payload.email else None,
+        reported_age=reported_age,
+        record_date=record_date or date.today(),
+        legal_basis_status="unknown",
+    )
+    uow.candidates.add(candidate)
+    AuditService(uow.audit).record(
+        action="candidate.created", actor=actor, resource_type="candidate",
+        resource_id=candidate.id,
+        new_state={"candidate_status": candidate.candidate_status.value},
+        fields_populated=[key for key, value in data.items() if value not in (None, "")],
+    )
+    return _candidate_payload(candidate, reveal_sensitive=True)
+
+
+@router.get(
+    "/candidates", tags=["candidatos"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_READ))],
+)
+def list_candidates(uow: UowDep, user: CurrentUserDep) -> list[dict[str, Any]]:
+    reveal = user.has(Permission.CANDIDATE_PII_READ)
+    return [
+        _candidate_payload(item, reveal_sensitive=reveal)
+        for item in uow.candidates.list(limit=5000)
+    ]
+
+
+@router.get(
+    "/candidates/{candidate_id}", tags=["candidatos"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_READ))],
+)
+def get_candidate(
+    candidate_id: str, uow: UowDep, user: CurrentUserDep, actor: ActorDep
+) -> dict[str, Any]:
+    candidate = uow.candidates.get(candidate_id)
+    if candidate is None:
+        raise NotFoundError(f"No existe el candidato {candidate_id}")
+    reveal = user.has(Permission.CANDIDATE_PII_READ)
+    if reveal:
+        AuditService(uow.audit).record_access(
+            actor=actor, resource_type="candidate", resource_id=candidate_id,
+            purpose="consulta ficha general",
+        )
+    return _candidate_payload(candidate, reveal_sensitive=reveal)
+
+
+@router.patch(
+    "/candidates/{candidate_id}", tags=["candidatos"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_WRITE))],
+)
+def update_candidate(
+    candidate_id: str, payload: CandidateUpdateRequest, uow: UowDep, actor: ActorDep,
+) -> dict[str, Any]:
+    candidate = uow.candidates.get(candidate_id)
+    if candidate is None:
+        raise NotFoundError(f"No existe el candidato {candidate_id}")
+    if candidate.version != payload.expected_version:
+        raise ValidationError(
+            "La ficha cambió desde que fue abierta; vuelve a cargarla",
+            expected_version=payload.expected_version, current_version=candidate.version,
+        )
+    changes = payload.model_dump(exclude_unset=True)
+    changes.pop("expected_version", None)
+    if "email" in changes:
+        email = (changes.pop("email") or "").strip()
+        duplicate = uow.candidates.get_by_email(email) if email else None
+        if duplicate and duplicate.id != candidate.id:
+            raise ValidationError("Ya existe un candidato con ese correo")
+        candidate.email = EmailAddress(value=email) if email else None
+    if "age" in changes:
+        candidate.reported_age = changes.pop("age")
+    for field, value in changes.items():
+        setattr(candidate, field, value)
+    candidate.touch()
+    uow.candidates.update(candidate)
+    AuditService(uow.audit).record(
+        action="candidate.updated", actor=actor, resource_type="candidate",
+        resource_id=candidate.id, fields_changed=sorted(changes),
+        new_state={"candidate_status": candidate.candidate_status.value},
+    )
+    return _candidate_payload(candidate, reveal_sensitive=True)
+
+
 @router.get(
     "/pipeline",
     tags=["pipeline"],
@@ -631,11 +773,7 @@ def candidate_360(application_id: str, uow: UowDep, actor: ActorDep) -> dict[str
             "hours_in_stage": round(application.hours_in_stage, 1),
         },
         "candidate": {
-            "id": candidate.id,
-            "full_name": candidate.full_name,
-            "email": str(candidate.email or ""),
-            "phone": candidate.phone,
-            "location": candidate.location,
+            **_candidate_payload(candidate, reveal_sensitive=True),
             "tags": candidate.tags,
             "consent_valid": candidate.can_be_processed,
             "consent_expires": (
@@ -1023,6 +1161,51 @@ def stage_durations(uow: UowDep, job_id: str | None = Query(None)) -> dict[str, 
 def equity(uow: UowDep, job_id: str | None = Query(None)) -> dict[str, Any]:
     """Panel de equidad: patrones agregados en la distribución de puntuaciones."""
     return AnalyticsService(uow).equity_report(job_id).to_dict()
+
+
+@router.get(
+    "/reports/candidate-disposition", tags=["analítica"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_READ, Permission.APPLICATION_READ))],
+)
+def candidate_disposition_report(uow: UowDep) -> dict[str, Any]:
+    rows = AnalyticsService(uow).candidate_disposition_report()
+    return {
+        "generated_by": "deterministic_rules",
+        "counts": {
+            category: sum(category in row["categories"] for row in rows)
+            for category in ("adecco", "entrevistado", "descartado")
+        },
+        "rows": rows,
+    }
+
+
+@router.get(
+    "/reports/candidate-disposition.csv", tags=["analítica"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_READ, Permission.APPLICATION_READ))],
+)
+def candidate_disposition_csv(uow: UowDep) -> Response:
+    rows = AnalyticsService(uow).candidate_disposition_report()
+    output = io.StringIO(newline="")
+    columns = [
+        "candidate_id", "candidate", "client", "recruiter", "source",
+        "candidate_status", "categories", "application_id", "application_status",
+        "job_code", "job_title", "date",
+    ]
+    writer = csv.DictWriter(output, fieldnames=columns)
+    writer.writeheader()
+    for row in rows:
+        safe = {
+            key: ", ".join(value) if isinstance(value, list) else value
+            for key, value in row.items()
+        }
+        writer.writerow({
+            key: neutralize_spreadsheet_formula(str(safe.get(key, "") or ""))
+            for key in columns
+        })
+    return Response(
+        content="\ufeff" + output.getvalue(), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="seguimiento-candidatos.csv"'},
+    )
 
 
 # ── Auditoría ────────────────────────────────────────────────────────────────

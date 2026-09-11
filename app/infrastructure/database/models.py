@@ -12,10 +12,11 @@ depender de que la aplicación se acuerde de comprobarla.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -129,6 +130,24 @@ class CandidateModel(Base, TimestampMixin):
     tags: Mapped[list] = mapped_column(JSON, default=list)
     processing_status: Mapped[str] = mapped_column(String(32), default="allowed", index=True)
     legal_basis_status: Mapped[str] = mapped_column(String(32), default="consent")
+    client: Mapped[str] = mapped_column(String(160), default="")
+    candidate_status: Mapped[str] = mapped_column(
+        String(32), default="pendiente_contacto", index=True
+    )
+    record_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    recruiter: Mapped[str] = mapped_column(String(160), default="")
+    q: Mapped[str] = mapped_column(String(80), default="")
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reported_age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bgc: Mapped[str] = mapped_column(String(160), default="")
+    technical_knowledge: Mapped[str] = mapped_column(Text, default="")
+    equifax_debt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    salary_expectation: Mapped[float | None] = mapped_column(Float, nullable=True)
+    requested: Mapped[str] = mapped_column(String(160), default="")
+    role_ctc: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ctc_variation_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    availability: Mapped[str] = mapped_column(String(160), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
 
     __table_args__ = (
         # Un candidato por correo y tenant. La unicidad se garantiza en la base

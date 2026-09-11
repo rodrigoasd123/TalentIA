@@ -38,6 +38,17 @@ APPLICATION_STATUS_LABELS = {
 
 APPLICATION_STAGES = list(APPLICATION_STATUS_LABELS)
 
+CANDIDATE_STATUS_LABELS = {
+    "apto": "Apto", "no_apto": "No apto", "backup": "Backup",
+    "en_proceso": "En proceso", "no_contesta": "No contesta",
+    "pendiente_contacto": "Pendiente contacto",
+    "pendiente_envio": "Pendiente envío",
+}
+
+
+def candidate_status(value: str) -> str:
+    return CANDIDATE_STATUS_LABELS.get(value, value or "Sin estado")
+
 REVIEW_REASON_LABELS = {
     "score_borderline": "Puntaje en zona gris",
     "injection_detected": "Intento de manipulación",

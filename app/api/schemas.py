@@ -7,9 +7,12 @@ contrato público cada vez que cambia una regla interna.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.domain.enums import CandidateStatus
 
 
 class ErrorDetail(BaseModel):
@@ -112,6 +115,71 @@ class JobUpdateRequest(BaseModel):
     review_threshold: float | None = Field(default=None, ge=0, le=50)
     min_years_experience: float | None = Field(default=None, ge=0, le=80)
     criteria_approved: bool | None = None
+
+
+class CandidateCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    full_name: str = Field(min_length=2, max_length=200)
+    email: str = Field(default="", max_length=255)
+    phone: str = Field(default="", max_length=40)
+    location: str = Field(default="", max_length=160)
+    client: str = Field(default="", max_length=160)
+    candidate_status: CandidateStatus = CandidateStatus.PENDIENTE_CONTACTO
+    record_date: date | None = None
+    recruiter: str = Field(default="", max_length=160)
+    source: str = Field(default="manual", max_length=80)
+    q: str = Field(default="", max_length=80)
+    birth_date: date | None = None
+    age: int | None = Field(default=None, ge=0, le=120)
+    national_id: str = Field(default="", max_length=40)
+    bgc: str = Field(default="", max_length=160)
+    technical_knowledge: str = Field(default="", max_length=10000)
+    equifax_debt: float | None = Field(default=None, ge=0)
+    salary_expectation: float | None = Field(default=None, ge=0)
+    requested: str = Field(default="", max_length=160)
+    role_ctc: float | None = Field(default=None, ge=0)
+    ctc_variation_pct: float | None = Field(default=None, ge=-1000, le=1000)
+    availability: str = Field(default="", max_length=160)
+    notes: str = Field(default="", max_length=10000)
+
+    @field_validator("birth_date")
+    @classmethod
+    def birth_date_not_future(cls, value: date | None) -> date | None:
+        if value and value > date.today():
+            raise ValueError("La fecha de nacimiento no puede estar en el futuro")
+        return value
+
+
+class CandidateUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    full_name: str | None = Field(default=None, min_length=2, max_length=200)
+    email: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=40)
+    location: str | None = Field(default=None, max_length=160)
+    client: str | None = Field(default=None, max_length=160)
+    candidate_status: CandidateStatus | None = None
+    record_date: date | None = None
+    recruiter: str | None = Field(default=None, max_length=160)
+    source: str | None = Field(default=None, max_length=80)
+    q: str | None = Field(default=None, max_length=80)
+    birth_date: date | None = None
+    age: int | None = Field(default=None, ge=0, le=120)
+    national_id: str | None = Field(default=None, max_length=40)
+    bgc: str | None = Field(default=None, max_length=160)
+    technical_knowledge: str | None = Field(default=None, max_length=10000)
+    equifax_debt: float | None = Field(default=None, ge=0)
+    salary_expectation: float | None = Field(default=None, ge=0)
+    requested: str | None = Field(default=None, max_length=160)
+    role_ctc: float | None = Field(default=None, ge=0)
+    ctc_variation_pct: float | None = Field(default=None, ge=-1000, le=1000)
+    availability: str | None = Field(default=None, max_length=160)
+    notes: str | None = Field(default=None, max_length=10000)
+
+    @field_validator("birth_date")
+    @classmethod
+    def birth_date_not_future(cls, value: date | None) -> date | None:
+        return CandidateCreateRequest.birth_date_not_future(value)
 
 
 class IntakeResponse(BaseModel):

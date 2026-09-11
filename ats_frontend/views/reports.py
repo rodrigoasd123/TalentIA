@@ -19,7 +19,7 @@ if str(APP_DIR) not in sys.path:
 
 from api_client import ApiError  # noqa: E402
 from talentia import design, session  # noqa: E402
-from talentia.formatters import app_status, percent, score  # noqa: E402
+from talentia.formatters import app_status, candidate_status, percent, score  # noqa: E402
 
 
 def _chart(frame: pd.DataFrame, x: str, y: str) -> None:
@@ -80,8 +80,8 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
         )
     )
 
-    funnel_tab, sources_tab, equity_tab, exports_tab = st.tabs(
-        ["Embudo", "Fuentes y tiempos", "Equidad", "Exportaciones"]
+    funnel_tab, sources_tab, tracking_tab, equity_tab, exports_tab = st.tabs(
+        ["Embudo", "Fuentes y tiempos", "Seguimiento", "Equidad", "Exportaciones"]
     )
 
     with funnel_tab:
@@ -144,6 +144,39 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
             else:
                 st.caption("Sin tiempos registrados.")
 
+    with tracking_tab:
+        st.subheader("Enviados por Adecco, entrevistados y descartados")
+        st.caption(
+            "Reporte generado con reglas operativas verificables; "
+            "no usa un LLM ni toma decisiones."
+        )
+        try:
+            tracking = session.client().candidate_disposition_report()
+            csv_report = session.client().candidate_disposition_csv()
+        except ApiError as exc:
+            design.api_error(exc, "No se pudo generar el seguimiento")
+            tracking, csv_report = {}, ""
+        if tracking:
+            counts = tracking.get("counts", {})
+            design.metric_grid([
+                ("Adecco", str(counts.get("adecco", 0)), "Fuente de reclutamiento"),
+                ("Entrevistados", str(counts.get("entrevistado", 0)), "Estado de postulación"),
+                ("Descartados", str(counts.get("descartado", 0)), "No apto o rechazado"),
+            ])
+            st.dataframe([{
+                "Candidato": row["candidate"], "Cliente": row.get("client", ""),
+                "Reclutador": row.get("recruiter", ""), "Fuente": row.get("source", ""),
+                "Status general": candidate_status(row.get("candidate_status", "")),
+                "Categorías": ", ".join(row.get("categories", [])),
+                "Vacante": row.get("job_code") or "—",
+                "Estado postulación": app_status(row.get("application_status") or ""),
+                "Fecha": row.get("date"),
+            } for row in tracking.get("rows", [])], width="stretch", hide_index=True)
+            st.download_button(
+                "Descargar CSV", data=csv_report.encode("utf-8"),
+                file_name="seguimiento-candidatos.csv", mime="text/csv",
+            )
+
     with equity_tab:
         if not session.has_permission("audit:read"):
             st.info("El panel de equidad requiere permiso de auditoría.")
@@ -181,6 +214,12 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
         st.subheader("Disponibilidad de exportaciones")
         st.dataframe(
             [
+                {
+                    "Reporte": "Seguimiento Adecco / entrevistas / descartes",
+                    "CSV": "Disponible en esta pantalla",
+                    "Excel": "Abrir CSV en Excel",
+                    "PDF": "Sin endpoint",
+                },
                 {
                     "Reporte": "Traza de decisión por postulación",
                     "CSV": "Disponible en Candidate 360",

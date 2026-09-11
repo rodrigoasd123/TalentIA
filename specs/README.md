@@ -16,6 +16,7 @@ Consulta primero el [mapa funcional](./MAPA_FUNCIONAL.md), que define la spec pr
 - [`SPEC-014`](./014-configuracion-integraciones/spec.md): Configuración e integraciones (verificada por la evidencia de SPEC-004).
 - [`SPEC-015`](./015-dashboard-reportes/spec.md): Dashboard y reportes operativos (verificada por la evidencia de SPEC-004).
 - [`SPEC-016`](./016-operacion-plataforma-rollback/spec.md): Operación, persistencia y rollback (verificada por SPEC-004/005).
+- [`SPEC-018`](./018-base-general-candidatos/spec.md): Base general de candidatos y reporte de seguimiento (verificada).
 
 ## Cambio pendiente de aprobación
 

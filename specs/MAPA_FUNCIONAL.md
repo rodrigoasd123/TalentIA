@@ -17,6 +17,7 @@ Este mapa distribuye la línea base consolidada por capacidad sin modificar el a
 | Operación, persistencia y rollback | SPEC-016 | SPEC-004 NFR-003–NFR-008, FR-017 |
 | Importación histórica CSV/XLSX | SPEC-005 | Spec funcional independiente |
 | Rediseño integral del frontend | SPEC-017 | Cambio nuevo pendiente de aprobación |
+| Base general de candidatos y seguimiento | SPEC-018 | Ampliación aprobada por el usuario |
 
 ## Reglas de mantenimiento
 

@@ -31,7 +31,7 @@ from typing import Any
 
 from app.application.unit_of_work import UnitOfWork
 from app.domain.entities import Evaluation
-from app.domain.enums import ApplicationStatus, Recommendation
+from app.domain.enums import ApplicationStatus, CandidateStatus, Recommendation
 
 #: Orden canónico del embudo. Los estados terminales quedan fuera porque no son
 #: una etapa por la que se pasa, sino una salida.
@@ -266,6 +266,53 @@ class AnalyticsService:
                 }
             )
         return sorted(rows, key=lambda r: -(r["avg_score"] or 0))
+
+    def candidate_disposition_report(self) -> list[dict[str, Any]]:
+        """Seguimiento operativo sin PII sensible ni inferencias de un LLM."""
+        interviewed = {
+            ApplicationStatus.INTERVIEWED, ApplicationStatus.APPROVED,
+            ApplicationStatus.HIRED,
+        }
+        applications = self.uow.applications.list_all(limit=10000)
+        by_candidate: dict[str, list[Any]] = {}
+        for application in applications:
+            by_candidate.setdefault(application.candidate_id, []).append(application)
+
+        rows: list[dict[str, Any]] = []
+        for candidate in self.uow.candidates.list(limit=10000):
+            candidate_apps = by_candidate.get(candidate.id, [])
+            categories: list[str] = []
+            if any(
+                "adecco" in (value or "").casefold()
+                for value in [candidate.source, *(app.source for app in candidate_apps)]
+            ):
+                categories.append("adecco")
+            if any(app.status in interviewed for app in candidate_apps):
+                categories.append("entrevistado")
+            if candidate.candidate_status is CandidateStatus.NO_APTO or any(
+                app.status is ApplicationStatus.REJECTED for app in candidate_apps
+            ):
+                categories.append("descartado")
+            if not categories:
+                continue
+            latest = max(candidate_apps, key=lambda app: app.applied_at, default=None)
+            job = self.uow.jobs.get(latest.job_id) if latest else None
+            rows.append({
+                "candidate_id": candidate.id, "candidate": candidate.full_name,
+                "client": candidate.client, "recruiter": candidate.recruiter,
+                "source": candidate.source,
+                "candidate_status": candidate.candidate_status.value,
+                "categories": categories,
+                "application_id": latest.id if latest else None,
+                "application_status": latest.status.value if latest else None,
+                "job_code": job.code if job else None,
+                "job_title": job.title if job else None,
+                "date": (
+                    candidate.record_date.isoformat() if candidate.record_date
+                    else candidate.created_at.date().isoformat()
+                ),
+            })
+        return sorted(rows, key=lambda row: (row["date"], row["candidate"]), reverse=True)
 
     # ── Panel de equidad ─────────────────────────────────────────────────────
 

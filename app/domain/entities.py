@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.enums import (
     ActorType,
     ApplicationStatus,
+    CandidateStatus,
     DocumentType,
     EmailStatus,
     EmailTemplateKind,
@@ -212,6 +213,31 @@ class Candidate(Entity):
     tenant_id: str = "default"
     processing_status: str = "allowed"
     legal_basis_status: str = "consent"
+    client: str = ""
+    candidate_status: CandidateStatus = CandidateStatus.PENDIENTE_CONTACTO
+    record_date: date | None = None
+    recruiter: str = ""
+    q: str = ""
+    birth_date: date | None = None
+    reported_age: int | None = Field(default=None, ge=0, le=120)
+    bgc: str = ""
+    technical_knowledge: str = ""
+    equifax_debt: float | None = Field(default=None, ge=0)
+    salary_expectation: float | None = Field(default=None, ge=0)
+    requested: str = ""
+    role_ctc: float | None = Field(default=None, ge=0)
+    ctc_variation_pct: float | None = None
+    availability: str = ""
+    notes: str = ""
+
+    @property
+    def age(self) -> int | None:
+        if self.birth_date is None:
+            return self.reported_age
+        today = date.today()
+        return today.year - self.birth_date.year - (
+            (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+        )
 
     @property
     def can_be_processed(self) -> bool:

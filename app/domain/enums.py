@@ -122,6 +122,18 @@ class ApplicationStatus(StrEnum):
     WITHDRAWN = "withdrawn"
 
 
+class CandidateStatus(StrEnum):
+    """Estado operativo de la persona en la base general (no por vacante)."""
+
+    APTO = "apto"
+    NO_APTO = "no_apto"
+    BACKUP = "backup"
+    EN_PROCESO = "en_proceso"
+    NO_CONTESTA = "no_contesta"
+    PENDIENTE_CONTACTO = "pendiente_contacto"
+    PENDIENTE_ENVIO = "pendiente_envio"
+
+
 #: Estados desde los que ya no se avanza. Sirven para métricas y para impedir
 #: que un reintento reabra un proceso cerrado.
 TERMINAL_STATUSES: frozenset[ApplicationStatus] = frozenset(
@@ -350,7 +362,7 @@ class ScoringDimension(StrEnum):
 __all__ = [
     "LANGUAGE_LEVEL_ORDER", "REVIEW_SLA_HOURS", "ROLE_PERMISSIONS",
     "SENSITIVE_EMAIL_KINDS", "TERMINAL_STATUSES", "ActionType", "ActorType",
-    "ApplicationStatus", "DocumentType", "EmailStatus", "EmailTemplateKind",
+    "ApplicationStatus", "CandidateStatus", "DocumentType", "EmailStatus", "EmailTemplateKind",
     "FilterOperator", "InjectionCategory", "JobStatus", "LanguageLevel",
     "PIICategory", "Permission", "PolicyDecision", "Recommendation",
     "ReviewReason", "ReviewStatus", "Role", "ScoringDimension", "Severity",

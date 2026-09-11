@@ -1,9 +1,9 @@
-"""Listado simple de candidatos."""
+"""Base general de candidatos: consulta, alta y edición."""
 
 from __future__ import annotations
 
 import sys
-from collections import defaultdict
+from datetime import date
 from pathlib import Path
 
 import streamlit as st
@@ -14,122 +14,182 @@ if str(APP_DIR) not in sys.path:
 
 from api_client import ApiError  # noqa: E402
 from talentia import design, session  # noqa: E402
-from talentia.formatters import app_status, days_from_hours, score  # noqa: E402
+from talentia.formatters import CANDIDATE_STATUS_LABELS, candidate_status  # noqa: E402
 
 
-def _go_candidate360(application_id: str) -> None:
-    st.session_state["selected_application"] = application_id
-    try:
-        st.switch_page(str(APP_DIR / "views" / "candidate360.py"))
-    except Exception:
-        st.success("Expediente seleccionado. Abre Candidate 360 desde el menú.")
+def _number(label: str, value=None, **kwargs):
+    return st.number_input(label, value=value, **kwargs)
 
 
-def render() -> None:
-    if not session.require_permission("candidate:read", "application:read"):
+def _fields(current: dict | None = None) -> dict:
+    c = current or {}
+    statuses = list(CANDIDATE_STATUS_LABELS)
+    selected = c.get("candidate_status", "pendiente_contacto")
+    col1, col2 = st.columns(2)
+    with col1:
+        full_name = st.text_input("Nombre completo *", value=c.get("full_name", ""))
+        client = st.text_input("Cliente", value=c.get("client", ""))
+        status_value = st.selectbox(
+            "Status del candidato *",
+            statuses,
+            index=statuses.index(selected),
+            format_func=candidate_status,
+        )
+        record_date = st.date_input(
+            "Fecha",
+            value=date.fromisoformat(c["record_date"]) if c.get("record_date") else date.today(),
+        )
+        recruiter = st.text_input("Reclutador", value=c.get("recruiter", ""))
+        source = st.text_input("Fuente de reclutamiento", value=c.get("source", "manual"))
+        q = st.text_input("Q", value=c.get("q", ""))
+        birth_text = st.text_input(
+            "Fecha de nacimiento (AAAA-MM-DD)", value=c.get("birth_date") or ""
+        )
+        age = _number(
+            "Edad (si no hay fecha de nacimiento)", c.get("age"), min_value=0, max_value=120, step=1
+        )
+        national_id = st.text_input("DNI", value=c.get("national_id", ""))
+        bgc = st.text_input("BGC", value=c.get("bgc", ""))
+    with col2:
+        email = st.text_input("Correo", value=c.get("email", ""))
+        phone = st.text_input("Teléfono", value=c.get("phone", ""))
+        location = st.text_input("Ubicación", value=c.get("location", ""))
+        technical = st.text_area("Conocimientos técnicos", value=c.get("technical_knowledge", ""))
+        equifax = _number("Deuda Equifax", c.get("equifax_debt"), min_value=0.0)
+        salary = _number("Expectativa salarial", c.get("salary_expectation"), min_value=0.0)
+        requested = st.text_input("Solicitado", value=c.get("requested", ""))
+        role_ctc = _number("CTC para el rol", c.get("role_ctc"), min_value=0.0)
+        variation = _number(
+            "% variación CTC", c.get("ctc_variation_pct"), min_value=-1000.0, max_value=1000.0
+        )
+        availability = st.text_input("Disponibilidad", value=c.get("availability", ""))
+        notes = st.text_area("Otros datos / observaciones", value=c.get("notes", ""))
+    birth_date = birth_text.strip() or None
+    if birth_date:
+        try:
+            birth_date = date.fromisoformat(birth_date).isoformat()
+        except ValueError:
+            st.error("La fecha de nacimiento debe usar el formato AAAA-MM-DD.")
+    return {
+        "full_name": full_name.strip(),
+        "client": client.strip(),
+        "candidate_status": status_value,
+        "record_date": record_date.isoformat(),
+        "recruiter": recruiter.strip(),
+        "source": source.strip(),
+        "q": q.strip(),
+        "birth_date": birth_date,
+        "age": age,
+        "national_id": national_id.strip(),
+        "bgc": bgc.strip(),
+        "email": email.strip(),
+        "phone": phone.strip(),
+        "location": location.strip(),
+        "technical_knowledge": technical.strip(),
+        "equifax_debt": equifax,
+        "salary_expectation": salary,
+        "requested": requested.strip(),
+        "role_ctc": role_ctc,
+        "ctc_variation_pct": variation,
+        "availability": availability.strip(),
+        "notes": notes.strip(),
+    }
+
+
+def render() -> None:  # noqa: C901
+    if not session.require_permission("candidate:read"):
         return
-
     design.page_header(
-        "Candidatos",
-        "Una persona puede participar en varias vacantes. "
-        "TalentIA mantiene una sola ficha por persona.",
+        "Base general de candidatos",
+        "Una ficha por persona, independiente de sus postulaciones a vacantes.",
         "Trabajo diario",
     )
-
     try:
-        applications = session.client().list_applications()
+        candidates = session.client().list_candidates()
     except ApiError as exc:
         design.api_error(exc, "No se pudieron cargar los candidatos")
         return
-
-    if not applications:
-        design.empty_state(
-            "Sin candidatos",
-            "Registra una postulación o carga una importación histórica para empezar.",
+    list_tab, create_tab, edit_tab = st.tabs(["Base general", "Registrar", "Editar"])
+    with list_tab:
+        query = st.text_input("Buscar", placeholder="Nombre, cliente, reclutador, DNI o estado")
+        visible = candidates
+        if query.strip():
+            needle = query.casefold().strip()
+            visible = [
+                item
+                for item in candidates
+                if needle
+                in " ".join(
+                    str(item.get(key, ""))
+                    for key in (
+                        "full_name",
+                        "client",
+                        "recruiter",
+                        "national_id",
+                        "candidate_status",
+                        "source",
+                    )
+                ).casefold()
+            ]
+        st.dataframe(
+            [
+                {
+                    "Candidato": item["full_name"],
+                    "Cliente": item.get("client", ""),
+                    "Status": candidate_status(item.get("candidate_status", "")),
+                    "Fecha": item.get("record_date"),
+                    "Reclutador": item.get("recruiter", ""),
+                    "Fuente": item.get("source", ""),
+                    "Q": item.get("q", ""),
+                    "Edad": item.get("age"),
+                    "DNI": item.get("national_id", ""),
+                    "Disponibilidad": item.get("availability", ""),
+                }
+                for item in visible
+            ],
+            width="stretch",
+            hide_index=True,
         )
-        return
-
-    grouped: dict[str, list[dict]] = defaultdict(list)
-    for application in applications:
-        grouped[application["candidate_id"]].append(application)
-
-    query = st.text_input(
-        "Buscar candidato o vacante", placeholder="Nombre, código de vacante o estado"
-    )
-
-    rows = []
-    for candidate_id, items in grouped.items():
-        first = items[0]
-        jobs = ", ".join(sorted({item["job_code"] for item in items}))
-        statuses = ", ".join(sorted({app_status(item["status"]) for item in items}))
-        latest = sorted(items, key=lambda item: item["applied_at"], reverse=True)[0]
-        row = {
-            "candidate_id": candidate_id,
-            "candidate_name": first["candidate_name"],
-            "jobs": jobs,
-            "applications": len(items),
-            "statuses": statuses,
-            "latest_application": latest["id"],
-            "latest_status": latest["status"],
-            "score": latest.get("score"),
-            "hours_in_stage": latest.get("hours_in_stage"),
-        }
-        rows.append(row)
-
-    if query.strip():
-        needle = query.strip().lower()
-        rows = [
-            row
-            for row in rows
-            if needle
-            in " ".join(
-                [row["candidate_name"], row["jobs"], row["statuses"], row["candidate_id"]]
-            ).lower()
-        ]
-
-    design.metric_grid(
-        [
-            ("Personas", str(len(grouped)), "Candidatos únicos"),
-            ("Postulaciones", str(len(applications)), "Participaciones en vacantes"),
-            ("Con evaluación", str(sum(app.get("score") is not None for app in applications)), ""),
-        ]
-    )
-
-    if not rows:
-        design.empty_state("Sin resultados", "Ajusta la búsqueda para ver candidatos.")
-        return
-
-    st.dataframe(
-        [
-            {
-                "Candidato": row["candidate_name"],
-                "Vacantes": row["jobs"],
-                "Postulaciones": row["applications"],
-                "Último estado": app_status(row["latest_status"]),
-                "Puntaje": score(row["score"]),
-                "Tiempo en etapa": days_from_hours(row["hours_in_stage"]),
-            }
-            for row in rows
-        ],
-        width="stretch",
-        hide_index=True,
-    )
-
-    selected_name = st.selectbox(
-        "Abrir expediente",
-        options=[row["latest_application"] for row in rows],
-        format_func=lambda value: next(
-            f"{row['candidate_name']} · {app_status(row['latest_status'])}"
-            for row in rows
-            if row["latest_application"] == value
-        ),
-    )
-
-    if session.has_permission("candidate:pii:read"):
-        if st.button("Ver Candidate 360", type="primary"):
-            _go_candidate360(selected_name)
-    else:
-        st.info("Tu rol puede ver el listado, pero no el expediente con datos personales.")
+    can_write = session.has_permission("candidate:write")
+    with create_tab:
+        if not can_write:
+            st.info("Tu rol no tiene permiso para registrar candidatos.")
+        else:
+            with st.form("candidate_create"):
+                payload = _fields()
+                submitted = st.form_submit_button("Registrar candidato", type="primary")
+            if submitted:
+                try:
+                    session.client().create_candidate(payload)
+                    st.success("Candidato registrado en la base general.")
+                    st.rerun()
+                except ApiError as exc:
+                    design.api_error(exc, "No se pudo registrar")
+    with edit_tab:
+        if not can_write:
+            st.info("Tu rol no tiene permiso para editar candidatos.")
+        elif not candidates:
+            design.empty_state("Sin candidatos", "Registra una persona para poder editarla.")
+        else:
+            selected_id = st.selectbox(
+                "Candidato",
+                [item["id"] for item in candidates],
+                format_func=lambda value: next(
+                    item["full_name"] for item in candidates if item["id"] == value
+                ),
+            )
+            current = next(item for item in candidates if item["id"] == selected_id)
+            with st.form(f"candidate_edit_{selected_id}"):
+                payload = _fields(current)
+                submitted = st.form_submit_button("Guardar cambios", type="primary")
+            if submitted:
+                payload["expected_version"] = current["version"]
+                try:
+                    session.client().update_candidate(selected_id, payload)
+                    st.success("Ficha actualizada.")
+                    st.rerun()
+                except ApiError as exc:
+                    design.api_error(exc, "No se pudo actualizar")
 
 
 render()

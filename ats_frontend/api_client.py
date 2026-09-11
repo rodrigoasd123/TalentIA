@@ -221,6 +221,18 @@ class TalentIAApiClient:
 
     # ── Pipeline y candidaturas ──────────────────────────────────────────────
 
+    def list_candidates(self) -> list[dict[str, Any]]:
+        return self._request("GET", f"{API_PREFIX}/candidates")
+
+    def get_candidate(self, candidate_id: str) -> dict[str, Any]:
+        return self._request("GET", f"{API_PREFIX}/candidates/{candidate_id}")
+
+    def create_candidate(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", f"{API_PREFIX}/candidates", json=payload)
+
+    def update_candidate(self, candidate_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("PATCH", f"{API_PREFIX}/candidates/{candidate_id}", json=payload)
+
     def pipeline(self, job_id: str | None = None) -> dict[str, Any]:
         params = {"job_id": job_id} if job_id else None
         return self._request("GET", f"{API_PREFIX}/pipeline", params=params)["columns"]
@@ -372,6 +384,12 @@ class TalentIAApiClient:
     def equity_report(self, job_id: str | None = None) -> dict[str, Any]:
         params = {"job_id": job_id} if job_id else None
         return self._request("GET", f"{API_PREFIX}/equity/report", params=params)
+
+    def candidate_disposition_report(self) -> dict[str, Any]:
+        return self._request("GET", f"{API_PREFIX}/reports/candidate-disposition")
+
+    def candidate_disposition_csv(self) -> str:
+        return self._request_text("GET", f"{API_PREFIX}/reports/candidate-disposition.csv")
 
     # ── Auditoría ────────────────────────────────────────────────────────────
 

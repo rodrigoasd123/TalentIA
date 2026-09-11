@@ -34,6 +34,7 @@ from app.domain.entities import (
 from app.domain.enums import (
     ActorType,
     ApplicationStatus,
+    CandidateStatus,
     DocumentType,
     EmailStatus,
     EmailTemplateKind,
@@ -232,6 +233,14 @@ def candidate_to_model(candidate: Candidate) -> CandidateModel:
         tags=list(candidate.tags),
         processing_status=candidate.processing_status,
         legal_basis_status=candidate.legal_basis_status,
+        client=candidate.client, candidate_status=candidate.candidate_status.value,
+        record_date=candidate.record_date, recruiter=candidate.recruiter, q=candidate.q,
+        birth_date=candidate.birth_date, reported_age=candidate.reported_age,
+        bgc=candidate.bgc, technical_knowledge=candidate.technical_knowledge,
+        equifax_debt=candidate.equifax_debt, salary_expectation=candidate.salary_expectation,
+        requested=candidate.requested, role_ctc=candidate.role_ctc,
+        ctc_variation_pct=candidate.ctc_variation_pct,
+        availability=candidate.availability, notes=candidate.notes,
         created_at=candidate.created_at,
         updated_at=candidate.updated_at,
         version=candidate.version,
@@ -252,6 +261,14 @@ def candidate_to_entity(model: CandidateModel) -> Candidate:
         tags=list(model.tags or []),
         processing_status=model.processing_status,
         legal_basis_status=model.legal_basis_status,
+        client=model.client, candidate_status=CandidateStatus(model.candidate_status),
+        record_date=model.record_date, recruiter=model.recruiter, q=model.q,
+        birth_date=model.birth_date, reported_age=model.reported_age,
+        bgc=model.bgc, technical_knowledge=model.technical_knowledge,
+        equifax_debt=model.equifax_debt, salary_expectation=model.salary_expectation,
+        requested=model.requested, role_ctc=model.role_ctc,
+        ctc_variation_pct=model.ctc_variation_pct,
+        availability=model.availability, notes=model.notes,
     )
 
 
@@ -266,6 +283,22 @@ def apply_candidate(model: CandidateModel, candidate: Candidate) -> CandidateMod
     model.tags = list(candidate.tags)
     model.processing_status = candidate.processing_status
     model.legal_basis_status = candidate.legal_basis_status
+    model.client = candidate.client
+    model.candidate_status = candidate.candidate_status.value
+    model.record_date = candidate.record_date
+    model.recruiter = candidate.recruiter
+    model.q = candidate.q
+    model.birth_date = candidate.birth_date
+    model.reported_age = candidate.reported_age
+    model.bgc = candidate.bgc
+    model.technical_knowledge = candidate.technical_knowledge
+    model.equifax_debt = candidate.equifax_debt
+    model.salary_expectation = candidate.salary_expectation
+    model.requested = candidate.requested
+    model.role_ctc = candidate.role_ctc
+    model.ctc_variation_pct = candidate.ctc_variation_pct
+    model.availability = candidate.availability
+    model.notes = candidate.notes
     model.version = candidate.version
     return model
 
