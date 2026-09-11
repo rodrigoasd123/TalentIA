@@ -2,10 +2,10 @@ services:
   api:
     build: .
     environment:
-      VERA_DATABASE_URL: sqlite:////data/vera.db
-      VERA_IMPORT_STORAGE_PATH: /data/imports
-      VERA_STORAGE_PATH: /data/storage
-      VERA_API_HOST: 0.0.0.0
+      TALENTIA_DATABASE_URL: sqlite:////data/talentia.db
+      TALENTIA_IMPORT_STORAGE_PATH: /data/imports
+      TALENTIA_STORAGE_PATH: /data/storage
+      TALENTIA_API_HOST: 0.0.0.0
     ports:
       - "8000:8000"
     volumes:
@@ -21,7 +21,7 @@ services:
       - ats_frontend/streamlit_app.py
       - --server.address=0.0.0.0
     environment:
-      VERA_API_BASE_URL: http://api:8000
+      TALENTIA_API_BASE_URL: http://api:8000
     ports:
       - "8501:8501"
     depends_on:

@@ -147,7 +147,7 @@ class TokenService:
             "fam": family,
             "iat": int(now.timestamp()),
             "exp": int((now + timedelta(minutes=minutes)).timestamp()),
-            "iss": "vera-ats",
+            "iss": "talentia",
         }
         return jwt.encode(payload, settings.resolved_jwt_secret(), algorithm=settings.jwt_algorithm)
 
@@ -162,7 +162,7 @@ class TokenService:
                 # Se fija el algoritmo explícitamente. Aceptar el declarado en la
                 # cabecera permitiría el ataque clásico de firmar con "none".
                 algorithms=[settings.jwt_algorithm],
-                issuer="vera-ats",
+                issuer=["talentia", "vera-ats"],
                 options={"require": ["exp", "sub", "type", "jti"]},
             )
         except jwt.ExpiredSignatureError as exc:

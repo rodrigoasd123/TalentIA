@@ -3,7 +3,7 @@
 Las API keys y los tokens OAuth que el usuario introduce en el panel se guardan
 en base de datos. Guardarlos en texto plano convertiría un volcado accidental de
 la base de datos en una fuga de credenciales, así que se cifran con Fernet
-(AES-128-CBC + HMAC-SHA256) usando una clave derivada de ``VERA_SECRET_KEY``
+(AES-128-CBC + HMAC-SHA256) usando una clave derivada de ``TALENTIA_SECRET_KEY``
 mediante HKDF.
 
 La clave maestra vive únicamente en el entorno. Si se pierde, los secretos
@@ -71,7 +71,7 @@ class SecretCipher:
             return _fernet(self._purpose).decrypt(raw).decode("utf-8")
         except InvalidToken as exc:
             raise SecretDecryptionError(
-                "No se pudo descifrar el secreto. ¿Cambió VERA_SECRET_KEY? "
+                "No se pudo descifrar el secreto. ¿Cambió TALENTIA_SECRET_KEY? "
                 "Vuelve a introducir la credencial en el panel de configuración."
             ) from exc
 

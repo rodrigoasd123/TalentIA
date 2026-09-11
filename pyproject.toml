@@ -1,7 +1,7 @@
 [project]
-name = "vera-ats"
+name = "talentia"
 version = "0.1.0"
-description = "VERA ATS — Applicant Tracking System empresarial con agente de IA gobernado"
+description = "TalentIA — plataforma unificada de selección y análisis documental"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Orquestación de grafo. VERA funciona sin esto: cae al motor nativo incluido.
+# Orquestación de grafo. TalentIA funciona sin esto: cae al motor nativo incluido.
 graph = ["langgraph>=0.2.0", "langchain-core>=0.3.0"]
 # Extracción de texto de documentos reales.
 documents = ["pypdf>=4.3.0", "python-docx>=1.1.0"]

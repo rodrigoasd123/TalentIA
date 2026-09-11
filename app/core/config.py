@@ -9,7 +9,7 @@ Distinguimos dos niveles de configuración y es importante no mezclarlos:
   datos, se edita desde el panel de administración y contiene la configuración
   del proveedor de IA, el modelo elegido y las credenciales de Google OAuth.
   Los valores sensibles se guardan cifrados con una clave derivada de
-  ``VERA_SECRET_KEY``.
+  ``TALENTIA_SECRET_KEY`` (con alias heredado temporal).
 
 Una API key nunca debe vivir en un fichero de configuración del repositorio.
 Por eso la del proveedor de IA no está aquí.
@@ -18,7 +18,9 @@ Por eso la del proveedor de IA no está aquí.
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
+import warnings
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -27,7 +29,8 @@ from typing import ClassVar
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_DEV_KEY_FILE = Path(".vera_dev_key")
+_DEV_KEY_FILE = Path(".talentia_dev_key")
+_LEGACY_DEV_KEY_FILE = Path(".vera_dev_key")
 
 
 class Environment(StrEnum):
@@ -42,7 +45,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=".env",
-        env_prefix="VERA_",
+        env_prefix="TALENTIA_",
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -58,7 +61,7 @@ class Settings(BaseSettings):
     refresh_token_days: int = 7
 
     # ── Persistencia ─────────────────────────────────────────────────────────
-    database_url: str = "sqlite:///./vera.db"
+    database_url: str = "sqlite:///./talentia.db"
     database_echo: bool = False
 
     # ── API ──────────────────────────────────────────────────────────────────
@@ -131,11 +134,28 @@ class Settings(BaseSettings):
             return self.secret_key
         if self.environment is not Environment.DEVELOPMENT:
             raise RuntimeError(
-                "VERA_SECRET_KEY es obligatoria fuera de development. "
+                "TALENTIA_SECRET_KEY es obligatoria fuera de development. "
                 "Genérala con: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
             )
+        if _DEV_KEY_FILE.exists() and _LEGACY_DEV_KEY_FILE.exists():
+            current = _DEV_KEY_FILE.read_text(encoding="utf-8").strip()
+            legacy = _LEGACY_DEV_KEY_FILE.read_text(encoding="utf-8").strip()
+            if not secrets.compare_digest(current, legacy):
+                raise RuntimeError(
+                    "Existen archivos de clave de desarrollo TalentIA y heredado "
+                    "con contenidos distintos; resuelve el conflicto antes de iniciar."
+                )
+            return current
         if _DEV_KEY_FILE.exists():
             return _DEV_KEY_FILE.read_text(encoding="utf-8").strip()
+        if _LEGACY_DEV_KEY_FILE.exists():
+            legacy = _LEGACY_DEV_KEY_FILE.read_text(encoding="utf-8").strip()
+            _DEV_KEY_FILE.write_text(legacy, encoding="utf-8")
+            warnings.warn(
+                "Se adoptó el archivo de clave de desarrollo heredado como "
+                ".talentia_dev_key.", FutureWarning, stacklevel=2,
+            )
+            return legacy
         generated = secrets.token_urlsafe(48)
         _DEV_KEY_FILE.write_text(generated, encoding="utf-8")
         return generated
@@ -159,14 +179,14 @@ class Settings(BaseSettings):
             # Derivada de la maestra para no proliferar ficheros en desarrollo.
             raw = f"jwt::{self.resolved_secret_key()}"
         else:
-            raise RuntimeError("VERA_JWT_SECRET es obligatoria fuera de development.")
+            raise RuntimeError("TALENTIA_JWT_SECRET es obligatoria fuera de development.")
 
         if (
             self.environment is not Environment.DEVELOPMENT
             and len(raw.encode("utf-8")) < self.MIN_JWT_SECRET_BYTES
         ):
             raise RuntimeError(
-                f"VERA_JWT_SECRET debe tener al menos {self.MIN_JWT_SECRET_BYTES} "
+                f"TALENTIA_JWT_SECRET debe tener al menos {self.MIN_JWT_SECRET_BYTES} "
                 "caracteres. Genera una con: "
                 "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
             )
@@ -185,7 +205,24 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Instancia única de configuración. Cacheada para no releer el entorno."""
-    return Settings()
+    overrides: dict[str, str] = {}
+    for field_name in Settings.model_fields:
+        official = f"TALENTIA_{field_name.upper()}"
+        legacy = f"VERA_{field_name.upper()}"
+        if official in os.environ:
+            overrides[field_name] = os.environ[official]
+        elif legacy in os.environ:
+            overrides[field_name] = os.environ[legacy]
+            warnings.warn(
+                f"{legacy} está obsoleta; usa {official}. No se registró su valor.",
+                FutureWarning,
+                stacklevel=1,
+            )
+    return Settings(**overrides)
+
+
+def database_url_is_explicit() -> bool:
+    return "TALENTIA_DATABASE_URL" in os.environ or "VERA_DATABASE_URL" in os.environ
 
 
 def reset_settings_cache() -> None:
@@ -203,6 +240,7 @@ __all__ = [
     "PROMPTS_DIR",
     "Environment",
     "Settings",
+    "database_url_is_explicit",
     "get_settings",
     "reset_settings_cache",
 ]

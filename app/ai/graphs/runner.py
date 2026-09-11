@@ -1,6 +1,6 @@
 """Motor de ejecución del grafo.
 
-VERA usa LangGraph cuando está instalado y, si no lo está, un motor nativo
+TalentIA usa LangGraph cuando está instalado y, si no lo está, un motor nativo
 incluido aquí con la misma semántica: nodos, aristas fijas, aristas
 condicionales y un estado tipado que se propaga.
 

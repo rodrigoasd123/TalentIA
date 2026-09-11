@@ -1,11 +1,11 @@
-"""VERA — Verified Evidence & Ranking Agent.
+"""Agente de evaluación gobernada de TalentIA.
 
 Fachada de la capa de IA. Es el único punto por el que el resto del sistema
 habla con el agente, y expone una superficie deliberadamente pequeña: se le pasa
 un candidato y una vacante, y devuelve un resultado con puntuación, evidencia
 verificada y acciones **propuestas**.
 
-Lo que VERA no hace, y no es un olvido:
+Lo que el agente no hace, y no es un olvido:
 
 * No escribe en la base de datos.
 * No cambia el estado de ninguna candidatura.
@@ -43,14 +43,14 @@ from app.ai.nodes.deterministic import ScoreCalculationNode
 
 logger = get_logger(__name__)
 
-AGENT_NAME = "VERA"
+AGENT_NAME = "TalentIA"
 AGENT_VERSION = "1.0.0"
-AGENT_FULL_NAME = "Verified Evidence & Ranking Agent"
+AGENT_FULL_NAME = "TalentIA Evaluation Agent"
 
 
 @dataclass(slots=True)
 class EvaluationRequest:
-    """Todo lo que VERA necesita para evaluar. Nada más, nada menos.
+    """Todo lo que TalentIA necesita para evaluar. Nada más, nada menos.
 
     Nótese que no recibe repositorios ni sesión de base de datos: quien invoca
     ya cargó los datos. Un agente sin acceso a la persistencia no puede
@@ -74,7 +74,7 @@ class EvaluationRequest:
 
 @dataclass(slots=True)
 class EvaluationResult:
-    """Salida de VERA: una evaluación y unas acciones propuestas."""
+    """Salida de TalentIA: una evaluación y unas acciones propuestas."""
 
     evaluation: Evaluation
     workflow_run: WorkflowRun

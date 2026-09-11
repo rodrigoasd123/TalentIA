@@ -16,6 +16,8 @@ __pycache__/
 data/*.db
 data/cache/
 vera.db*
+talentia.db*
+.talentia-backups/
 *.db-shm
 *.db-wal
 *.sqlite3
@@ -25,6 +27,7 @@ storage/
 .env*
 !.env.example
 .vera_dev_key
+.talentia_dev_key
 
 # Temporary files
 tmp/

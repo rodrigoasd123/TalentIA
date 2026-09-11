@@ -1,4 +1,4 @@
-"""Grafo de evaluación de VERA.
+"""Grafo de evaluación de TalentIA.
 
 El flujo completo, de la ingesta del CV a la propuesta de acción:
 

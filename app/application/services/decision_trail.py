@@ -1,6 +1,6 @@
 """Traza de decisión: por qué el sistema hizo lo que hizo con una candidatura.
 
-Es la funcionalidad que diferencia a VERA de un ATS comercial. Cuando un
+Es la funcionalidad que diferencia a TalentIA de un ATS sin trazabilidad. Cuando un
 candidato reclame, o llegue una auditoría, o simplemente alguien del equipo
 pregunte «¿por qué se descartó a esta persona?», la respuesta se genera en un
 clic y contiene todo lo necesario para defenderla:
@@ -323,7 +323,7 @@ class DecisionTrailService:
             detail = "motivos: " + ", ".join(reasons)
 
         actor = {
-            ActorType.AI_AGENT: "VERA",
+            ActorType.AI_AGENT: "TalentIA",
             ActorType.SYSTEM: "sistema",
         }.get(event.actor_type, event.actor_id)
 

@@ -9,5 +9,7 @@ __pycache__
 *.db-wal
 .env
 .vera_dev_key
+.talentia_dev_key
+.talentia-backups
 storage
 data/cache

@@ -15,11 +15,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import PROJECT_ROOT, Environment, get_settings
+from app.core.config import PROJECT_ROOT, Environment, database_url_is_explicit, get_settings
 from app.core.logging import get_logger
 from app.infrastructure.database.models import Base
 
@@ -31,7 +32,7 @@ _session_factory: sessionmaker[Session] | None = None
 
 def _configure_sqlite(engine: Engine) -> None:
     @event.listens_for(engine, "connect")
-    def _set_pragmas(dbapi_connection, _connection_record) -> None:  # noqa: ANN001
+    def _set_pragmas(dbapi_connection, _connection_record) -> None:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.execute("PRAGMA journal_mode=WAL")
@@ -47,6 +48,12 @@ def get_engine() -> Engine:
         return _engine
 
     settings = get_settings()
+    if not database_url_is_explicit() and settings.database_url == "sqlite:///./talentia.db":
+        from app.infrastructure.database.legacy_adoption import (
+            adopt_legacy_default_database,
+        )
+
+        adopt_legacy_default_database(Path.cwd())
     kwargs: dict[str, object] = {"echo": settings.database_echo, "future": True}
 
     if settings.is_sqlite:

@@ -35,7 +35,7 @@ from backend.retrieval import normalize
 from backend.rag_engine import DEFAULT_FREE_GEMINI_MODEL, HybridRAGEngine, is_valid_gemini_key
 
 st.set_page_config(
-    page_title="PostulaIA RR. HH. - Revisión de CV",
+    page_title="TalentIA - Revisión documental",
     page_icon="✨",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -646,7 +646,7 @@ if not job_profile or not candidate_files:
         <section class="hero-card">
           <div class="hero-tag">👥 Asistente de revisión para Recursos Humanos</div>
           <h1>Compara CV con requisitos verificables, sin delegar la decisión.</h1>
-          <p>Carga el perfil del puesto y varios CV. PostulaIA identifica coincidencias documentales, muestra brechas y conserva la evidencia para que tu equipo realice la evaluación final.</p>
+          <p>Carga el perfil del puesto y varios CV. TalentIA identifica coincidencias documentales, muestra brechas y conserva la evidencia para que tu equipo realice la evaluación final.</p>
           <div class="hero-features">
             <span>Ranking determinista</span>
             <span>OCR local</span>

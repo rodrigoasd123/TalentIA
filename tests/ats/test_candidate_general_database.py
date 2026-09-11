@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,8 +28,8 @@ def uow() -> UnitOfWork:
 
 @pytest.fixture
 def api_client(monkeypatch: pytest.MonkeyPatch, tmp_path) -> TestClient:
-    monkeypatch.setenv("VERA_DATABASE_URL", f"sqlite:///{tmp_path / 'candidates.db'}")
-    monkeypatch.setenv("VERA_ENVIRONMENT", "development")
+    monkeypatch.setenv("TALENTIA_DATABASE_URL", f"sqlite:///{tmp_path / 'candidates.db'}")
+    monkeypatch.setenv("TALENTIA_ENVIRONMENT", "development")
     reset_settings_cache()
     reset_engine()
     from app.api.main import app
@@ -104,6 +105,16 @@ def test_disposition_report_combines_adecco_interview_and_discard(uow: UnitOfWor
             job_id=job.id,
             status=ApplicationStatus.INTERVIEWED,
             source="Adecco Perú",
+            idempotency_key="interviewed-test",
+        )
+    )
+    uow.applications.add(
+        Application(
+            candidate_id=discarded.id,
+            job_id=job.id,
+            status=ApplicationStatus.REJECTED,
+            source="referido",
+            idempotency_key="rejected-test",
         )
     )
 
@@ -121,7 +132,6 @@ def test_candidate_api_create_update_and_csv_report(api_client: TestClient) -> N
         json={
             "full_name": "Persona API",
             "client": "Cliente API",
-            "candidate_status": "no_apto",
             "source": "Adecco",
             "birth_date": "1995-02-10",
             "national_id": "87654321",
@@ -138,19 +148,18 @@ def test_candidate_api_create_update_and_csv_report(api_client: TestClient) -> N
     )
     assert created.status_code == 201, created.text
     candidate = created.json()
-    assert candidate["candidate_status"] == "no_apto"
+    assert candidate["candidate_status"] == "pendiente_contacto"
     assert candidate["age"] == 31
 
     updated = api_client.patch(
         f"/api/v1/candidates/{candidate['id']}",
         json={
             "expected_version": candidate["version"],
-            "candidate_status": "backup",
             "recruiter": "Recruiter API",
         },
     )
     assert updated.status_code == 200, updated.text
-    assert updated.json()["candidate_status"] == "backup"
+    assert updated.json()["recruiter"] == "Recruiter API"
 
     report = api_client.get("/api/v1/reports/candidate-disposition")
     assert report.status_code == 200
@@ -159,3 +168,20 @@ def test_candidate_api_create_update_and_csv_report(api_client: TestClient) -> N
     assert csv_response.status_code == 200
     assert "national_id" not in csv_response.text
     assert "equifax_debt" not in csv_response.text
+
+
+def test_document_analysis_is_available_through_talentia_api(api_client: TestClient) -> None:
+    content = (
+        Path(__file__).parents[2] / "data" / "convocatoria_ti_desarrollador_backend.pdf"
+    ).read_bytes()
+    response = api_client.post(
+        "/api/v1/document-analysis/screen",
+        data={"mode": "normal"},
+        files=[
+            ("profile", ("perfil.pdf", content, "application/pdf")),
+            ("cvs", ("cv-ficticio.pdf", content, "application/pdf")),
+        ],
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["ranking"][0]["filename"] == "cv-ficticio.pdf"
+    assert "revisión humana" in response.json()["decision_notice"]

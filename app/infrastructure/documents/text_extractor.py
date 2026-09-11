@@ -159,7 +159,7 @@ class TextExtractor:
         except ImportError as exc:
             raise ResumeParsingError(
                 "Falta la dependencia para leer PDF. Instálala con: "
-                "pip install 'vera-ats[documents]'"
+                "pip install 'talentia[documents]'"
             ) from exc
 
         warnings: list[str] = []
@@ -216,7 +216,7 @@ class TextExtractor:
         except ImportError as exc:
             raise ResumeParsingError(
                 "Falta la dependencia para leer DOCX. Instálala con: "
-                "pip install 'vera-ats[documents]'"
+                "pip install 'talentia[documents]'"
             ) from exc
 
         _check_zip_bomb(content)

@@ -1,4 +1,4 @@
-"""Ejecuta VERA sobre las convocatorias y los CVs ficticios del laboratorio.
+"""Ejecuta TalentIA sobre convocatorias y CV ficticios del laboratorio.
 
 Uso:
 
@@ -61,7 +61,7 @@ def main() -> int:
     llm = build_llm(args.provider, api_key=args.api_key, model=args.model)
     info = describe_provider(llm)
 
-    print(f"\n{BOLD}VERA — Verified Evidence & Ranking Agent{RESET}")
+    print(f"\n{BOLD}TalentIA — evaluación con evidencia verificable{RESET}")
     print(f"Proveedor: {info['provider']} · Modelo: {info['model']}")
     if info["warning"]:
         print(colorize(f"⚠  {info['warning']}", YELLOW))
@@ -153,7 +153,7 @@ def main() -> int:
     print(f"\n{BOLD}{'─' * 78}{RESET}")
     print(f"Coste total estimado: ${total_cost:.5f}")
     print(f"{DIM}Recuerda: ninguna de estas decisiones se ha aplicado. "
-          f"VERA propone; el backend decide.{RESET}\n")
+          f"TalentIA asiste; las personas autorizadas deciden.{RESET}\n")
     return 0
 
 

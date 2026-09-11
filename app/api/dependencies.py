@@ -5,7 +5,7 @@ endpoint que no declara permiso es un endpoint sin protección, así que el arra
 de la aplicación comprueba que todas las rutas de negocio declaran el suyo: es
 preferible no arrancar a servir un endpoint desprotegido sin que nadie lo note.
 
-El modo de laboratorio merece una nota. Cuando ``VERA_ENVIRONMENT`` es
+El modo de laboratorio merece una nota. Cuando ``TALENTIA_ENVIRONMENT`` es
 ``development`` y no llega cabecera de autorización, se asume un usuario
 RECRUITER para que la interfaz funcione sin login. **Esa puerta se cierra sola en
 cualquier otro entorno** y hay un test que lo verifica; sin esa garantía, sería
@@ -97,7 +97,7 @@ def get_current_user(
             set_actor_id("lab-recruiter")
             return CurrentUser(
                 user_id="lab-recruiter",
-                email="recruiter@vera-lab.test",
+                email="recruiter@talentia-lab.test",
                 role=Role.RECRUITER,
                 permissions=ROLE_PERMISSIONS[Role.RECRUITER],
                 is_lab_session=True,

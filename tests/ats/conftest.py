@@ -7,16 +7,16 @@ import os
 import pytest
 
 # La configuración se lee al importar, así que el entorno debe fijarse antes.
-os.environ.setdefault("VERA_ENVIRONMENT", "testing")
-os.environ.setdefault("VERA_SECRET_KEY", "clave-de-pruebas-no-usar-en-produccion-0123456789")
+os.environ.setdefault("TALENTIA_ENVIRONMENT", "testing")
+os.environ.setdefault("TALENTIA_SECRET_KEY", "clave-de-pruebas-no-usar-en-produccion-0123456789")
 # Al menos 32 bytes: la validación de configuración lo exige fuera de desarrollo,
 # y el entorno de pruebas no es una excepción. Un secreto corto en los tests
 # acabaría normalizando la práctica.
 os.environ.setdefault(
-    "VERA_JWT_SECRET", "jwt-de-pruebas-no-usar-en-produccion-0123456789abcdef"
+    "TALENTIA_JWT_SECRET", "jwt-de-pruebas-no-usar-en-produccion-0123456789abcdef"
 )
-os.environ.setdefault("VERA_DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("VERA_LOG_LEVEL", "ERROR")
+os.environ.setdefault("TALENTIA_DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("TALENTIA_LOG_LEVEL", "ERROR")
 
 from app.ai.agent import EvaluationRequest, VeraAgent  # noqa: E402
 from app.core.logging import configure_logging  # noqa: E402

@@ -40,7 +40,7 @@ from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.domain.entities import Candidate, Job, JobRequirements
-from app.domain.enums import JobStatus, Permission
+from app.domain.enums import CandidateStatus, JobStatus, Permission
 from app.domain.value_objects import EmailAddress
 from app.infrastructure.imports.tabular_reader import neutralize_spreadsheet_formula
 from app.infrastructure.llm.factory import build_llm_from_settings
@@ -132,6 +132,18 @@ def _import_row_payload(row, *, reveal_pii: bool) -> dict[str, Any]:
         "candidate_id": row.candidate_id,
         "application_id": row.application_id,
     }
+
+
+def _read_pdf_upload(upload: UploadFile, *, max_bytes: int) -> bytes:
+    filename = upload.filename or "documento.pdf"
+    if not filename.casefold().endswith(".pdf"):
+        raise ValidationError("Solo se admiten documentos PDF")
+    content = upload.file.read(max_bytes + 1)
+    if not content or len(content) > max_bytes:
+        raise ValidationError(f"{filename}: archivo vacío o superior al límite")
+    if not content.startswith(b"%PDF"):
+        raise ValidationError(f"{filename}: el contenido no corresponde a un PDF")
+    return content
 
 
 # ── Autenticación ────────────────────────────────────────────────────────────
@@ -601,6 +613,10 @@ def import_error_report(batch_id: str, uow: UowDep) -> Response:
 def create_candidate(
     payload: CandidateCreateRequest, uow: UowDep, actor: ActorDep,
 ) -> dict[str, Any]:
+    if payload.candidate_status is not CandidateStatus.PENDIENTE_CONTACTO:
+        raise ValidationError(
+            "El estado de selección debe registrarse en una postulación y vacante"
+        )
     if payload.email and uow.candidates.get_by_email(payload.email.strip().lower()):
         raise ValidationError("Ya existe un candidato con ese correo")
     data = payload.model_dump()
@@ -672,6 +688,11 @@ def update_candidate(
         )
     changes = payload.model_dump(exclude_unset=True)
     changes.pop("expected_version", None)
+    requested_status = changes.pop("candidate_status", None)
+    if requested_status is not None and requested_status is not candidate.candidate_status:
+        raise ValidationError(
+            "El estado de selección debe modificarse en una postulación y vacante"
+        )
     if "email" in changes:
         email = (changes.pop("email") or "").strip()
         duplicate = uow.candidates.get_by_email(email) if email else None
@@ -857,7 +878,7 @@ def _evaluation_payload(evaluation) -> dict[str, Any]:
 def evaluate(
     application_id: str, uow: UowDep, actor: ActorDep, dry_run: bool | None = Query(None)
 ) -> dict[str, Any]:
-    """Ejecuta VERA sobre una candidatura y aplica lo que la política permita."""
+    """Ejecuta la evaluación TalentIA y aplica lo que la política permita."""
     use_case = EvaluateApplicationUseCase(uow)
     outcome = use_case.execute(
         application_id=application_id, actor=actor, dry_run=dry_run
@@ -1125,6 +1146,106 @@ def send_email(
     }
 
 
+# ── Análisis documental integrado ───────────────────────────────────────────
+
+
+@router.post(
+    "/document-analysis/screen",
+    tags=["análisis documental"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_PII_READ, Permission.EVALUATION_RUN))],
+)
+def screen_documents(
+    profile: UploadFile = File(...),
+    cvs: list[UploadFile] = File(...),
+    mode: str = Form("normal", pattern="^(normal|ocr)$"),
+) -> dict[str, Any]:
+    """Compara varios CV con un perfil reutilizando el motor documental heredado."""
+    from backend.cv_screening import extract_criteria, load_candidate_documents, screen_candidates
+    from backend.pdf_reader import PdfReadError, read_pdf
+
+    if not 1 <= len(cvs) <= 25:
+        raise ValidationError("Carga entre 1 y 25 CV por análisis")
+    max_bytes = get_settings().max_upload_mb * 1024 * 1024
+    try:
+        profile_pages = read_pdf(_read_pdf_upload(profile, max_bytes=max_bytes), mode)
+    except PdfReadError as exc:
+        raise ValidationError(str(exc)) from exc
+    documents = {
+        upload.filename or f"cv-{index}.pdf": _read_pdf_upload(upload, max_bytes=max_bytes)
+        for index, upload in enumerate(cvs, 1)
+    }
+    loaded, errors = load_candidate_documents(documents, mode, max_bytes=max_bytes)
+    extraction = extract_criteria(profile_pages)
+    reviews = screen_candidates(loaded, extraction)
+    return {
+        "criteria": [
+            {"id": item.identifier, "text": item.text, "page": item.page}
+            for item in extraction.criteria
+        ],
+        "excluded_sensitive": [
+            {"page": item.page, "text": item.text}
+            for item in extraction.excluded_sensitive
+        ],
+        "errors": errors,
+        "ranking": [
+            {
+                "filename": review.filename,
+                "score": review.score,
+                "matches": [
+                    {
+                        "criterion": match.criterion.text,
+                        "status": match.status,
+                        "coverage": round(match.coverage, 4),
+                        "evidence": (
+                            {"page": match.cv_evidence.page, "text": match.cv_evidence.text}
+                            if match.cv_evidence else None
+                        ),
+                    }
+                    for match in review.matches
+                ],
+            }
+            for review in reviews
+        ],
+        "decision_notice": "Resultado documental orientativo; requiere revisión humana.",
+    }
+
+
+@router.post(
+    "/document-analysis/query",
+    tags=["análisis documental"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_PII_READ))],
+)
+def query_documents(
+    profile: UploadFile = File(...),
+    cv: UploadFile = File(...),
+    question: str = Form(..., min_length=2, max_length=500),
+    mode: str = Form("normal", pattern="^(normal|ocr)$"),
+) -> dict[str, Any]:
+    """Consulta RAG local con evidencia sobre un perfil y un CV cargados."""
+    from backend.agent import ApplicationAgent
+    from backend.cv_screening import build_review_context
+    from backend.pdf_reader import PdfReadError, read_pdf
+
+    max_bytes = get_settings().max_upload_mb * 1024 * 1024
+    try:
+        profile_pages = read_pdf(_read_pdf_upload(profile, max_bytes=max_bytes), mode)
+        cv_pages = read_pdf(_read_pdf_upload(cv, max_bytes=max_bytes), mode)
+    except PdfReadError as exc:
+        raise ValidationError(str(exc)) from exc
+    context = build_review_context(profile_pages, cv_pages)
+    answer = ApplicationAgent(
+        context, gemini_api_key="disabled", use_remote_embeddings=False
+    ).ask(question)
+    return {
+        "answer": answer.answer, "found": answer.found, "origin": answer.origin,
+        "evidence": [
+            {"page": item.page, "text": item.text, "score": item.score}
+            for item in answer.evidence
+        ],
+        "decision_notice": "La respuesta explica evidencia; no toma decisiones laborales.",
+    }
+
+
 # ── Analítica ────────────────────────────────────────────────────────────────
 
 
@@ -1188,7 +1309,7 @@ def candidate_disposition_csv(uow: UowDep) -> Response:
     output = io.StringIO(newline="")
     columns = [
         "candidate_id", "candidate", "client", "recruiter", "source",
-        "candidate_status", "categories", "application_id", "application_status",
+        "categories", "application_id", "application_status",
         "job_code", "job_title", "date",
     ]
     writer = csv.DictWriter(output, fieldnames=columns)

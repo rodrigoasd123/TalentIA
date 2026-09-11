@@ -364,7 +364,7 @@ class Evaluation(Entity):
     trace_id: str = ""
     workflow_run_id: str = ""
     superseded_by_id: str | None = None
-    created_by: str = "vera"
+    created_by: str = "talentia"
 
     @property
     def all_evidence(self) -> list[EvidenceSpan]:

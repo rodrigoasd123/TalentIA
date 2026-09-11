@@ -1,8 +1,8 @@
-# Manual de usuario — PostulaIA RR. HH.
+# Manual de usuario — TalentIA
 
 ## 1. Qué hace la aplicación
 
-PostulaIA compara CV en PDF con los requisitos explícitos de un perfil de puesto. Presenta un orden de revisión, un puntaje documental y la evidencia encontrada en cada CV. La decisión de continuar o no con un candidato pertenece siempre al equipo de Recursos Humanos.
+TalentIA administra el proceso de selección e integra la comparación de CV en PDF con los requisitos explícitos de un perfil de puesto. Presenta un orden de revisión, un puntaje documental y la evidencia encontrada en cada CV. La decisión de continuar o no con un candidato pertenece siempre al equipo de Recursos Humanos.
 
 La aplicación no verifica la autenticidad del CV, no evalúa personalidad y no debe usarse como mecanismo automático de contratación o descarte.
 
@@ -33,7 +33,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ## 4. Ejecutar
 
 ```powershell
-python -m streamlit run frontend/streamlit_postulacion.py
+python -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+python -m streamlit run ats_frontend/streamlit_app.py
 ```
 
 Abre `http://localhost:8501`. Mantén la terminal abierta y usa `Ctrl+C` para detener el programa.
@@ -78,7 +79,7 @@ Sin API key, el agente devuelve fragmentos locales. Con Gemini u Ollama, redacta
 
 ## 7. Criterios sensibles
 
-PostulaIA excluye del puntaje requisitos relacionados con edad, género, estado civil, nacionalidad, religión, embarazo, discapacidad, fotografía, raza, etnia u orientación sexual. Si detecta uno, muestra una advertencia para revisión humana y legal.
+TalentIA excluye del puntaje requisitos relacionados con edad, género, estado civil, nacionalidad, religión, embarazo, discapacidad, fotografía, raza, etnia u orientación sexual. Si detecta uno, muestra una advertencia para revisión humana y legal.
 
 La lista es una protección técnica básica, no asesoría legal. El equipo debe aplicar la legislación y política de selección correspondientes.
 
@@ -107,7 +108,7 @@ Cada página se convierte en imagen y se reconoce localmente. Reduce la cantidad
 ### El puerto 8501 está ocupado
 
 ```powershell
-python -m streamlit run frontend/streamlit_postulacion.py --server.port 8502
+python -m streamlit run ats_frontend/streamlit_app.py --server.port 8502
 ```
 
 ### Gemini no responde

@@ -95,7 +95,7 @@ SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
     # ── Comportamiento del sistema ───────────────────────────────────────────
     SettingSpec(
         "ff.ai_auto_shortlist", "Preselección automática", default="false", group="flags",
-        help_text="Permite que VERA preseleccione sin intervención humana.",
+        help_text="Permite preselección automática sin intervención humana.",
     ),
     SettingSpec(
         "ff.ai_auto_rejection", "Rechazo automático", default="false", group="flags",

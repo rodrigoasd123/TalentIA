@@ -112,7 +112,7 @@ class GeminiAdapter:
         if not self.is_configured:
             raise LLMNotConfigured(
                 "No hay API key de Gemini configurada. "
-                "Añádela en el panel de configuración de VERA."
+                "Añádela en el panel de configuración de TalentIA."
             )
 
         payload: dict[str, Any] = {
@@ -210,7 +210,7 @@ class GeminiAdapter:
         return {
             "x-goog-api-key": self._api_key,
             "Content-Type": "application/json",
-            "User-Agent": "VERA-ATS/1.0",
+            "User-Agent": "TalentIA/1.0",
         }
 
     @staticmethod

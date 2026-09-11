@@ -9,7 +9,7 @@ from agente_postulacion.history import QueryHistory
 from agente_postulacion.models import Evidence
 from agente_postulacion.pdf_reader import PdfReadError, read_pdf
 
-st.set_page_config(page_title="PostulaIA", page_icon="📄", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="TalentIA", page_icon="📄", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown(
     """

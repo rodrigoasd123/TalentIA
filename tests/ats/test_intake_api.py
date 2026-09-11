@@ -12,8 +12,8 @@ from app.infrastructure.database.session import reset_engine
 
 @pytest.fixture
 def client(monkeypatch, tmp_path) -> TestClient:
-    monkeypatch.setenv("VERA_DATABASE_URL", f"sqlite:///{tmp_path / 'intake.db'}")
-    monkeypatch.setenv("VERA_ENVIRONMENT", "development")
+    monkeypatch.setenv("TALENTIA_DATABASE_URL", f"sqlite:///{tmp_path / 'intake.db'}")
+    monkeypatch.setenv("TALENTIA_ENVIRONMENT", "development")
     reset_settings_cache()
     reset_engine()
     from app.api.main import app

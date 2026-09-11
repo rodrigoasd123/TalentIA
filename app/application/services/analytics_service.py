@@ -31,7 +31,7 @@ from typing import Any
 
 from app.application.unit_of_work import UnitOfWork
 from app.domain.entities import Evaluation
-from app.domain.enums import ApplicationStatus, CandidateStatus, Recommendation
+from app.domain.enums import ApplicationStatus, Recommendation
 
 #: Orden canónico del embudo. Los estados terminales quedan fuera porque no son
 #: una etapa por la que se pasa, sino una salida.
@@ -289,9 +289,7 @@ class AnalyticsService:
                 categories.append("adecco")
             if any(app.status in interviewed for app in candidate_apps):
                 categories.append("entrevistado")
-            if candidate.candidate_status is CandidateStatus.NO_APTO or any(
-                app.status is ApplicationStatus.REJECTED for app in candidate_apps
-            ):
+            if any(app.status is ApplicationStatus.REJECTED for app in candidate_apps):
                 categories.append("descartado")
             if not categories:
                 continue
@@ -301,7 +299,6 @@ class AnalyticsService:
                 "candidate_id": candidate.id, "candidate": candidate.full_name,
                 "client": candidate.client, "recruiter": candidate.recruiter,
                 "source": candidate.source,
-                "candidate_status": candidate.candidate_status.value,
                 "categories": categories,
                 "application_id": latest.id if latest else None,
                 "application_status": latest.status.value if latest else None,

@@ -16,6 +16,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.txt
       - run: python scripts/check_repository.py
+      - run: python scripts/check_brand_identity.py
       - run: >-
           ruff check app/domain/imports.py app/infrastructure/imports
           app/infrastructure/repositories/import_repository.py
@@ -23,5 +24,5 @@ jobs:
           ats_frontend/views/imports.py
           tests/ats/test_historical_import.py migrations app/domain/ports.py
       - run: mypy --strict --ignore-missing-imports app/domain/imports.py
-      - run: VERA_DATABASE_URL=sqlite:///./ci-migration.db python -m alembic upgrade head
+      - run: TALENTIA_DATABASE_URL=sqlite:///./ci-migration.db python -m alembic upgrade head
       - run: python -m pytest -q --basetemp .pytest-tmp

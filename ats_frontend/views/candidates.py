@@ -14,7 +14,7 @@ if str(APP_DIR) not in sys.path:
 
 from api_client import ApiError  # noqa: E402
 from talentia import design, session  # noqa: E402
-from talentia.formatters import CANDIDATE_STATUS_LABELS, candidate_status  # noqa: E402
+from talentia.formatters import app_status  # noqa: E402
 
 
 def _number(label: str, value=None, **kwargs):
@@ -23,18 +23,10 @@ def _number(label: str, value=None, **kwargs):
 
 def _fields(current: dict | None = None) -> dict:
     c = current or {}
-    statuses = list(CANDIDATE_STATUS_LABELS)
-    selected = c.get("candidate_status", "pendiente_contacto")
     col1, col2 = st.columns(2)
     with col1:
         full_name = st.text_input("Nombre completo *", value=c.get("full_name", ""))
         client = st.text_input("Cliente", value=c.get("client", ""))
-        status_value = st.selectbox(
-            "Status del candidato *",
-            statuses,
-            index=statuses.index(selected),
-            format_func=candidate_status,
-        )
         record_date = st.date_input(
             "Fecha",
             value=date.fromisoformat(c["record_date"]) if c.get("record_date") else date.today(),
@@ -73,7 +65,6 @@ def _fields(current: dict | None = None) -> dict:
     return {
         "full_name": full_name.strip(),
         "client": client.strip(),
-        "candidate_status": status_value,
         "record_date": record_date.isoformat(),
         "recruiter": recruiter.strip(),
         "source": source.strip(),
@@ -97,7 +88,7 @@ def _fields(current: dict | None = None) -> dict:
 
 
 def render() -> None:  # noqa: C901
-    if not session.require_permission("candidate:read"):
+    if not session.require_permission("candidate:read", "application:read"):
         return
     design.page_header(
         "Base general de candidatos",
@@ -106,12 +97,18 @@ def render() -> None:  # noqa: C901
     )
     try:
         candidates = session.client().list_candidates()
+        applications = session.client().list_applications()
     except ApiError as exc:
         design.api_error(exc, "No se pudieron cargar los candidatos")
         return
     list_tab, create_tab, edit_tab = st.tabs(["Base general", "Registrar", "Editar"])
     with list_tab:
-        query = st.text_input("Buscar", placeholder="Nombre, cliente, reclutador, DNI o estado")
+        query = st.text_input("Buscar", placeholder="Nombre, cliente, reclutador, DNI o vacante")
+        states_by_candidate: dict[str, list[str]] = {}
+        for application in applications:
+            states_by_candidate.setdefault(application["candidate_id"], []).append(
+                f"{application['job_code']}: {app_status(application['status'])}"
+            )
         visible = candidates
         if query.strip():
             needle = query.casefold().strip()
@@ -126,7 +123,6 @@ def render() -> None:  # noqa: C901
                         "client",
                         "recruiter",
                         "national_id",
-                        "candidate_status",
                         "source",
                     )
                 ).casefold()
@@ -136,7 +132,9 @@ def render() -> None:  # noqa: C901
                 {
                     "Candidato": item["full_name"],
                     "Cliente": item.get("client", ""),
-                    "Status": candidate_status(item.get("candidate_status", "")),
+                    "Estados por postulación": ", ".join(
+                        states_by_candidate.get(item["id"], [])
+                    ) or "Sin postulación",
                     "Fecha": item.get("record_date"),
                     "Reclutador": item.get("recruiter", ""),
                     "Fuente": item.get("source", ""),
@@ -180,6 +178,10 @@ def render() -> None:  # noqa: C901
             )
             current = next(item for item in candidates if item["id"] == selected_id)
             with st.form(f"candidate_edit_{selected_id}"):
+                st.caption(
+                    "Los estados de selección se modifican en Pipeline y siempre "
+                    "pertenecen a una postulación concreta."
+                )
                 payload = _fields(current)
                 submitted = st.form_submit_button("Guardar cambios", type="primary")
             if submitted:

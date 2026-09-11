@@ -2,7 +2,7 @@
 
 Cumple dos funciones que no son intercambiables:
 
-1. **Permitir que VERA funcione sin API key.** El laboratorio arranca, el grafo
+1. **Permitir que TalentIA funcione sin API key.** El laboratorio arranca, el grafo
    se ejecuta de principio a fin y la interfaz se puede recorrer entera antes de
    configurar ningún proveedor.
 2. **Hacer los tests deterministas.** Una suite que dependa de un modelo real es

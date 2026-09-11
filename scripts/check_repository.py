@@ -4,7 +4,10 @@ import re
 import subprocess
 from pathlib import Path
 
-FORBIDDEN_PARTS = {".env", ".vera_dev_key", "__pycache__", ".pytest_cache", ".pytest-tmp", "storage"}
+FORBIDDEN_PARTS = {
+    ".env", ".talentia-backups", ".talentia_dev_key", ".vera_dev_key",
+    "__pycache__", ".pytest_cache", ".pytest-tmp", "storage",
+}
 FORBIDDEN_SUFFIXES = {".pyc", ".pyo", ".db", ".sqlite", ".sqlite3", ".db-shm", ".db-wal"}
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),

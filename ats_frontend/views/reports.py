@@ -19,7 +19,7 @@ if str(APP_DIR) not in sys.path:
 
 from api_client import ApiError  # noqa: E402
 from talentia import design, session  # noqa: E402
-from talentia.formatters import app_status, candidate_status, percent, score  # noqa: E402
+from talentia.formatters import app_status, percent, score  # noqa: E402
 
 
 def _chart(frame: pd.DataFrame, x: str, y: str) -> None:
@@ -166,7 +166,6 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
             st.dataframe([{
                 "Candidato": row["candidate"], "Cliente": row.get("client", ""),
                 "Reclutador": row.get("recruiter", ""), "Fuente": row.get("source", ""),
-                "Status general": candidate_status(row.get("candidate_status", "")),
                 "Categorías": ", ".join(row.get("categories", [])),
                 "Vacante": row.get("job_code") or "—",
                 "Estado postulación": app_status(row.get("application_status") or ""),

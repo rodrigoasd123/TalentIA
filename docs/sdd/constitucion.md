@@ -1,4 +1,4 @@
-# Constitución SDD — PostulaIA
+# Constitución SDD — TalentIA
 
 > Versión inicial: 2026-08-20. Aplica a nuevas especificaciones y cambios del proyecto. Los responsables humanos de aprobación están `POR CONFIRMAR`.
 
@@ -13,7 +13,7 @@
 
 ### 2. Decisión humana y uso responsable
 
-1. PostulaIA es asistencia documental. Nunca debe aprobar, rechazar, contactar ni recomendar automáticamente a una persona candidata.
+1. TalentIA es asistencia para selección y análisis documental. Nunca debe aprobar, rechazar, contactar ni recomendar automáticamente a una persona candidata.
 2. Todo puntaje debe presentarse como coincidencia documental, ser explicable con evidencia y mantener visible la revisión humana obligatoria.
 3. No se inferirán atributos sensibles, personalidad, emociones, salud, autenticidad o idoneidad no documentada.
 4. Los criterios sensibles detectados no pueden influir en el puntaje y deben quedar visibles como advertencia para revisión humana y legal.

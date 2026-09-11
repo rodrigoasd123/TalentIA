@@ -243,7 +243,7 @@ class EvaluationModel(Base, TimestampMixin):
     trace_id: Mapped[str] = mapped_column(String(40), index=True, default="")
     workflow_run_id: Mapped[str] = mapped_column(String(32), default="")
     superseded_by_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    created_by: Mapped[str] = mapped_column(String(64), default="vera")
+    created_by: Mapped[str] = mapped_column(String(64), default="talentia")
 
 
 # ── Supervisión humana ───────────────────────────────────────────────────────

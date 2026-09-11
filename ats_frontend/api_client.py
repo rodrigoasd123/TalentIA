@@ -180,6 +180,31 @@ class TalentIAApiClient:
     def list_models(self) -> list[str]:
         return self._request("GET", f"{API_PREFIX}/config/models").get("models", [])
 
+    # ── Análisis documental integrado ──────────────────────────────────────
+
+    def screen_documents(
+        self, *, profile: tuple[str, bytes], cvs: list[tuple[str, bytes]], mode: str
+    ) -> dict[str, Any]:
+        files = [("profile", (profile[0], profile[1], "application/pdf"))]
+        files.extend(("cvs", (name, content, "application/pdf")) for name, content in cvs)
+        return self._request(
+            "POST", f"{API_PREFIX}/document-analysis/screen",
+            data={"mode": mode}, files=files,
+        )
+
+    def query_documents(
+        self, *, profile: tuple[str, bytes], cv: tuple[str, bytes],
+        question: str, mode: str,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST", f"{API_PREFIX}/document-analysis/query",
+            data={"mode": mode, "question": question},
+            files={
+                "profile": (profile[0], profile[1], "application/pdf"),
+                "cv": (cv[0], cv[1], "application/pdf"),
+            },
+        )
+
     # ── Agente ───────────────────────────────────────────────────────────────
 
     def agent_health(self) -> dict[str, Any]:

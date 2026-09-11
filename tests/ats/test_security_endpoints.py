@@ -219,8 +219,8 @@ def test_la_sesion_de_laboratorio_solo_existe_en_desarrollo(monkeypatch) -> None
 
 @pytest.fixture
 def client(monkeypatch, tmp_path) -> TestClient:
-    monkeypatch.setenv("VERA_DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
-    monkeypatch.setenv("VERA_ENVIRONMENT", "development")
+    monkeypatch.setenv("TALENTIA_DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
+    monkeypatch.setenv("TALENTIA_ENVIRONMENT", "development")
     reset_settings_cache()
 
     from app.infrastructure.database.session import reset_engine

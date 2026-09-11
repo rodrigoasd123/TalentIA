@@ -1,4 +1,4 @@
-"""API de VERA ATS.
+"""API unificada de TalentIA.
 
 Expone el panel de configuración y la ejecución del agente sobre las
 convocatorias y los CVs del laboratorio.
@@ -73,21 +73,21 @@ async def lifespan(_: FastAPI):  # noqa: ANN201
     configure_logging(settings.log_level, as_json=settings.log_json)
     init_database()
     logger.info(
-        "VERA ATS iniciado",
+        "TalentIA iniciado",
         agent=AGENT_NAME,
         version=AGENT_VERSION,
         environment=settings.environment.value,
         langgraph=langgraph_available(),
     )
     yield
-    logger.info("VERA ATS detenido")
+    logger.info("TalentIA detenido")
 
 
 app = FastAPI(
-    title="VERA ATS",
+    title="TalentIA",
     description=(
         "Applicant Tracking System con agente de IA gobernado. "
-        "VERA propone; el backend decide."
+        "TalentIA asiste; las personas autorizadas deciden."
     ),
     version=AGENT_VERSION,
     lifespan=lifespan,
@@ -353,7 +353,7 @@ def list_resumes() -> list[ResumeSummary]:
     dependencies=[Depends(requires(Permission.EVALUATION_RUN))],
 )
 def run_evaluation(payload: EvaluationRunRequest, store: StoreDep) -> EvaluationResponse:
-    """Ejecuta VERA sobre una combinación de vacante y CV.
+    """Ejecuta TalentIA sobre una combinación de vacante y CV.
 
     Lo que devuelve es una **propuesta**: ninguna de las acciones sugeridas se ha
     aplicado, y así lo indica el campo ``actions_executed``.

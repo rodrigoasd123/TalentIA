@@ -81,10 +81,10 @@ PAGES = [
     },
     {
         "group": "Expediente",
-        "path": "views/agent.py",
-        "title": "Agente de consulta",
-        "icon": ":material/chat:",
-        "permissions": ("candidate:pii:read", "application:read"),
+        "path": "views/document_analysis.py",
+        "title": "Análisis documental",
+        "icon": ":material/document_search:",
+        "permissions": ("candidate:pii:read",),
     },
     {
         "group": "Control",

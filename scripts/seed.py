@@ -45,14 +45,14 @@ logger = get_logger(__name__)
 #: Usuarios de laboratorio. La contraseña es la misma para todos a propósito:
 #: es un entorno de pruebas y así se documenta en el README. En cualquier otro
 #: entorno, sembrar usuarios con contraseña conocida sería inadmisible.
-LAB_PASSWORD = "Laboratorio-VERA-2026!"
+LAB_PASSWORD = "Laboratorio-TalentIA-2026!"
 
 SEED_USERS = [
-    ("admin@vera-lab.test", "Administración del sistema", Role.ADMIN),
-    ("recruiter@vera-lab.test", "Equipo de selección", Role.RECRUITER),
-    ("manager@vera-lab.test", "Jefatura de contratación", Role.HIRING_MANAGER),
-    ("interviewer@vera-lab.test", "Panel de entrevistas", Role.INTERVIEWER),
-    ("auditor@vera-lab.test", "Auditoría interna", Role.AUDITOR),
+    ("admin@talentia-lab.test", "Administración del sistema", Role.ADMIN),
+    ("recruiter@talentia-lab.test", "Equipo de selección", Role.RECRUITER),
+    ("manager@talentia-lab.test", "Jefatura de contratación", Role.HIRING_MANAGER),
+    ("interviewer@talentia-lab.test", "Panel de entrevistas", Role.INTERVIEWER),
+    ("auditor@talentia-lab.test", "Auditoría interna", Role.AUDITOR),
 ]
 
 #: Plantillas aprobadas. El modelo solo rellena las variables declaradas en
@@ -252,7 +252,7 @@ def seed_candidates(uow: UnitOfWork, jobs: list, actor: Actor) -> dict[str, int]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Siembra el laboratorio de VERA")
+    parser = argparse.ArgumentParser(description="Siembra el laboratorio de TalentIA")
     parser.add_argument("--reset", action="store_true", help="Borra y recrea el esquema")
     parser.add_argument("--evaluate", action="store_true", help="Evalúa las candidaturas")
     parser.add_argument("--verbose", action="store_true")
@@ -276,7 +276,7 @@ def main() -> int:
     print(f"  {'Candidatos':<16} {stats['candidates']} nuevos")
     print(f"  {'CVs':<16} {stats['resumes']}")
     print(f"  {'Candidaturas':<16} {stats['applications']}")
-    print(f"\n  Acceso de laboratorio: recruiter@vera-lab.test / {LAB_PASSWORD}")
+    print(f"\n  Acceso de laboratorio: recruiter@talentia-lab.test / {LAB_PASSWORD}")
 
     if args.evaluate:
         print("\n  Evaluando candidaturas…")

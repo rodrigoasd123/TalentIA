@@ -562,7 +562,20 @@ class SqlAuditRepository(BaseRepository):
     """
 
     def append(self, event: AuditEvent) -> AuditEvent:
-        event.previous_hash = self.last_hash()
+        last = self.session.scalar(
+            select(AuditEventModel).order_by(
+                AuditEventModel.timestamp.desc(), AuditEventModel.event_id.desc()
+            ).limit(1)
+        )
+        if last is not None:
+            last_timestamp = last.timestamp
+            if last_timestamp.tzinfo is None:
+                last_timestamp = last_timestamp.replace(tzinfo=UTC)
+            if event.timestamp <= last_timestamp:
+                event.timestamp = last_timestamp + timedelta(microseconds=1)
+            event.previous_hash = last.event_hash
+        else:
+            event.previous_hash = GENESIS_HASH
         event.event_hash = self.compute_hash(event)
         self.session.add(m.audit_to_model(event))
         self.session.flush()

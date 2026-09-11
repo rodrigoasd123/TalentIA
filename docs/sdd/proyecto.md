@@ -1,11 +1,11 @@
-# Contexto del proyecto — PostulaIA
+# Contexto del proyecto — TalentIA
 
 > Estado: contexto inicial observado el 2026-08-20. Los campos marcados como `POR CONFIRMAR` no se deducen de forma fiable del repositorio.
 ## Actualización consolidada — SPEC-004 (2026-09-10)
 
 Esta sección prevalece sobre las descripciones iniciales que entren en conflicto con ella.
 
-- **Nombre y flujo principal:** TalentIA. El producto principal es un ATS piloto con FastAPI y un cliente Streamlit; el analizador documental anterior permanece como rollback temporal.
+- **Nombre y flujo principal:** TalentIA. Es una sola aplicación con FastAPI y un cliente Streamlit; el analizador documental se ofrece como capacidad interna.
 - **Capacidades entregadas:** alta y aprobación humana de vacantes, ingreso consentido de candidaturas PDF/DOCX, OCR local de respaldo, evaluación explicable, filtros determinísticos, anonimización antes del LLM, revisión humana, pipeline, Candidate 360, dashboard, auditoría y consulta Boolean manual para LinkedIn.
 - **Arquitectura:** `app/domain` contiene reglas puras; `app/application` casos de uso y unidad de trabajo; `app/infrastructure` SQLite, documentos, seguridad y proveedores; `app/api` expone FastAPI; `ats_frontend` consume la API sin ejecutar reglas de negocio.
 - **Gobierno de IA:** el modelo propone dimensiones estructuradas; los filtros, total, estados y acciones autorizadas se calculan en backend. El sistema rechaza instrucciones incrustadas, retira PII antes del proveedor y conserva evidencia/auditoría.
@@ -31,7 +31,7 @@ Esta sección prevalece sobre las descripciones iniciales que entren en conflict
 
 ## 1. Nombre, misión y usuarios
 
-- **Nombre observado:** PostulaIA.
+- **Nombre vigente:** TalentIA.
 - **Misión actual observada:** asistir a equipos de Recursos Humanos en la comparación de CV en PDF contra requisitos explícitos de un perfil de puesto, con puntaje documental reproducible y evidencia por página, sin automatizar decisiones de contratación.
 - **Usuario principal observado:** analista o responsable de selección de personal.
 - **Usuario heredado:** persona postulante que necesita interpretar una convocatoria. Este flujo sigue disponible en `streamlit_postulacion.py`, aunque la documentación principal dirige al flujo de RR. HH.
@@ -67,7 +67,7 @@ Esta sección prevalece sobre las descripciones iniciales que entren en conflict
 
 | Componente | Responsabilidad observada |
 |---|---|
-| `frontend/streamlit_postulacion.py` | Interfaz principal de RR. HH., carga múltiple, resultados, advertencias y chat por candidato. |
+| `ats_frontend/views/document_analysis.py` | Interfaz integrada de carga múltiple, resultados, advertencias y consulta por candidato. |
 | `backend/pdf_reader.py` | Lectura normal y OCR local; entrega páginas como `PageText`. |
 | `backend/cv_screening.py` | Extracción de criterios, filtro sensible, puntaje, ranking, carga aislada y contexto de consulta. |
 | `backend/retrieval.py` | Normalización, tokenización, fragmentación y recuperación léxica. |

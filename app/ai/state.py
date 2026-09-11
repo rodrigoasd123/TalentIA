@@ -1,4 +1,4 @@
-"""Estado del workflow de VERA.
+"""Estado del workflow de evaluación de TalentIA.
 
 El estado es explícito y tipado. Cada nodo declara qué claves lee y cuáles
 escribe, y eso permite comprobar en un test que, por ejemplo, el nodo de

@@ -1,6 +1,6 @@
 """Guardrail G5 — verificación de evidencia contra el texto fuente.
 
-Este es el guardrail que más distingue a VERA de un sistema que simplemente
+Este guardrail distingue a TalentIA de un sistema que simplemente
 "puntúa CVs con IA". Un modelo puede producir una justificación convincente de
 una experiencia que el candidato nunca tuvo, y esa justificación es
 indistinguible de una real si nadie la comprueba.

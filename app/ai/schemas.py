@@ -1,6 +1,6 @@
 """Esquemas de las salidas del modelo.
 
-Todo lo que VERA obtiene de un modelo de lenguaje pasa por uno de estos
+Todo lo que TalentIA obtiene de un modelo de lenguaje pasa por uno de estos
 esquemas antes de tocar el resto del sistema. Ninguno tiene campos de texto
 libre que el sistema interprete como decisión, y todos prohíben campos
 adicionales: si el modelo inventa una clave, la validación falla en vez de

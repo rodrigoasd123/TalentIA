@@ -42,7 +42,7 @@ class Actor:
         return cls("system", ActorType.SYSTEM)
 
     @classmethod
-    def agent(cls, version: str = "VERA") -> Actor:
+    def agent(cls, version: str = "TalentIA") -> Actor:
         return cls(version, ActorType.AI_AGENT)
 
     @classmethod

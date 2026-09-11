@@ -31,9 +31,9 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def import_uow(monkeypatch, tmp_path):
-    monkeypatch.setenv("VERA_IMPORT_STORAGE_PATH", str(tmp_path / "imports"))
-    monkeypatch.setenv("VERA_IMPORT_MAX_FILE_MB", "20")
-    monkeypatch.setenv("VERA_IMPORT_MAX_ROWS", "10000")
+    monkeypatch.setenv("TALENTIA_IMPORT_STORAGE_PATH", str(tmp_path / "imports"))
+    monkeypatch.setenv("TALENTIA_IMPORT_MAX_FILE_MB", "20")
+    monkeypatch.setenv("TALENTIA_IMPORT_MAX_ROWS", "10000")
     reset_settings_cache()
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -279,9 +279,9 @@ def test_selecciona_otra_hoja_xlsx_antes_del_mapeo(import_uow: UnitOfWork) -> No
 
 @pytest.fixture
 def api_client(monkeypatch, tmp_path):
-    monkeypatch.setenv("VERA_DATABASE_URL", f"sqlite:///{tmp_path / 'imports.db'}")
-    monkeypatch.setenv("VERA_IMPORT_STORAGE_PATH", str(tmp_path / "storage"))
-    monkeypatch.setenv("VERA_ENVIRONMENT", "development")
+    monkeypatch.setenv("TALENTIA_DATABASE_URL", f"sqlite:///{tmp_path / 'imports.db'}")
+    monkeypatch.setenv("TALENTIA_IMPORT_STORAGE_PATH", str(tmp_path / "storage"))
+    monkeypatch.setenv("TALENTIA_ENVIRONMENT", "development")
     reset_settings_cache()
     reset_engine()
     from app.api.main import app
