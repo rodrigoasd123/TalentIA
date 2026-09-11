@@ -106,19 +106,65 @@ class MlflowLLMTracker:
         except ImportError:
             installed = False
         with self._lock:
-            usage = [
-                {
-                    "provider": provider,
-                    "model": model,
-                    **values,
-                    "avg_latency_seconds": round(
-                        float(values["total_latency_seconds"])
-                        / max(1, int(values["calls"])),
-                        4,
-                    ),
-                }
-                for (provider, model), values in sorted(self._usage.items())
-            ]
+            usage_map = {key: dict(value) for key, value in self._usage.items()}
+        if installed and settings.mlflow_enabled:
+            try:
+                from mlflow import MlflowClient
+
+                client = MlflowClient(tracking_uri=settings.resolved_mlflow_tracking_uri)
+                experiment = client.get_experiment_by_name(
+                    settings.mlflow_experiment_name
+                )
+                if experiment is not None:
+                    usage_map = {}
+                    for run in client.search_runs([experiment.experiment_id]):
+                        provider = run.data.params.get("provider", "unknown")
+                        model = run.data.params.get("model", "unknown")
+                        row = usage_map.setdefault(
+                            (provider, model),
+                            {
+                                "calls": 0,
+                                "errors": 0,
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0,
+                                "total_latency_seconds": 0.0,
+                            },
+                        )
+                        row["calls"] += 1
+                        row["errors"] += int(
+                            run.data.params.get("status") != "ok"
+                        )
+                        for metric in (
+                            "prompt_tokens",
+                            "completion_tokens",
+                            "total_tokens",
+                            "latency_seconds",
+                        ):
+                            target = (
+                                "total_latency_seconds"
+                                if metric == "latency_seconds"
+                                else metric
+                            )
+                            row[target] += run.data.metrics.get(metric, 0)
+            except Exception as exc:  # pragma: no cover - conserva resumen en memoria
+                logger.warning(
+                    "No se pudo consultar el histórico de MLflow",
+                    error=type(exc).__name__,
+                )
+        usage = [
+            {
+                "provider": provider,
+                "model": model,
+                **values,
+                "avg_latency_seconds": round(
+                    float(values["total_latency_seconds"])
+                    / max(1, int(values["calls"])),
+                    4,
+                ),
+            }
+            for (provider, model), values in sorted(usage_map.items())
+        ]
         return {
             "enabled": settings.mlflow_enabled,
             "installed": installed,
