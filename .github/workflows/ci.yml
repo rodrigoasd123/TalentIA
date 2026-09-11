@@ -20,7 +20,7 @@ jobs:
           ruff check app/domain/imports.py app/infrastructure/imports
           app/infrastructure/repositories/import_repository.py
           app/application/use_cases/historical_import.py
-          ats_frontend/pages/4_Importacion_Historica.py
+          ats_frontend/views/imports.py
           tests/ats/test_historical_import.py migrations app/domain/ports.py
       - run: mypy --strict --ignore-missing-imports app/domain/imports.py
       - run: VERA_DATABASE_URL=sqlite:///./ci-migration.db python -m alembic upgrade head
