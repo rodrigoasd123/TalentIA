@@ -15,6 +15,7 @@ from app.core.logging import get_logger
 from app.domain.ports import LLMPort
 from app.infrastructure.llm.gemini_adapter import DEFAULT_MODEL, GeminiAdapter
 from app.infrastructure.llm.mock_adapter import MockLLMAdapter
+from app.infrastructure.llm.model_catalog import provider_for_model
 from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
 from app.infrastructure.observability.mlflow_tracker import ObservedLLMAdapter
 
@@ -67,7 +68,7 @@ def build_llm(
     return MockLLMAdapter()
 
 
-def build_llm_from_settings(store) -> LLMPort:  # noqa: ANN001 — evita import circular
+def build_llm_from_settings(store) -> LLMPort:
     """Construye el adaptador a partir de la configuración en caliente."""
     config = store.llm_config()
     return build_llm(
@@ -75,6 +76,22 @@ def build_llm_from_settings(store) -> LLMPort:  # noqa: ANN001 — evita import 
         api_key=config["api_key"],
         model=config["model"],
         base_url=config["base_url"],
+    )
+
+
+def build_llm_for_model(store, model: str) -> LLMPort:
+    """Construye el proveedor y toma la clave interna según el modelo."""
+    provider = provider_for_model(model)
+    legacy_key = store.get("llm.api_key", "")
+    if provider == "gemini":
+        api_key = store.get("llm.gemini_api_key", "")
+    else:
+        api_key = store.get("llm.genai_lab_api_key", "") or legacy_key
+    return build_llm(
+        provider,
+        api_key=api_key,
+        model=model,
+        base_url=store.get("llm.base_url", ""),
     )
 
 
@@ -94,4 +111,10 @@ def describe_provider(llm: LLMPort) -> dict[str, object]:
     }
 
 
-__all__ = ["PROVIDERS", "build_llm", "build_llm_from_settings", "describe_provider"]
+__all__ = [
+    "PROVIDERS",
+    "build_llm",
+    "build_llm_for_model",
+    "build_llm_from_settings",
+    "describe_provider",
+]

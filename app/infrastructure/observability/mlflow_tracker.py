@@ -175,6 +175,33 @@ class MlflowLLMTracker:
             "usage": usage,
         }
 
+    def record_benchmark_summary(self, summary: dict[str, Any]) -> None:
+        """Guarda calidad y eficiencia agregadas sin contenido de los casos."""
+        settings = get_settings()
+        if not settings.mlflow_enabled:
+            return
+        try:
+            import mlflow
+
+            with self._lock:
+                mlflow.set_tracking_uri(settings.resolved_mlflow_tracking_uri)
+                mlflow.set_experiment("TalentIA-Benchmark")
+                with mlflow.start_run(run_name=str(summary["model"])):
+                    mlflow.log_params(
+                        {"model": summary["model"], "provider": summary["provider"]}
+                    )
+                    mlflow.log_metrics(
+                        {
+                            "quality_score": summary["quality"],
+                            "success_rate": summary["success_rate"],
+                            "total_tokens": summary["total_tokens"],
+                            "avg_latency_seconds": summary["avg_latency_seconds"],
+                        }
+                    )
+                    mlflow.set_tag("component", "model-benchmark")
+        except Exception as exc:  # pragma: no cover
+            logger.warning("No se pudo registrar benchmark", error=type(exc).__name__)
+
 
 MLFLOW_TRACKER = MlflowLLMTracker()
 

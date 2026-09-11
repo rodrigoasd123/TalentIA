@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.agent import AGENT_NAME, AGENT_VERSION, EvaluationRequest, VeraAgent
 from app.ai.graphs.evaluation_graph import GRAPH_NAME, GRAPH_VERSION
+from app.ai.graphs.model_benchmark_graph import run_model_benchmark
 from app.ai.graphs.runner import langgraph_available
 from app.ai.prompts.registry import get_prompt_registry
 from app.api.dependencies import requires, requires_settings_write
@@ -44,6 +45,7 @@ from app.api.schemas import (
     FilterResultOut,
     HealthResponse,
     JobSummary,
+    ModelBenchmarkRequest,
     ResumeSummary,
     SettingsResponse,
     SettingsUpdateRequest,
@@ -211,6 +213,20 @@ def metrics() -> dict[str, object]:
 def llm_observability() -> dict[str, object]:
     """Estado de MLflow y consumo agregado por proveedor/modelo."""
     return MLFLOW_TRACKER.status()
+
+
+@app.post(
+    f"{API_PREFIX}/benchmarks/models",
+    tags=["observabilidad"],
+    dependencies=[Depends(requires_settings_write)],
+)
+def benchmark_models(payload: ModelBenchmarkRequest, store: StoreDep) -> dict[str, object]:
+    """Compara modelos con la misma suite sintética y conserva las llamadas en MLflow."""
+    models = payload.models or list(SELECTABLE_LLM_MODELS)
+    invalid = sorted(set(models) - set(SELECTABLE_LLM_MODELS))
+    if invalid:
+        raise ValidationError(f"Modelos fuera del catálogo: {', '.join(invalid)}")
+    return run_model_benchmark(store, models)
 
 
 # ── Configuración ────────────────────────────────────────────────────────────

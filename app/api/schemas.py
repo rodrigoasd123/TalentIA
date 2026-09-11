@@ -76,6 +76,10 @@ class CredentialTestResponse(BaseModel):
     available_models: list[str] = Field(default_factory=list)
 
 
+class ModelBenchmarkRequest(BaseModel):
+    models: list[str] = Field(default_factory=list, max_length=30)
+
+
 class JobSummary(BaseModel):
     id: str
     code: str
