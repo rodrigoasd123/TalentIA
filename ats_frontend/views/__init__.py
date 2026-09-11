@@ -1,0 +1,1 @@
+"""Vistas multipágina de TalentIA."""

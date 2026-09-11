@@ -1,9 +1,4 @@
-"""VERA ATS — interfaz de laboratorio.
-
-Streamlit actúa aquí como **cliente del backend y nada más**: no importa el
-dominio, no abre la base de datos y no contiene reglas de negocio. Todo lo que
-muestra procede de la API.
-"""
+"""Aplicación Streamlit principal de TalentIA."""
 
 from __future__ import annotations
 
@@ -12,155 +7,178 @@ from pathlib import Path
 
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+APP_DIR = Path(__file__).resolve().parent
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
 
-from api_client import ApiError, DEFAULT_BASE_URL, VeraApiClient  # noqa: E402
+from api_client import ApiError  # noqa: E402
+from talentia import design, session  # noqa: E402
+from talentia.formatters import role_label  # noqa: E402
 
-st.set_page_config(
-    page_title="VERA ATS",
-    page_icon="🔎",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+PAGES = [
+    {
+        "group": "Trabajo diario",
+        "path": "views/home.py",
+        "title": "Inicio",
+        "icon": ":material/home:",
+        "permissions": (),
+    },
+    {
+        "group": "Trabajo diario",
+        "path": "views/jobs.py",
+        "title": "Vacantes",
+        "icon": ":material/business_center:",
+        "permissions": ("job:read",),
+    },
+    {
+        "group": "Trabajo diario",
+        "path": "views/candidates.py",
+        "title": "Candidatos",
+        "icon": ":material/groups:",
+        "permissions": ("candidate:read", "application:read"),
+    },
+    {
+        "group": "Trabajo diario",
+        "path": "views/applications.py",
+        "title": "Postulaciones",
+        "icon": ":material/assignment:",
+        "permissions": ("application:read", "candidate:write"),
+    },
+    {
+        "group": "Seguimiento",
+        "path": "views/pipeline.py",
+        "title": "Pipeline",
+        "icon": ":material/view_kanban:",
+        "permissions": ("application:read",),
+    },
+    {
+        "group": "Seguimiento",
+        "path": "views/evaluations.py",
+        "title": "Evaluaciones",
+        "icon": ":material/rule:",
+        "permissions": ("evaluation:run", "application:read"),
+    },
+    {
+        "group": "Seguimiento",
+        "path": "views/reviews.py",
+        "title": "Revisión humana",
+        "icon": ":material/verified_user:",
+        "permissions": ("review:decide",),
+    },
+    {
+        "group": "Seguimiento",
+        "path": "views/imports.py",
+        "title": "Importación histórica",
+        "icon": ":material/upload_file:",
+        "permissions": ("import:read", "import:upload"),
+    },
+    {
+        "group": "Expediente",
+        "path": "views/candidate360.py",
+        "title": "Candidate 360",
+        "icon": ":material/account_circle:",
+        "permissions": ("candidate:pii:read",),
+    },
+    {
+        "group": "Expediente",
+        "path": "views/agent.py",
+        "title": "Agente de consulta",
+        "icon": ":material/chat:",
+        "permissions": ("candidate:pii:read", "application:read"),
+    },
+    {
+        "group": "Control",
+        "path": "views/reports.py",
+        "title": "Reportes",
+        "icon": ":material/monitoring:",
+        "permissions": ("application:read",),
+    },
+    {
+        "group": "Control",
+        "path": "views/audit.py",
+        "title": "Auditoría",
+        "icon": ":material/manage_search:",
+        "permissions": ("audit:read",),
+    },
+    {
+        "group": "Control",
+        "path": "views/settings.py",
+        "title": "Configuración",
+        "icon": ":material/settings:",
+        "permissions": (),
+    },
+]
 
 
-def get_client() -> VeraApiClient:
-    base_url = st.session_state.get("api_base_url", DEFAULT_BASE_URL)
-    return VeraApiClient(base_url)
+def _allowed(page: dict[str, object]) -> bool:
+    required = tuple(page.get("permissions", ()))
+    return session.has_any(*required)
 
 
-def sidebar_status() -> None:
-    """Estado del backend y del proveedor de IA, visible en todas las páginas."""
-    with st.sidebar:
-        st.markdown("### VERA")
-        st.caption("Verified Evidence & Ranking Agent")
-
-        st.text_input(
-            "URL del backend",
-            value=st.session_state.get("api_base_url", DEFAULT_BASE_URL),
-            key="api_base_url",
-            help="Dirección de la API de FastAPI.",
-        )
-
-        client = get_client()
-        try:
-            health = client.health()
-            agent = client.agent_health()
-        except ApiError as exc:
-            st.error("Backend no disponible")
-            st.caption(str(exc))
-            return
-
-        st.success(f"Backend activo · {health['environment']}")
-
-        if agent["is_simulated"]:
-            st.warning("Modo simulado")
-            st.caption(
-                "No hay proveedor de IA real configurado. Los resultados los produce "
-                "el adaptador simulado y no deben interpretarse como evaluaciones."
+def _navigation() -> dict[str, list[st.Page]]:
+    groups: dict[str, list[st.Page]] = {}
+    for page in PAGES:
+        if not _allowed(page):
+            continue
+        groups.setdefault(str(page["group"]), []).append(
+            st.Page(
+                APP_DIR / str(page["path"]),
+                title=str(page["title"]),
+                icon=str(page["icon"]),
             )
-        else:
-            st.info(f"Modelo: {agent['model']}")
-
-        st.caption(
-            f"Grafo: {agent['graph']}  \n"
-            f"Motor: {'LangGraph' if agent['langgraph_available'] else 'nativo'}  \n"
-            f"Presupuesto: ${agent['budget_usd']:.2f}"
         )
+    return {group: pages for group, pages in groups.items() if pages}
+
+
+def _sidebar_status() -> None:
+    design.render_sidebar_brand()
+    user = session.current_user()
+
+    st.sidebar.caption("Usuario")
+    st.sidebar.write(user.get("email", "Sin usuario"))
+    st.sidebar.markdown(
+        design.badge(role_label(str(user.get("role", ""))), "info"),
+        unsafe_allow_html=True,
+    )
+
+    if session.is_lab_session():
+        st.sidebar.warning("Entorno de laboratorio. Usa solo datos ficticios.")
+
+    with st.sidebar.expander("Estado de la API", expanded=False):
+        try:
+            health = session.client().health()
+            st.success("API disponible")
+            st.write(f"Ambiente: {health.get('environment', '-')}")
+            st.write(f"Base de datos: {health.get('database', '-')}")
+            st.write(f"Version: {health.get('version', '-')}")
+        except ApiError as exc:
+            st.error("API no disponible")
+            st.caption(str(exc))
+
+    with st.sidebar.expander("Preferencias", expanded=False):
+        st.radio("Densidad", ["Cómoda", "Compacta"], key="ui_density", horizontal=True)
+        st.selectbox("Acento", ["Azul", "Verde", "Ambar"], key="ui_accent")
+        st.toggle("Mostrar detalles técnicos", key="ui_show_details")
+
+    session.render_sidebar_footer()
 
 
 def main() -> None:
-    sidebar_status()
+    design.configure_page()
+    session.init_state()
+    design.inject_css()
 
-    st.title("VERA ATS")
-    st.caption(
-        "Applicant Tracking System empresarial con agente de IA gobernado — "
-        "entorno de laboratorio con datos ficticios"
-    )
-
-    st.info(
-        "**Principio del sistema:** VERA propone, el backend decide. El agente no "
-        "cambia estados, no envía correos y no ejecuta acciones. Produce "
-        "evaluaciones con evidencia verificada y propone acciones que el motor de "
-        "políticas valida antes de que ocurra nada.",
-        icon="🛡️",
-    )
-
-    client = get_client()
-    try:
-        jobs = client.list_jobs()
-        resumes = client.list_resumes()
-        agent = client.agent_health()
-    except ApiError as exc:
-        st.error(str(exc))
+    if not session.ensure_session():
         st.stop()
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Convocatorias", len(jobs))
-    col2.metric("CVs ficticios", len(resumes))
-    col3.metric("Prompts versionados", len(agent["prompts"]))
-    col4.metric(
-        "Proveedor",
-        "Simulado" if agent["is_simulated"] else agent["provider"].capitalize(),
-    )
+    pages = _navigation()
+    if not pages:
+        design.page_header("Sin secciones disponibles", "Tu rol no tiene páginas asignadas.")
+        st.stop()
 
-    if agent["is_simulated"]:
-        st.warning(
-            "**Aún no has configurado un modelo real.** Ve a la página "
-            "**Configuración** para añadir tu API key de Gemini. Hasta entonces, "
-            "todo funciona con el adaptador simulado.",
-            icon="⚙️",
-        )
-
-    st.divider()
-
-    left, right = st.columns(2)
-
-    with left:
-        st.subheader("Qué puedes hacer aquí")
-        st.markdown(
-            """
-            **Configuración** — Añade tu API key de Gemini, elige el modelo y
-            configura las credenciales de Google OAuth. Los secretos se guardan
-            cifrados y nunca se muestran completos.
-
-            **Vacantes** — Consulta las bases de convocatoria ficticias y los
-            criterios que VERA aplica: filtros excluyentes, pesos y umbrales.
-
-            **Evaluación** — Ejecuta el agente sobre una combinación de vacante y
-            CV, y examina la puntuación, la evidencia verificada y las acciones
-            propuestas.
-
-            **Agente** — Inspecciona el grafo, los prompts versionados y las
-            capas de guardrails.
-            """
-        )
-
-    with right:
-        st.subheader("Piezas de prueba incluidas")
-        st.markdown(
-            """
-            Entre los CVs ficticios hay dos diseñados para poner a prueba los
-            controles del sistema:
-
-            - **CV-007** contiene intentos de manipulación del agente (anulación
-              de instrucciones, suplantación de rol, orden de envío de correo).
-              Debe detectarse, registrarse como incidente y **no** alterar la
-              puntuación.
-
-            - **CV-008** incluye abundante información personal irrelevante para
-              el empleo. Debe anonimizarse por completo antes de que nada llegue
-              al modelo.
-
-            Ejecútalos desde la página **Evaluación** y comprueba el resultado.
-            """
-        )
-
-    st.divider()
-    st.caption(
-        "Todos los datos de este entorno son ficticios. Ninguna persona, empresa "
-        "ni proceso descrito corresponde a la realidad."
-    )
+    current = st.navigation(pages, position="sidebar", expanded=True)
+    _sidebar_status()
+    current.run()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Cliente HTTP del backend.
+"""Cliente HTTP del backend de TalentIA.
 
 Streamlit no toca la base de datos ni importa el dominio: habla con la API como
 lo haría cualquier otro cliente. Esa restricción es lo que permite sustituir la
@@ -14,22 +14,37 @@ from typing import Any
 
 import httpx
 
-DEFAULT_BASE_URL = os.getenv("VERA_API_BASE_URL", "http://127.0.0.1:8000")
+DEFAULT_BASE_URL = (
+    os.getenv("TALENTIA_API_BASE_URL") or os.getenv("VERA_API_BASE_URL") or "http://127.0.0.1:8000"
+)
 API_PREFIX = "/api/v1"
 
 
 class ApiError(Exception):
     """Error devuelto por el backend, ya traducido a algo mostrable."""
 
-    def __init__(self, message: str, *, code: str = "", trace_id: str = "") -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "",
+        trace_id: str = "",
+        status_code: int = 0,
+        details: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.trace_id = trace_id
+        self.status_code = status_code
+        self.details = details or {}
 
 
-class VeraApiClient:
+class TalentIAApiClient:
     def __init__(
-        self, base_url: str = DEFAULT_BASE_URL, *, timeout: float = 180.0,
+        self,
+        base_url: str = DEFAULT_BASE_URL,
+        *,
+        timeout: float = 180.0,
         access_token: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -58,18 +73,51 @@ class VeraApiClient:
             ) from exc
 
         if response.status_code >= 400:
-            raise ApiError(*self._describe_error(response))
+            raise self._error_from_response(response)
         return response.json() if response.content else None
 
     @staticmethod
-    def _describe_error(response: httpx.Response) -> tuple[str, ...]:
+    def _error_from_response(response: httpx.Response) -> ApiError:
         try:
-            error = response.json().get("error", {})
-            return (
-                error.get("message", f"HTTP {response.status_code}"),
+            payload = response.json()
+        except ValueError:
+            return ApiError(
+                f"HTTP {response.status_code}: {response.text[:200]}",
+                status_code=response.status_code,
             )
-        except (ValueError, AttributeError):
-            return (f"HTTP {response.status_code}: {response.text[:200]}",)
+        error = payload.get("error") if isinstance(payload, dict) else None
+        if isinstance(error, dict):
+            return ApiError(
+                error.get("message", f"HTTP {response.status_code}"),
+                code=error.get("code", ""),
+                trace_id=error.get("trace_id", ""),
+                status_code=response.status_code,
+                details=error.get("details", {}),
+            )
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        if isinstance(detail, list):
+            message = "Hay campos inválidos o incompletos."
+        elif isinstance(detail, str):
+            message = detail
+        else:
+            message = f"HTTP {response.status_code}"
+        return ApiError(message, status_code=response.status_code)
+
+    def _request_text(self, method: str, path: str, **kwargs: Any) -> str:
+        url = f"{self.base_url}{path}"
+        headers = dict(kwargs.pop("headers", {}))
+        if self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
+        try:
+            with httpx.Client(timeout=self.timeout) as client:
+                response = client.request(method, url, headers=headers, **kwargs)
+        except httpx.ConnectError as exc:
+            raise ApiError(f"No se pudo conectar con el backend en {self.base_url}.") from exc
+        except httpx.TimeoutException as exc:
+            raise ApiError("El backend no respondió a tiempo.") from exc
+        if response.status_code >= 400:
+            raise self._error_from_response(response)
+        return response.text
 
     # ── Salud ────────────────────────────────────────────────────────────────
 
@@ -88,8 +136,22 @@ class VeraApiClient:
 
     def login(self, email: str, password: str) -> dict[str, Any]:
         return self._request(
-            "POST", f"{API_PREFIX}/auth/login",
+            "POST",
+            f"{API_PREFIX}/auth/login",
             json={"email": email, "password": password},
+        )
+
+    def me(self) -> dict[str, Any]:
+        return self._request("GET", f"{API_PREFIX}/auth/me")
+
+    def refresh(self, refresh_token: str) -> dict[str, Any]:
+        return self._request(
+            "POST", f"{API_PREFIX}/auth/refresh", json={"refresh_token": refresh_token}
+        )
+
+    def logout(self, refresh_token: str) -> dict[str, str]:
+        return self._request(
+            "POST", f"{API_PREFIX}/auth/logout", json={"refresh_token": refresh_token}
         )
 
     # ── Configuración ────────────────────────────────────────────────────────
@@ -97,7 +159,9 @@ class VeraApiClient:
     def get_settings(self) -> dict[str, Any]:
         return self._request("GET", f"{API_PREFIX}/config/settings")
 
-    def update_settings(self, values: dict[str, str], *, updated_by: str = "panel") -> dict[str, Any]:
+    def update_settings(
+        self, values: dict[str, str], *, updated_by: str = "panel"
+    ) -> dict[str, Any]:
         return self._request(
             "PATCH",
             f"{API_PREFIX}/config/settings",
@@ -166,17 +230,28 @@ class VeraApiClient:
         return self._request("GET", f"{API_PREFIX}/applications", params=params)
 
     def intake_application(
-        self, *, full_name: str, email: str, job_id: str,
-        consent_granted: bool, filename: str, content: bytes,
-        phone: str = "", source: str = "manual",
+        self,
+        *,
+        full_name: str,
+        email: str,
+        job_id: str,
+        consent_granted: bool,
+        filename: str,
+        content: bytes,
+        phone: str = "",
+        source: str = "manual",
         content_type: str = "application/octet-stream",
     ) -> dict[str, Any]:
         return self._request(
-            "POST", f"{API_PREFIX}/intake",
+            "POST",
+            f"{API_PREFIX}/intake",
             data={
-                "full_name": full_name, "email": email, "job_id": job_id,
+                "full_name": full_name,
+                "email": email,
+                "job_id": job_id,
                 "consent_granted": str(consent_granted).lower(),
-                "phone": phone, "source": source,
+                "phone": phone,
+                "source": source,
             },
             files={"resume": (filename, content, content_type)},
         )
@@ -192,7 +267,9 @@ class VeraApiClient:
             "POST", f"{API_PREFIX}/applications/{application_id}/evaluate", params=params
         )
 
-    def transition(self, application_id: str, *, target_status: str, reason: str = "") -> dict[str, Any]:
+    def transition(
+        self, application_id: str, *, target_status: str, reason: str = ""
+    ) -> dict[str, Any]:
         return self._request(
             "POST",
             f"{API_PREFIX}/applications/{application_id}/transition",
@@ -201,7 +278,8 @@ class VeraApiClient:
 
     def ranking(self, job_id: str, *, include_rejected: bool = False) -> list[dict[str, Any]]:
         return self._request(
-            "GET", f"{API_PREFIX}/jobs/{job_id}/ranking",
+            "GET",
+            f"{API_PREFIX}/jobs/{job_id}/ranking",
             params={"include_rejected": include_rejected},
         )
 
@@ -221,7 +299,11 @@ class VeraApiClient:
         return self._request("POST", f"{API_PREFIX}/reviews/{item_id}/claim")
 
     def decide_review(
-        self, item_id: str, *, decision: str, justification: str,
+        self,
+        item_id: str,
+        *,
+        decision: str,
+        justification: str,
         score_override: float | None = None,
     ) -> dict[str, Any]:
         return self._request(
@@ -259,13 +341,12 @@ class VeraApiClient:
         return self._request("GET", f"{API_PREFIX}/emails/pending")
 
     def approve_email(self, email_id: str, *, note: str = "") -> dict[str, Any]:
-        return self._request(
-            "POST", f"{API_PREFIX}/emails/{email_id}/approve", json={"note": note}
-        )
+        return self._request("POST", f"{API_PREFIX}/emails/{email_id}/approve", json={"note": note})
 
     def send_email(self, email_id: str, *, force_dry_run: bool | None = None) -> dict[str, Any]:
         return self._request(
-            "POST", f"{API_PREFIX}/emails/{email_id}/send",
+            "POST",
+            f"{API_PREFIX}/emails/{email_id}/send",
             json={"force_dry_run": force_dry_run},
         )
 
@@ -305,21 +386,22 @@ class VeraApiClient:
         path = f"{API_PREFIX}/audit/applications/{application_id}/decision-trail"
         if fmt == "json":
             return self._request("GET", path, params={"format": "json"})
-        # Los formatos exportables devuelven texto plano, no JSON.
-        with httpx.Client(timeout=self.timeout) as client:
-            response = client.get(f"{self.base_url}{path}", params={"format": fmt})
-        if response.status_code >= 400:
-            raise ApiError(*self._describe_error(response))
-        return response.text
+        return self._request_text("GET", path, params={"format": fmt})
 
     # ── Importación histórica ───────────────────────────────────────────────
 
     def upload_historical_import(
-        self, *, filename: str, content: bytes, source: str = "historical",
-        sheet_name: str = "", content_type: str = "application/octet-stream",
+        self,
+        *,
+        filename: str,
+        content: bytes,
+        source: str = "historical",
+        sheet_name: str = "",
+        content_type: str = "application/octet-stream",
     ) -> dict[str, Any]:
         return self._request(
-            "POST", f"{API_PREFIX}/imports/historical",
+            "POST",
+            f"{API_PREFIX}/imports/historical",
             data={"source": source, "sheet_name": sheet_name},
             files={"file": (filename, content, content_type)},
         )
@@ -337,11 +419,16 @@ class VeraApiClient:
         )
 
     def validate_import(
-        self, batch_id: str, *, mapping: dict[str, str], expected_version: int,
+        self,
+        batch_id: str,
+        *,
+        mapping: dict[str, str],
+        expected_version: int,
         template_name: str = "",
     ) -> dict[str, Any]:
         return self._request(
-            "POST", f"{API_PREFIX}/imports/{batch_id}/validate",
+            "POST",
+            f"{API_PREFIX}/imports/{batch_id}/validate",
             json={
                 "mapping": mapping,
                 "expected_version": expected_version,
@@ -351,15 +438,21 @@ class VeraApiClient:
 
     def import_rows(self, batch_id: str, *, offset: int = 0, limit: int = 100) -> dict[str, Any]:
         return self._request(
-            "GET", f"{API_PREFIX}/imports/{batch_id}/rows",
+            "GET",
+            f"{API_PREFIX}/imports/{batch_id}/rows",
             params={"offset": offset, "limit": limit},
         )
 
     def confirm_import(
-        self, batch_id: str, *, idempotency_key: str, expected_version: int,
+        self,
+        batch_id: str,
+        *,
+        idempotency_key: str,
+        expected_version: int,
     ) -> dict[str, Any]:
         return self._request(
-            "POST", f"{API_PREFIX}/imports/{batch_id}/confirm",
+            "POST",
+            f"{API_PREFIX}/imports/{batch_id}/confirm",
             json={"idempotency_key": idempotency_key, "expected_version": expected_version},
         )
 
@@ -372,5 +465,10 @@ class VeraApiClient:
         params = {"source": source} if source else None
         return self._request("GET", f"{API_PREFIX}/imports/templates", params=params)
 
+    def import_error_report(self, batch_id: str) -> str:
+        return self._request_text("GET", f"{API_PREFIX}/imports/{batch_id}/errors.csv")
 
-__all__ = ["DEFAULT_BASE_URL", "ApiError", "VeraApiClient"]
+
+VeraApiClient = TalentIAApiClient
+
+__all__ = ["DEFAULT_BASE_URL", "ApiError", "TalentIAApiClient", "VeraApiClient"]
