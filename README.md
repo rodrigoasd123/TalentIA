@@ -31,11 +31,26 @@ prescindibles. Inicia la API y la interfaz en terminales separadas:
 
 Interfaz: `http://localhost:8501`. API: `http://127.0.0.1:8000/docs`.
 
+En laboratorios donde esos puertos suelen estar ocupados, el siguiente script
+aplica migraciones y elige automáticamente puertos libres sin detener procesos
+ajenos:
+
+```powershell
+.\scripts\start_lab.ps1
+```
+
 ## Configuración
 
 Las variables oficiales usan el prefijo `TALENTIA_`. Consulta `.env.example`.
 Durante dos versiones menores se aceptan aliases con prefijo `VERA_`; TalentIA
 siempre tiene prioridad y emite una advertencia que no contiene el valor.
+
+Desde **Configuración > Configuración técnica** se puede elegir **GenAI Lab
+(gateway)**, ingresar la URL base del gateway, pegar la API key y seleccionar uno
+de los modelos de generación habilitados. La clave se cifra en la base local y
+nunca vuelve a salir en claro por la API. Los modelos de embeddings y Whisper se
+registran como capacidades del laboratorio, pero no aparecen como evaluadores de
+texto porque sus contratos son distintos.
 
 Los secretos de desarrollo nuevos se guardan en `.talentia_dev_key`. Si existe
 únicamente el archivo de clave heredado, se copia de forma compatible. Si ambos

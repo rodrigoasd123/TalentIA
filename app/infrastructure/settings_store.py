@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.core.crypto import SecretCipher, SecretDecryptionError, mask_secret
 from app.core.logging import get_logger
 from app.infrastructure.database.models import RuntimeSettingModel
+from app.infrastructure.llm.openai_compatible_adapter import DEFAULT_GENAI_LAB_BASE_URL
 
 logger = get_logger(__name__)
 
@@ -47,12 +48,31 @@ class SettingSpec:
 SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
     # ── Proveedor de IA ──────────────────────────────────────────────────────
     SettingSpec(
-        "llm.provider", "Proveedor de IA", default="mock", group="ia",
-        help_text="«gemini» para usar la API de Google, «mock» para el simulador local.",
+        "llm.provider", "Proveedor de IA", default="genai_lab", group="ia",
+        help_text=(
+            "«genai_lab» usa el gateway OpenAI-compatible del laboratorio; "
+            "«gemini» usa Google directamente; «mock» es el simulador local."
+        ),
     ),
     SettingSpec(
         "llm.api_key", "API key", is_secret=True, group="ia",
-        help_text="Se guarda cifrada. Nunca se muestra completa ni aparece en los logs.",
+        help_text="Clave heredada. Se conserva para compatibilidad con instalaciones previas.",
+    ),
+    SettingSpec(
+        "llm.genai_lab_api_key", "API key de GenAI Lab", is_secret=True, group="ia",
+        help_text="Se guarda cifrada y solo se usa con el gateway de GenAI Lab.",
+    ),
+    SettingSpec(
+        "llm.gemini_api_key", "API key de Google Gemini", is_secret=True, group="ia",
+        help_text="Se guarda cifrada y solo se usa con Google AI Studio.",
+    ),
+    SettingSpec(
+        "llm.base_url", "URL base de GenAI Lab", default=DEFAULT_GENAI_LAB_BASE_URL,
+        group="ia",
+        help_text=(
+            "URL del gateway, con o sin /v1. No incluyas la API key en la URL. "
+            "Solo se usa con el proveedor GenAI Lab."
+        ),
     ),
     SettingSpec(
         "llm.model", "Modelo", default="gemini-2.5-flash", group="ia",
@@ -60,7 +80,7 @@ SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
     ),
     SettingSpec(
         "llm.temperature", "Temperatura", default="0.1", group="ia",
-        help_text="Valores bajos dan resultados más reproducibles. Recomendado: 0.0–0.2.",
+        help_text="Valores bajos dan resultados más reproducibles. Recomendado: 0.0-0.2.",
     ),
     SettingSpec(
         "llm.budget_usd_per_job", "Presupuesto por vacante (USD)", default="5.0", group="ia",
@@ -240,9 +260,20 @@ class SettingsStore:
     # ── Consultas de conveniencia ────────────────────────────────────────────
 
     def llm_config(self) -> dict[str, Any]:
+        provider = self.get("llm.provider", "genai_lab")
+        legacy_key = self.get("llm.api_key", "")
+        if provider == "genai_lab":
+            api_key = self.get("llm.genai_lab_api_key", "") or legacy_key
+        elif provider == "gemini":
+            api_key = self.get("llm.gemini_api_key", "")
+            if not api_key and legacy_key and not legacy_key.startswith("sk-"):
+                api_key = legacy_key
+        else:
+            api_key = ""
         return {
-            "provider": self.get("llm.provider", "mock"),
-            "api_key": self.get("llm.api_key", ""),
+            "provider": provider,
+            "api_key": api_key,
+            "base_url": self.get("llm.base_url", DEFAULT_GENAI_LAB_BASE_URL),
             "model": self.get("llm.model", "gemini-2.5-flash"),
             "temperature": self.get_float("llm.temperature", 0.1),
             "budget_usd": self.get_float("llm.budget_usd_per_job", 5.0),
@@ -271,6 +302,8 @@ class SettingsStore:
         config = self.llm_config()
         if config["provider"] == "mock":
             return True
+        if config["provider"] == "genai_lab":
+            return bool(config["api_key"] and config["base_url"])
         return bool(config["api_key"])
 
 

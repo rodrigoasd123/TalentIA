@@ -1008,10 +1008,14 @@ def evaluate(
     outcome = use_case.execute(
         application_id=application_id, actor=actor, dry_run=dry_run
     )
+    evaluation_payload = _evaluation_payload(outcome.evaluation)
+    evaluation_payload["execution_errors"] = outcome.agent_result.state_summary.get(
+        "errors", []
+    )
     return {
         **outcome.summary,
         "explanation": outcome.agent_result.explain(),
-        "evaluation": _evaluation_payload(outcome.evaluation),
+        "evaluation": evaluation_payload,
     }
 
 

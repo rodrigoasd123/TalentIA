@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.ai.agent import EvaluationRequest, VeraAgent
+from app.ai.agent import VeraAgent
 from app.ai.graphs.evaluation_graph import build_evaluation_graph
 from app.ai.graphs.runner import END, GraphDefinition, NativeGraphEngine
 from app.ai.nodes.base import Node, NodeSpec
@@ -94,6 +94,18 @@ def test_la_vista_publica_enmascara_los_secretos(sesion: Session) -> None:
     item = next(i for i in store.get_public_view() if i["key"] == "llm.api_key")
     assert "AIzaSyCLAVE1234567890abcdefghij" not in item["value"]
     assert item["is_set"] is True
+
+
+def test_cada_proveedor_usa_su_propia_clave_cifrada(sesion: Session) -> None:
+    store = SettingsStore(sesion)
+    store.set("llm.genai_lab_api_key", "sk-clave-laboratorio")
+    store.set("llm.gemini_api_key", "AIzaSyClaveGoogle")
+
+    store.set("llm.provider", "genai_lab")
+    assert store.llm_config()["api_key"] == "sk-clave-laboratorio"
+
+    store.set("llm.provider", "gemini")
+    assert store.llm_config()["api_key"] == "AIzaSyClaveGoogle"
 
 
 def test_una_clave_fuera_del_catalogo_se_rechaza(sesion: Session) -> None:

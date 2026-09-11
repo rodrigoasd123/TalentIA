@@ -18,6 +18,7 @@ porque las URLs acaban en registros de servidores intermedios.
 from __future__ import annotations
 
 import json
+import ssl
 from typing import Any
 
 import httpx
@@ -35,6 +36,8 @@ DEFAULT_MODEL = "gemini-2.5-flash"
 #: Modelos que el panel ofrece cuando no se puede consultar la lista real
 #: (por ejemplo, sin conexión). Sirve para que el desplegable nunca esté vacío.
 FALLBACK_MODELS: tuple[str, ...] = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
     "gemini-2.5-pro",
     "gemini-2.5-flash-lite",
@@ -71,11 +74,18 @@ class GeminiAdapter:
         *,
         base_url: str = BASE_URL,
         default_timeout: int = 60,
+        verify_ssl: ssl.SSLContext | bool | None = None,
     ) -> None:
         self._api_key = (api_key or "").strip()
         self._model = (model or DEFAULT_MODEL).removeprefix("models/")
         self._base_url = base_url.rstrip("/")
         self._default_timeout = default_timeout
+        # httpx usa certifi por defecto, que no conoce la CA corporativa del
+        # laboratorio. El contexto de Python consulta el almacén de Windows y
+        # mantiene la validación TLS activa.
+        self._verify_ssl = (
+            verify_ssl if verify_ssl is not None else ssl.create_default_context()
+        )
 
     # ── Propiedades del puerto ───────────────────────────────────────────────
 
@@ -131,7 +141,7 @@ class GeminiAdapter:
         timeout = timeout_seconds or self._default_timeout
 
         try:
-            with httpx.Client(timeout=timeout) as client:
+            with httpx.Client(timeout=timeout, verify=self._verify_ssl) as client:
                 response = client.post(url, headers=self._headers(), json=payload)
         except httpx.TimeoutException as exc:
             raise LLMTimeout(
@@ -154,7 +164,7 @@ class GeminiAdapter:
         if not self.is_configured:
             return list(FALLBACK_MODELS)
         try:
-            with httpx.Client(timeout=20) as client:
+            with httpx.Client(timeout=20, verify=self._verify_ssl) as client:
                 response = client.get(f"{self._base_url}/models", headers=self._headers())
             if response.status_code != 200:
                 logger.warning(
@@ -183,7 +193,7 @@ class GeminiAdapter:
         if not self.is_configured:
             return False, "No se ha introducido ninguna API key."
         try:
-            with httpx.Client(timeout=20) as client:
+            with httpx.Client(timeout=20, verify=self._verify_ssl) as client:
                 response = client.get(f"{self._base_url}/models", headers=self._headers())
         except httpx.HTTPError as exc:
             return False, f"No se pudo conectar con Gemini: {type(exc).__name__}"
@@ -191,7 +201,7 @@ class GeminiAdapter:
         if response.status_code == 200:
             available = self.list_models()
             if self._model not in available:
-                return True, (
+                return False, (
                     f"La clave es válida, pero el modelo «{self._model}» no aparece "
                     f"disponible. Modelos accesibles: {', '.join(available[:5])}."
                 )

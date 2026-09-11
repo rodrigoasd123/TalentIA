@@ -15,6 +15,16 @@ from api_client import ApiError  # noqa: E402
 from talentia import design, session  # noqa: E402
 from talentia.formatters import role_label  # noqa: E402
 
+from app.infrastructure.llm.gemini_adapter import FALLBACK_MODELS  # noqa: E402
+from app.infrastructure.llm.model_catalog import (  # noqa: E402
+    GENAI_LAB_CHAT_MODELS,
+    GENAI_LAB_EMBEDDING_MODELS,
+    GENAI_LAB_TRANSCRIPTION_MODELS,
+)
+from app.infrastructure.llm.openai_compatible_adapter import (  # noqa: E402
+    DEFAULT_GENAI_LAB_BASE_URL,
+)
+
 
 def _settings_by_key(settings: list[dict]) -> dict[str, dict]:
     return {item["key"]: item for item in settings}
@@ -85,32 +95,63 @@ def _technical_settings() -> None:  # noqa: C901 - Configuración técnica agrup
     st.subheader("Proveedor de IA")
     provider = st.selectbox(
         "Proveedor",
-        options=["gemini", "mock"],
-        index=0 if _value(items, "llm.provider", "mock") == "gemini" else 1,
-        format_func=lambda value: "Google Gemini" if value == "gemini" else "Simulado local",
+        options=["genai_lab", "gemini", "mock"],
+        index=["genai_lab", "gemini", "mock"].index(
+            _value(items, "llm.provider", "genai_lab")
+            if _value(items, "llm.provider", "genai_lab")
+            in {"genai_lab", "gemini", "mock"}
+            else "genai_lab"
+        ),
+        format_func=lambda value: {
+            "genai_lab": "GenAI Lab (gateway)",
+            "gemini": "Google Gemini directo",
+            "mock": "Simulado local",
+        }[value],
         disabled=not can_write,
     )
-    if _is_set(items, "llm.api_key"):
-        st.success(f"Clave guardada: {_masked(items, 'llm.api_key')}")
+    provider_key = (
+        "llm.genai_lab_api_key" if provider == "genai_lab" else "llm.gemini_api_key"
+    )
+    legacy_lab_key = provider == "genai_lab" and _is_set(items, "llm.api_key")
+    if _is_set(items, provider_key) or legacy_lab_key:
+        masked_key = (
+            _masked(items, provider_key)
+            if _is_set(items, provider_key)
+            else _masked(items, "llm.api_key")
+        )
+        st.success(f"Clave guardada para este proveedor: {masked_key}")
         st.caption("Deja el campo vacío para conservarla.")
     api_key = st.text_input(
-        "Nueva API key de Gemini",
+        "Nueva API key",
         type="password",
         value="",
         disabled=provider == "mock" or not can_write,
     )
 
-    known_models = [
-        "gemini-2.5-flash",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "mock",
-    ]
+    base_url = _value(items, "llm.base_url", DEFAULT_GENAI_LAB_BASE_URL)
+    if provider == "genai_lab":
+        base_url = DEFAULT_GENAI_LAB_BASE_URL
+        st.caption("Gateway configurado automáticamente para este laboratorio.")
+
+    known_models = (
+        list(GENAI_LAB_CHAT_MODELS)
+        if provider == "genai_lab"
+        else list(FALLBACK_MODELS) if provider == "gemini" else ["mock"]
+    )
     saved_model = _value(items, "llm.model", "gemini-2.5-flash")
     if saved_model not in known_models:
-        known_models.insert(0, saved_model)
+        if provider == "genai_lab":
+            st.warning(
+                f"El modelo guardado «{saved_model}» ya no está disponible. "
+                "Selecciona un modelo vigente."
+            )
+            saved_model = (
+                "genailab-maas-gpt-4o"
+                if "genailab-maas-gpt-4o" in known_models
+                else known_models[0]
+            )
+        else:
+            known_models.insert(0, saved_model)
     model = st.selectbox(
         "Modelo",
         options=known_models,
@@ -150,7 +191,7 @@ def _technical_settings() -> None:  # noqa: C901 - Configuración técnica agrup
             if st.button("Verificar conexión", width="stretch"):
                 try:
                     result = session.client().test_credentials(
-                        provider=provider, api_key=api_key, model=model
+                        provider=provider, api_key=api_key, model=model, base_url=base_url
                     )
                     if result.get("ok"):
                         st.success(result.get("message", "Conexión verificada."))
@@ -163,12 +204,13 @@ def _technical_settings() -> None:  # noqa: C901 - Configuración técnica agrup
                 values = {
                     "llm.provider": provider,
                     "llm.model": model,
+                    "llm.base_url": base_url.strip(),
                     "llm.temperature": str(temperature),
                     "llm.budget_usd_per_job": str(budget),
                     "llm.enable_bias_audit": "true" if bias_audit else "false",
                 }
                 if api_key.strip():
-                    values["llm.api_key"] = api_key.strip()
+                    values[provider_key] = api_key.strip()
                 try:
                     session.client().update_settings(
                         values, updated_by=session.current_user().get("email", "ui")
@@ -177,6 +219,15 @@ def _technical_settings() -> None:  # noqa: C901 - Configuración técnica agrup
                     st.rerun()
                 except ApiError as exc:
                     design.api_error(exc, "No se pudo guardar")
+
+    if provider == "genai_lab":
+        st.caption(
+            f"Catálogo validado: {len(GENAI_LAB_CHAT_MODELS)} modelos de generación. "
+            f"Además están registrados {', '.join(GENAI_LAB_EMBEDDING_MODELS)} "
+            f"(embeddings) y {', '.join(GENAI_LAB_TRANSCRIPTION_MODELS)} "
+            "(audio), que no son válidos para evaluar texto y por eso no aparecen "
+            "en el selector."
+        )
 
     st.subheader("Integraciones")
     try:

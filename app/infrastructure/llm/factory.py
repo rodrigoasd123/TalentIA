@@ -15,10 +15,11 @@ from app.core.logging import get_logger
 from app.domain.ports import LLMPort
 from app.infrastructure.llm.gemini_adapter import DEFAULT_MODEL, GeminiAdapter
 from app.infrastructure.llm.mock_adapter import MockLLMAdapter
+from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
 
 logger = get_logger(__name__)
 
-PROVIDERS = ("gemini", "mock")
+PROVIDERS = ("genai_lab", "gemini", "mock")
 
 
 def build_llm(
@@ -26,6 +27,7 @@ def build_llm(
     *,
     api_key: str = "",
     model: str = DEFAULT_MODEL,
+    base_url: str = "",
     timeout_seconds: int = 60,
 ) -> LLMPort:
     """Devuelve el adaptador correspondiente al proveedor indicado."""
@@ -39,6 +41,19 @@ def build_llm(
             )
             return MockLLMAdapter()
         return GeminiAdapter(api_key=api_key, model=model, default_timeout=timeout_seconds)
+
+    if normalized == "genai_lab":
+        if not api_key or not base_url:
+            logger.warning(
+                "Se solicitó GenAI Lab sin URL base o API key; se usa el simulador."
+            )
+            return MockLLMAdapter()
+        return OpenAICompatibleAdapter(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            default_timeout=timeout_seconds,
+        )
 
     if normalized == "mock":
         return MockLLMAdapter()
@@ -54,6 +69,7 @@ def build_llm_from_settings(store) -> LLMPort:  # noqa: ANN001 — evita import 
         config["provider"],
         api_key=config["api_key"],
         model=config["model"],
+        base_url=config["base_url"],
     )
 
 

@@ -273,6 +273,23 @@ def test_una_clave_de_configuracion_desconocida_se_ignora(client: TestClient) ->
     assert "clave.inventada" not in claves
 
 
+def test_no_se_puede_guardar_un_modelo_retirado_de_genai_lab(
+    client: TestClient,
+) -> None:
+    respuesta = client.patch(
+        "/api/v1/config/settings",
+        json={
+            "values": {
+                "llm.provider": "genai_lab",
+                "llm.model": "azure_ai/genailab-maas-Llama-3.2-90B-Vision-Instruct",
+            }
+        },
+    )
+
+    assert respuesta.status_code == 422
+    assert "catálogo de generación vigente" in respuesta.json()["error"]["message"]
+
+
 def test_las_cabeceras_de_seguridad_estan_presentes(client: TestClient) -> None:
     respuesta = client.get("/health/live")
     assert respuesta.headers["X-Content-Type-Options"] == "nosniff"

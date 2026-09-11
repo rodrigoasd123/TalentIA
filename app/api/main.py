@@ -15,9 +15,11 @@ Dos decisiones que se ven en el código y conviene señalar:
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Annotated, Iterator
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,7 +30,6 @@ from app.ai.agent import AGENT_NAME, AGENT_VERSION, EvaluationRequest, VeraAgent
 from app.ai.graphs.evaluation_graph import GRAPH_NAME, GRAPH_VERSION
 from app.ai.graphs.runner import langgraph_available
 from app.ai.prompts.registry import get_prompt_registry
-from app.application.unit_of_work import UnitOfWork
 from app.api.dependencies import requires, requires_settings_write
 from app.api.schemas import (
     AgentHealthResponse,
@@ -47,8 +48,9 @@ from app.api.schemas import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
+from app.application.unit_of_work import UnitOfWork
 from app.core.config import get_settings
-from app.core.exceptions import NotFoundError, VeraError
+from app.core.exceptions import NotFoundError, ValidationError, VeraError
 from app.core.logging import configure_logging, get_logger, get_trace_id, set_trace_id
 from app.core.observability import METRICS
 from app.domain.enums import Permission
@@ -59,8 +61,13 @@ from app.infrastructure.fixtures_loader import (
     load_all_jobs,
     load_all_resumes,
 )
-from app.infrastructure.llm.factory import build_llm, build_llm_from_settings, describe_provider
+from app.infrastructure.llm.factory import build_llm_from_settings, describe_provider
 from app.infrastructure.llm.gemini_adapter import GeminiAdapter
+from app.infrastructure.llm.model_catalog import GENAI_LAB_CHAT_MODELS
+from app.infrastructure.llm.openai_compatible_adapter import (
+    DEFAULT_GENAI_LAB_BASE_URL,
+    OpenAICompatibleAdapter,
+)
 from app.infrastructure.settings_store import SettingsStore
 
 logger = get_logger(__name__)
@@ -205,6 +212,13 @@ def update_settings(
     Las claves ausentes no se tocan. Un secreto se conserva omitiéndolo, lo que
     permite reenviar el formulario del panel sin borrar la API key guardada.
     """
+    provider = payload.values.get("llm.provider", store.get("llm.provider", "genai_lab"))
+    model = payload.values.get("llm.model")
+    if provider == "genai_lab" and model and model not in GENAI_LAB_CHAT_MODELS:
+        raise ValidationError(
+            f"El modelo «{model}» no pertenece al catálogo de generación vigente "
+            "de GenAI Lab. Selecciona uno de la lista actualizada."
+        )
     applied = store.set_many(payload.values, updated_by=payload.updated_by)
     session.commit()
     logger.info("Configuración modificada", keys=applied, updated_by=payload.updated_by)
@@ -230,9 +244,43 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
             available_models=["mock"],
         )
 
-    api_key = payload.api_key or store.get("llm.api_key", "")
-    adapter = GeminiAdapter(api_key=api_key, model=payload.model)
+    stored_key_name = (
+        "llm.genai_lab_api_key"
+        if payload.provider == "genai_lab"
+        else "llm.gemini_api_key"
+    )
+    api_key = payload.api_key or store.get(stored_key_name, "")
+    if not api_key and payload.provider == "genai_lab":
+        api_key = store.get("llm.api_key", "")
+    if payload.provider == "genai_lab":
+        base_url = payload.base_url or store.get(
+            "llm.base_url", DEFAULT_GENAI_LAB_BASE_URL
+        )
+        adapter = OpenAICompatibleAdapter(
+            api_key=api_key, model=payload.model, base_url=base_url
+        )
+    else:
+        adapter = GeminiAdapter(api_key=api_key, model=payload.model)
     ok, message = adapter.verify_credentials()
+    if ok and payload.provider in {"genai_lab", "gemini"}:
+        try:
+            probe = adapter.generate_json(
+                system_instruction="Responde con un objeto json válido.",
+                user_content="Devuelve un objeto json con la clave ok y valor true.",
+                temperature=0.0,
+                max_output_tokens=256,
+                timeout_seconds=60,
+            )
+            json.loads(probe.text)
+            message = (
+                f"Clave y generación verificadas con el modelo {payload.model}."
+            )
+        except (VeraError, ValueError, json.JSONDecodeError) as exc:
+            ok = False
+            message = (
+                "La clave es válida, pero el modelo seleccionado no pudo generar: "
+                f"{str(exc)[:300]}"
+            )
     return CredentialTestResponse(
         ok=ok, message=message, available_models=adapter.list_models() if ok else []
     )
@@ -242,8 +290,15 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
 def list_models(store: StoreDep) -> dict[str, list[str]]:
     """Modelos disponibles para la clave configurada."""
     config = store.llm_config()
-    if config["provider"] != "gemini":
+    if config["provider"] == "mock":
         return {"models": ["mock"]}
+    if config["provider"] == "genai_lab":
+        adapter = OpenAICompatibleAdapter(
+            api_key=str(config["api_key"]),
+            model=str(config["model"]),
+            base_url=str(config["base_url"]),
+        )
+        return {"models": adapter.list_models() or list(GENAI_LAB_CHAT_MODELS)}
     adapter = GeminiAdapter(api_key=str(config["api_key"]), model=str(config["model"]))
     return {"models": adapter.list_models()}
 

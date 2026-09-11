@@ -64,9 +64,10 @@ class SettingsUpdateRequest(BaseModel):
 
 class CredentialTestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    provider: Literal["gemini", "mock"] = "gemini"
+    provider: Literal["genai_lab", "gemini", "mock"] = "genai_lab"
     api_key: str = ""
     model: str = "gemini-2.5-flash"
+    base_url: str = ""
 
 
 class CredentialTestResponse(BaseModel):

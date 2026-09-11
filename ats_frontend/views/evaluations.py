@@ -163,7 +163,21 @@ def render() -> None:
                 result = session.client().evaluate_application(selected, dry_run=dry_run)
             st.session_state["last_evaluation_result"] = result
             st.session_state["last_evaluation_application"] = selected
-            st.success("Evaluación completada.")
+            evaluation = result.get("evaluation", result)
+            execution_errors = evaluation.get("execution_errors", []) or []
+            if execution_errors:
+                detail = str(execution_errors[0].get("message", ""))[:350]
+                st.error(
+                    "La evaluación no se pudo calcular con el modelo seleccionado. "
+                    + detail
+                )
+            elif evaluation.get("score_calculated"):
+                st.success("Evaluación calculada correctamente.")
+            else:
+                st.warning(
+                    "La evaluación terminó sin puntuación semántica. Revisa los "
+                    "filtros obligatorios y la trazabilidad."
+                )
         except ApiError as exc:
             design.api_error(exc, "La evaluación falló")
 

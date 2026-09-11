@@ -169,12 +169,18 @@ class TalentIAApiClient:
         )
 
     def test_credentials(
-        self, *, provider: str, api_key: str = "", model: str = "gemini-2.5-flash"
+        self, *, provider: str, api_key: str = "", model: str = "gemini-2.5-flash",
+        base_url: str = "",
     ) -> dict[str, Any]:
         return self._request(
             "POST",
             f"{API_PREFIX}/config/test-credentials",
-            json={"provider": provider, "api_key": api_key, "model": model},
+            json={
+                "provider": provider,
+                "api_key": api_key,
+                "model": model,
+                "base_url": base_url,
+            },
         )
 
     def list_models(self) -> list[str]:
