@@ -48,12 +48,15 @@ humanas desde la evaluación sin que TalentIA tome decisiones de contratación.
 - **FR-004:** Evaluaciones debe permitir crear de forma idempotente un caso de revisión por criterio no acreditado, conservando el control humano.
 - **FR-005:** Pipeline debe mostrar por separado postulaciones en estado `human_review` y casos abiertos de revisión.
 - **FR-006:** Auditoría debe explicar que una ruptura indica datos históricos alterados/importados y que no se corrige automáticamente.
+- **FR-007:** Al crear o editar un candidato, la fuente de reclutamiento debe reflejarse de forma consistente en sus postulaciones y reportes, incluyendo Adecco.
+- **FR-008:** Después de crear una postulación, la interfaz debe volver a consultar la API y mostrarla en el listado sin exigir una recarga manual.
 
 ## Requisitos no funcionales
 
 - **NFR-001:** Las operaciones nuevas no deben duplicar CV idénticos ni casos de revisión abiertos.
 - **NFR-002:** Los filtros deben operar sin llamadas al modelo ni consumo de tokens.
 - **NFR-003:** La funcionalidad debe preservar compatibilidad con datos históricos incompletos.
+- **NFR-004:** La sincronización de fuente debe ser transaccional, normalizada y auditada.
 
 ## Seguridad y privacidad
 
@@ -66,6 +69,9 @@ humanas desde la evaluación sin que TalentIA tome decisiones de contratación.
 - `applications.resume_id` determina la asociación documental real.
 - `applications.status` determina la etapa; `human_reviews` determina la cola real.
 - La máquina de estados sigue siendo la única fuente de transiciones válidas.
+- `candidate.source` representa la fuente maestra registrada para la persona y se sincroniza
+  en sus postulaciones cuando RR. HH. la modifica explícitamente.
+- `application.source` es la fuente usada por los reportes operativos.
 
 ## Supuestos confirmados
 
@@ -89,3 +95,5 @@ Ninguna bloqueante.
 | 2026-09-11 | No reparar ni inventar datos históricos | Rodrigo | Preservar trazabilidad y control humano |
 | 2026-09-11 | Separar etapa y cola de revisión | Rodrigo | Son conceptos operativos distintos |
 | 2026-09-11 | Implementación completada; pasa a verificación manual | Codex | 289 pruebas automatizadas aprobadas |
+| 2026-09-11 | Refinamiento aprobado para sincronizar fuente y refrescar listados | Rodrigo | La demo mostró información desactualizada e inconsistente entre módulos |
+| 2026-09-11 | Refinamiento R1 implementado | Codex | Fuente persistida y 290 pruebas aprobadas |

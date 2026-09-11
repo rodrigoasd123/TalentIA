@@ -397,6 +397,7 @@ def application_to_entity(model: ApplicationModel) -> Application:
 def apply_application(model: ApplicationModel, application: Application) -> ApplicationModel:
     model.status = application.status.value
     model.resume_id = application.resume_id
+    model.source = application.source
     model.entered_stage_at = application.entered_stage_at
     model.final_score = application.final_score
     model.assigned_to = application.assigned_to

@@ -10,6 +10,8 @@ una operación idempotente a `ReviewService` y aplicar filtros de presentación 
 - Dominio/aplicación: creación manual idempotente de revisión.
 - API: asociación de CV y solicitud de revisión; metadatos de integridad.
 - Frontend: bandeja de CV, filtros y métricas reconciliadas.
+- API/analítica: sincronización transaccional de `candidate.source` hacia postulaciones.
+- Frontend: fuente Adecco explícita y recarga controlada con mensaje persistente.
 - Persistencia: sin migraciones; se reutilizan tablas actuales.
 
 ## Flujo de datos
@@ -40,11 +42,14 @@ Se conservan permisos y extractor vigentes. No se registran bytes ni texto del d
 | AC-003 | automatizada | idempotencia de revisión |
 | AC-004 | manual/compilación | vistas Streamlit |
 | AC-005 | automatizada/manual | payload y mensaje de auditoría |
+| AC-006 | automatizada | actualización de candidato y analítica de fuentes |
+| AC-007 | automatizada/manual | estado Streamlit y listado posterior al alta |
 
 ## Riesgos y mitigaciones
 
 - Datos seed incoherentes: se etiquetan, nunca se corrigen masivamente.
 - Doble clic: búsqueda previa de revisión y deduplicación por hash.
+- Cambio de fuente histórica: se ejecuta solo ante una edición humana explícita y se audita.
 
 ## Aprobación
 

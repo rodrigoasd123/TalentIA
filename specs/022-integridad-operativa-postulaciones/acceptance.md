@@ -51,3 +51,25 @@ Escenario: cadena de auditoría inconsistente
   Entonces se explica el impacto y se indica investigar el evento sin repararlo automáticamente
 ```
 **Evidencia requerida:** prueba de payload o verificación manual.
+
+## AC-006 — Fuente Adecco consistente
+**Cubre:** FR-007, NFR-004
+```gherkin
+Escenario: registrar o modificar la fuente de un candidato
+  Dado que RR. HH. selecciona Adecco como fuente
+  Cuando crea una postulación o guarda la ficha del candidato
+  Entonces la persona, sus postulaciones vinculadas y los reportes muestran Adecco
+  Y la sincronización queda auditada
+```
+**Evidencia requerida:** prueba de API y analítica de fuentes.
+
+## AC-007 — Alta visible inmediatamente
+**Cubre:** FR-008
+```gherkin
+Escenario: crear una postulación desde Streamlit
+  Dado que el formulario contiene datos válidos
+  Cuando la API confirma el alta
+  Entonces la página vuelve a consultar las postulaciones
+  Y el nuevo registro aparece en el listado sin recargar manualmente el navegador
+```
+**Evidencia requerida:** prueba de vista o verificación manual reproducible.

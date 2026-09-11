@@ -281,11 +281,16 @@ class AnalyticsService:
         rows: list[dict[str, Any]] = []
         for candidate in self.uow.candidates.list(limit=10000):
             candidate_apps = by_candidate.get(candidate.id, [])
+            adecco_source = next(
+                (
+                    value
+                    for value in [candidate.source, *(app.source for app in candidate_apps)]
+                    if "adecco" in (value or "").casefold()
+                ),
+                None,
+            )
             categories: list[str] = []
-            if any(
-                "adecco" in (value or "").casefold()
-                for value in [candidate.source, *(app.source for app in candidate_apps)]
-            ):
+            if adecco_source:
                 categories.append("adecco")
             if any(app.status in interviewed for app in candidate_apps):
                 categories.append("entrevistado")
@@ -298,7 +303,7 @@ class AnalyticsService:
             rows.append({
                 "candidate_id": candidate.id, "candidate": candidate.full_name,
                 "client": candidate.client, "recruiter": candidate.recruiter,
-                "source": candidate.source,
+                "source": adecco_source or (latest.source if latest else candidate.source),
                 "categories": categories,
                 "application_id": latest.id if latest else None,
                 "application_status": latest.status.value if latest else None,

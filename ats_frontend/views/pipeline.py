@@ -68,6 +68,7 @@ def _render_table(applications: list[dict]) -> None:
             {
                 "Candidato": item["candidate_name"],
                 "Vacante": item["job_code"],
+                "Fuente": item.get("source", "-"),
                 "Estado": app_status(item["status"]),
                 "Puntaje": score(item.get("score")),
                 "Tiempo en etapa": days_from_hours(item.get("hours_in_stage")),

@@ -196,3 +196,45 @@ def test_solicitud_revision_manual_es_idempotente(client: TestClient) -> None:
     statistics = client.get("/api/v1/reviews/statistics").json()
     assert statistics["pending"] == 1
     assert "applications_in_review_state" in statistics
+
+
+def test_fuente_adecco_se_sincroniza_en_candidato_postulaciones_y_reportes(
+    client: TestClient,
+) -> None:
+    first = _create_application(client, "LAB-024")
+    second_job = client.post(
+        "/api/v1/jobs",
+        json={
+            "code": "LAB-025",
+            "title": "Segunda vacante",
+            "criteria_approved": True,
+        },
+    ).json()
+    second = client.post(
+        "/api/v1/intake",
+        data={
+            "full_name": "Persona LAB-024",
+            "email": "lab-024@example.test",
+            "job_id": second_job["id"],
+            "consent_granted": "true",
+            "source": "adecco peru",
+        },
+        files={"resume": ("cv-adecco.docx", _docx_bytes(), "application/octet-stream")},
+    )
+    assert second.status_code == 201, second.text
+    assert second.json()["was_existing_candidate"] is True
+
+    candidate = client.get(f"/api/v1/candidates/{first['candidate_id']}").json()
+    assert candidate["source"] == "Adecco"
+    applications = [
+        item
+        for item in client.get("/api/v1/applications").json()
+        if item["candidate_id"] == first["candidate_id"]
+    ]
+    assert len(applications) == 2
+    assert {item["source"] for item in applications} == {"Adecco"}
+
+    sources = client.get("/api/v1/dashboard/sources")
+    assert sources.status_code == 200, sources.text
+    adecco = next(item for item in sources.json() if item["source"] == "Adecco")
+    assert adecco["applications"] == 2

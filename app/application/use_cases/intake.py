@@ -40,6 +40,61 @@ logger = get_logger(__name__)
 DEFAULT_CONSENT_MONTHS = 12
 
 
+def normalize_recruitment_source(value: str) -> str:
+    """Normaliza fuentes conocidas sin impedir nuevas fuentes operativas."""
+    cleaned = " ".join((value or "manual").strip().split()) or "manual"
+    aliases = {
+        "adecco": "Adecco",
+        "adecco peru": "Adecco",
+        "adecco perú": "Adecco",
+        "linkedin": "LinkedIn",
+        "linkedin_manual": "LinkedIn",
+        "portal tcs": "Portal TCS",
+        "referido": "Referido",
+        "manual": "Manual",
+        "historico": "Importación histórica",
+        "histórico": "Importación histórica",
+    }
+    return aliases.get(cleaned.casefold(), cleaned[:80])
+
+
+def synchronize_candidate_source(
+    uow: UnitOfWork,
+    *,
+    candidate: Candidate,
+    source: str,
+    actor: Actor,
+) -> int:
+    """Sincroniza la fuente maestra y las postulaciones vinculadas."""
+    normalized = normalize_recruitment_source(source)
+    linked = uow.applications.list_for_candidate(candidate.id)
+    changed_applications = 0
+    for application in linked:
+        if application.source == normalized:
+            continue
+        application.source = normalized
+        application.touch()
+        uow.applications.update(application)
+        changed_applications += 1
+    candidate_changed = candidate.source != normalized
+    if candidate_changed:
+        candidate.source = normalized
+        candidate.touch()
+        uow.candidates.update(candidate)
+    if candidate_changed or changed_applications:
+        AuditService(uow.audit).record(
+            action="candidate.source_synchronized",
+            actor=actor,
+            resource_type="candidate",
+            resource_id=candidate.id,
+            new_state={
+                "source": normalized,
+                "applications_updated": changed_applications,
+            },
+        )
+    return changed_applications
+
+
 @dataclass(slots=True)
 class IntakeResult:
     candidate: Candidate
@@ -77,11 +132,15 @@ class RegisterCandidateUseCase:
                 "para el tratamiento de sus datos"
             )
 
+        source = normalize_recruitment_source(source)
         address = EmailAddress(value=email)
         existing = self.uow.candidates.get_by_email(str(address))
         if existing is not None:
             # Reutilizar en vez de duplicar. Una persona que aplica a una segunda
             # vacante es la misma persona, no un registro nuevo.
+            synchronize_candidate_source(
+                self.uow, candidate=existing, source=source, actor=actor
+            )
             logger.info("Candidato ya registrado; se reutiliza", candidate_id=existing.id)
             return IntakeResult(candidate=existing, was_existing=True)
 
@@ -331,6 +390,7 @@ class IntakePipelineUseCase:
         source: str = "direct",
         consent_granted: bool = True,
     ) -> IntakeResult:
+        source = normalize_recruitment_source(source)
         result = self.register.execute(
             full_name=full_name, email=email, phone=phone, source=source,
             consent_granted=consent_granted, actor=actor,
@@ -349,4 +409,5 @@ class IntakePipelineUseCase:
 __all__ = [
     "DEFAULT_CONSENT_MONTHS", "CreateApplicationUseCase", "IntakePipelineUseCase",
     "IntakeResult", "RegisterCandidateUseCase", "UploadResumeUseCase",
+    "normalize_recruitment_source", "synchronize_candidate_source",
 ]

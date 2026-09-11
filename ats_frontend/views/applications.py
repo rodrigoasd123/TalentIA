@@ -78,7 +78,7 @@ def _render_intake(jobs: list[dict]) -> None:  # noqa: C901 - Formulario guiado.
             phone = st.text_input("Teléfono opcional", key="intake_phone")
             source = st.selectbox(
                 "Origen",
-                ["manual", "linkedin_manual", "referido", "historico"],
+                ["Manual", "Adecco", "LinkedIn", "Referido", "Importación histórica"],
                 key="intake_source",
             )
 
@@ -131,12 +131,19 @@ def _render_intake(jobs: list[dict]) -> None:  # noqa: C901 - Formulario guiado.
                     content=uploaded.getvalue(),
                     content_type=uploaded.type or "application/octet-stream",
                 )
-            st.success("Postulación creada correctamente.")
+            st.session_state["application_notice"] = (
+                "Postulación creada correctamente."
+                + (
+                    " TalentIA reutilizó la ficha de una persona ya registrada."
+                    if result.get("was_existing_candidate") else ""
+                )
+            )
+            st.session_state["applications_default_tab"] = "Listado"
             if result.get("was_existing_candidate"):
-                st.info("TalentIA reutilizó la ficha de una persona ya registrada.")
+                st.session_state["application_notice_tone"] = "info"
             for warning in result.get("warnings", []):
                 st.warning(warning)
-            st.code(result["application_id"], language="text")
+            st.rerun()
         except ApiError as exc:
             design.api_error(exc, "No se pudo crear la postulación")
 
@@ -184,6 +191,7 @@ def _render_list(applications: list[dict]) -> None:
             {
                 "Candidato": item["candidate_name"],
                 "Vacante": item["job_code"],
+                "Fuente": item.get("source", "-"),
                 "Estado": app_status(item["status"]),
                 "CV": "Asociado" if item.get("has_resume") else "Pendiente",
                 "Puntaje": score(item.get("score")),
@@ -254,6 +262,12 @@ def render() -> None:
         "Registra candidatos sin perder datos cuando ocurra un error recuperable.",
         "Trabajo diario",
     )
+    notice = st.session_state.pop("application_notice", "")
+    if notice:
+        if st.session_state.pop("application_notice_tone", "") == "info":
+            st.info(notice)
+        else:
+            st.success(notice)
 
     try:
         jobs = session.client().list_jobs()
@@ -266,7 +280,12 @@ def render() -> None:
         design.api_error(exc, "No se pudo cargar la página")
         return
 
-    new_tab, list_tab = st.tabs(["Nueva postulación", "Listado"])
+    default_tab = st.session_state.pop("applications_default_tab", "Nueva postulación")
+    new_tab, list_tab = st.tabs(
+        ["Nueva postulación", "Listado"],
+        default=default_tab,
+        key="applications_tabs",
+    )
     with new_tab:
         _render_intake(jobs)
     with list_tab:

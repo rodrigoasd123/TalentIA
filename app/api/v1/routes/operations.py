@@ -35,7 +35,11 @@ from app.application.services.ranking_service import RankingService
 from app.application.services.review_service import ReviewService
 from app.application.use_cases.evaluate_application import EvaluateApplicationUseCase
 from app.application.use_cases.historical_import import HistoricalImportUseCase
-from app.application.use_cases.intake import IntakePipelineUseCase, UploadResumeUseCase
+from app.application.use_cases.intake import (
+    IntakePipelineUseCase,
+    UploadResumeUseCase,
+    synchronize_candidate_source,
+)
 from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError, NotFoundError, ValidationError
 from app.core.logging import get_logger
@@ -746,6 +750,7 @@ def update_candidate(
     changes = payload.model_dump(exclude_unset=True)
     changes.pop("expected_version", None)
     requested_status = changes.pop("candidate_status", None)
+    requested_source = changes.pop("source", None)
     if requested_status is not None and requested_status is not candidate.candidate_status:
         raise ValidationError(
             "El estado de selección debe modificarse en una postulación y vacante"
@@ -762,10 +767,19 @@ def update_candidate(
         setattr(candidate, field, value)
     candidate.touch()
     uow.candidates.update(candidate)
+    synchronized_applications = 0
+    if requested_source is not None:
+        synchronized_applications = synchronize_candidate_source(
+            uow, candidate=candidate, source=requested_source, actor=actor
+        )
     AuditService(uow.audit).record(
         action="candidate.updated", actor=actor, resource_type="candidate",
         resource_id=candidate.id, fields_changed=sorted(changes),
-        new_state={"candidate_status": candidate.candidate_status.value},
+        new_state={
+            "candidate_status": candidate.candidate_status.value,
+            "source": candidate.source,
+            "applications_source_updated": synchronized_applications,
+        },
     )
     return _candidate_payload(candidate, reveal_sensitive=True)
 
@@ -804,6 +818,7 @@ def list_applications(uow: UowDep, job_id: str | None = Query(None)) -> list[dic
                 "job_id": application.job_id,
                 "job_code": job.code if job else "—",
                 "status": application.status.value,
+                "source": application.source,
                 "resume_id": resume.id if resume else None,
                 "has_resume": resume is not None,
                 "has_open_review": open_review is not None,
