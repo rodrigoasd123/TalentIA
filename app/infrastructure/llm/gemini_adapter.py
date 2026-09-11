@@ -36,6 +36,8 @@ DEFAULT_MODEL = "gemini-2.5-flash"
 #: Modelos que el panel ofrece cuando no se puede consultar la lista real
 #: (por ejemplo, sin conexión). Sirve para que el desplegable nunca esté vacío.
 FALLBACK_MODELS: tuple[str, ...] = (
+    "gemini-3.6-flash",
+    "gemini-flash-lite-latest",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
@@ -141,7 +143,11 @@ class GeminiAdapter:
         timeout = timeout_seconds or self._default_timeout
 
         try:
-            with httpx.Client(timeout=timeout, verify=self._verify_ssl) as client:
+            # El laboratorio puede inyectar proxies de aislamiento no utilizables
+            # (por ejemplo 127.0.0.1:9). Gemini debe salir directamente.
+            with httpx.Client(
+                timeout=timeout, verify=self._verify_ssl, trust_env=False
+            ) as client:
                 response = client.post(url, headers=self._headers(), json=payload)
         except httpx.TimeoutException as exc:
             raise LLMTimeout(
@@ -164,7 +170,9 @@ class GeminiAdapter:
         if not self.is_configured:
             return list(FALLBACK_MODELS)
         try:
-            with httpx.Client(timeout=20, verify=self._verify_ssl) as client:
+            with httpx.Client(
+                timeout=20, verify=self._verify_ssl, trust_env=False
+            ) as client:
                 response = client.get(f"{self._base_url}/models", headers=self._headers())
             if response.status_code != 200:
                 logger.warning(
@@ -193,7 +201,9 @@ class GeminiAdapter:
         if not self.is_configured:
             return False, "No se ha introducido ninguna API key."
         try:
-            with httpx.Client(timeout=20, verify=self._verify_ssl) as client:
+            with httpx.Client(
+                timeout=20, verify=self._verify_ssl, trust_env=False
+            ) as client:
                 response = client.get(f"{self._base_url}/models", headers=self._headers())
         except httpx.HTTPError as exc:
             return False, f"No se pudo conectar con Gemini: {type(exc).__name__}"

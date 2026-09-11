@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from app.core.exceptions import LLMError
+from app.infrastructure.llm.gemini_adapter import FALLBACK_MODELS
 from app.infrastructure.llm.model_catalog import (
     GENAI_LAB_ALL_MODELS,
     GENAI_LAB_CHAT_MODELS,
@@ -14,6 +15,13 @@ from app.infrastructure.llm.model_catalog import (
     gateway_model_id,
 )
 from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
+
+
+def test_selector_gemini_prioriza_modelos_validados_en_el_laboratorio() -> None:
+    assert FALLBACK_MODELS[:2] == (
+        "gemini-3.6-flash",
+        "gemini-flash-lite-latest",
+    )
 
 
 def test_catalogo_conserva_identificadores_y_separa_capacidades() -> None:
