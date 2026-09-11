@@ -67,12 +67,16 @@ Una URL configurada explícitamente nunca se mueve ni renombra automáticamente.
 ## Operación
 
 1. Crea y aprueba una vacante.
-2. Registra candidatos y postulaciones con consentimiento.
+2. Gestiona la tabla general de candidatos desde **Candidatos**: busca, filtra,
+   selecciona una fila para editarla o registra una persona nueva.
 3. Ejecuta evaluaciones y resuelve revisiones humanas.
 4. Gestiona estados por postulación y vacante desde Pipeline.
 5. Usa **Análisis documental** para comparar PDF, ejecutar OCR local y consultar
    evidencia RAG dentro de la misma navegación.
 6. Consulta Candidate 360, reportes y auditoría.
+
+La importación CSV/XLSX y la exportación CSV son mecanismos opcionales. La tabla
+general siempre se carga desde FastAPI y persiste sus cambios en SQLite.
 
 El puntaje documental es orientativo. El agente no cambia estados, no envía correos
 y no decide contrataciones.

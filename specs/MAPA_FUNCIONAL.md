@@ -19,6 +19,7 @@ Este mapa distribuye la línea base consolidada por capacidad sin modificar el a
 | Rediseño integral del frontend | SPEC-017 | Cambio nuevo pendiente de aprobación |
 | Base general de candidatos y seguimiento | SPEC-018 | Ampliación aprobada por el usuario |
 | Consolidación de identidad, SQLite y análisis documental | SPEC-019 | Consolidación aprobada por el usuario |
+| Gestión centralizada y editable de candidatos | SPEC-020 | Refinamiento aprobado de SPEC-018 |
 
 ## Reglas de mantenimiento
 
