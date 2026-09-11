@@ -150,12 +150,11 @@ def require_permission(*required: str) -> bool:
 
 def render_login() -> None:  # noqa: C901 - Pantalla Streamlit con validaciones visibles.
     notice = st.session_state.pop("auth_notice", "")
-    light_logo = design.ASSETS / "tcs-logo-light.jpeg"
-    dark_logo = design.ASSETS / "tcs-logo-dark.jpeg"
+    logo = design.ASSETS / "talentia-logo.jpg"
 
     st.markdown(design.brand_html("Acceso al ATS"), unsafe_allow_html=True)
-    if light_logo.exists():
-        st.image(str(light_logo), width=360)
+    if logo.exists():
+        st.image(str(logo), width=420)
     st.title("TalentIA centraliza vacantes, candidatos y revisiones humanas.")
     st.write(
         "La IA ayuda a ordenar evidencia documental, pero no aprueba, "
@@ -224,7 +223,7 @@ def render_login() -> None:  # noqa: C901 - Pantalla Streamlit con validaciones 
             except ApiError as exc:
                 design.api_error(exc, "El laboratorio no está disponible")
 
-    if dark_logo.exists():
+    if logo.exists():
         st.caption("Marca institucional cargada desde los archivos proporcionados.")
 
 

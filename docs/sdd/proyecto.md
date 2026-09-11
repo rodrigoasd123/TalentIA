@@ -14,6 +14,17 @@ Esta sección prevalece sobre las descripciones iniciales que entren en conflict
 - **Evidencia:** 256 pruebas aprobadas, seed reproducible, smoke de API/Streamlit y escáner de publicación aprobados. CI ejecuta escáner y pytest.
 - **Límites vigentes:** laboratorio local y datos ficticios; SQLite y sesión de desarrollo no son aptos para producción multiusuario; Gmail permanece en borrador/DRY_RUN; no existe RSC, scraping ni automatización de LinkedIn; no cargar CV reales ni desplegar como servicio compartido sin revisión legal, de privacidad y seguridad.
 
+## Actualización — SPEC-020 (2026-09-11)
+
+- **Gestión de candidatos:** la pantalla Candidatos presenta una tabla general
+  centralizada con búsqueda, filtros, selección, alta y edición de ficha completa.
+- **Fuente de verdad:** la interfaz consume FastAPI y SQLite; CSV/XLSX queda solo
+  como importación o exportación opcional.
+- **Privacidad:** el DataFrame y el CSV omiten por completo las columnas PII cuando
+  el rol no dispone de `candidate:pii:read`.
+- **Evidencia:** 285 pruebas aprobadas, lint y compilación correctos, smoke de
+  Streamlit sin red y guardado manual verificado sobre datos ficticios.
+
 ## Restricción de agentes de IA aprobada (2026-09-10)
 
 - Todo componente catalogado como AI Agent usará LangGraph; las capacidades

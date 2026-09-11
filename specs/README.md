@@ -18,6 +18,7 @@ Consulta primero el [mapa funcional](./MAPA_FUNCIONAL.md), que define la spec pr
 - [`SPEC-016`](./016-operacion-plataforma-rollback/spec.md): Operación, persistencia y rollback (verificada por SPEC-004/005).
 - [`SPEC-018`](./018-base-general-candidatos/spec.md): Base general de candidatos y reporte de seguimiento (verificada).
 - [`SPEC-019`](./019-consolidacion-definitiva-talentia/spec.md): Consolidación definitiva, SQLite TalentIA y análisis documental integrado (verificada localmente).
+- [`SPEC-020`](./020-gestion-centralizada-candidatos/spec.md): Gestión centralizada y editable de candidatos (verificada localmente).
 
 ## Cambio pendiente de aprobación
 

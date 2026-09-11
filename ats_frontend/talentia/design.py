@@ -193,7 +193,7 @@ def inject_css() -> None:
         }}
 
         .ti-shell-logo {{
-            max-width: 135px;
+            max-width: 190px;
             height: auto;
             display: block;
             margin: 0.2rem 0 1rem;
@@ -511,10 +511,10 @@ def brand_html(subtitle: str = APP_DESCRIPTION) -> str:
 
 def render_sidebar_brand() -> None:
     st.sidebar.markdown(brand_html(), unsafe_allow_html=True)
-    logo = image_uri("tcs-logo-light.jpeg")
+    logo = image_uri("talentia-logo.jpg")
     if logo:
         st.sidebar.markdown(
-            f'<img class="ti-shell-logo" src="{logo}" alt="Tata Consultancy Services">',
+            f'<img class="ti-shell-logo" src="{logo}" alt="TalentIA">',
             unsafe_allow_html=True,
         )
 
