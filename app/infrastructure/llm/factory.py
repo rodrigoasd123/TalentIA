@@ -18,10 +18,11 @@ from app.infrastructure.llm.mock_adapter import MockLLMAdapter
 from app.infrastructure.llm.model_catalog import provider_for_model
 from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
 from app.infrastructure.observability.mlflow_tracker import ObservedLLMAdapter
+from app.infrastructure.llm.openai_adapter import OpenAIAdapter
 
 logger = get_logger(__name__)
 
-PROVIDERS = ("genai_lab", "gemini", "mock")
+PROVIDERS = ("genai_lab", "gemini", "mock", "openai")
 
 
 def build_llm(
@@ -34,6 +35,9 @@ def build_llm(
 ) -> LLMPort:
     """Devuelve el adaptador correspondiente al proveedor indicado."""
     normalized = (provider or "mock").strip().lower()
+
+    if normalized == "openai":
+        return ObservedLLMAdapter(OpenAIAdapter())
 
     if normalized == "gemini":
         if not api_key:

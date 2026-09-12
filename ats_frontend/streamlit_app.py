@@ -94,10 +94,17 @@ PAGES = [
         "permissions": ("application:read",),
     },
     {
-        "group": "Control",
+        "group": "Inteligencia Artificial",
+        "path": "views/ai_usage.py",
+        "title": "Consumo de IA",
+        "icon": ":material/analytics:",
+        "permissions": (),
+    },
+    {
+        "group": "Sistema",
         "path": "views/audit.py",
-        "title": "Auditoría",
-        "icon": ":material/manage_search:",
+        "title": "Registro de auditoría",
+        "icon": ":material/history:",
         "permissions": ("audit:read",),
     },
     {

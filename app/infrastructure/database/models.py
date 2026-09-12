@@ -433,11 +433,27 @@ class ImportMappingTemplateModel(Base, TimestampMixin):
     )
 
 
+# ── Uso de IA ────────────────────────────────────────────────────────────────
+class AIUsageLogModel(Base, TimestampMixin):
+    __tablename__ = "ai_usage_logs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64), index=True)
+    model: Mapped[str] = mapped_column(String(128), index=True)
+    feature: Mapped[str] = mapped_column(String(128), index=True)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    success: Mapped[bool] = mapped_column(Boolean, default=True)
+    error_message: Mapped[str] = mapped_column(Text, default="")
+
 ALL_MODELS = (
     RuntimeSettingModel, UserModel, JobModel, CandidateModel, ResumeModel,
     ApplicationModel, EvaluationModel, HumanReviewModel, EmailTemplateModel,
     EmailModel, AuditEventModel, WorkflowRunModel, ImportBatchModel,
-    ImportRowModel, ImportMappingTemplateModel,
+    ImportRowModel, ImportMappingTemplateModel, AIUsageLogModel,
 )
 
 __all__ = [
@@ -445,5 +461,5 @@ __all__ = [
     "EmailModel", "EmailTemplateModel", "EvaluationModel", "HumanReviewModel",
     "JobModel", "ResumeModel", "RuntimeSettingModel", "UserModel",
     "WorkflowRunModel", "ImportBatchModel", "ImportRowModel",
-    "ImportMappingTemplateModel", "utcnow",
+    "ImportMappingTemplateModel", "AIUsageLogModel", "utcnow",
 ]

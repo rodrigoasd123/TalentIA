@@ -45,6 +45,18 @@ class MlflowLLMTracker:
         )
         METRICS.observe("talentia.llm.latency_seconds", elapsed_seconds, **labels)
 
+        # Calculate estimated cost
+        cost = 0.0
+        if model == "gpt-5.6-luna":
+            cost = (prompt_tokens / 1_000_000) * 1.0 + (completion_tokens / 1_000_000) * 2.0
+        elif model == "gpt-5.6-terra":
+            cost = (prompt_tokens / 1_000_000) * 10.0 + (completion_tokens / 1_000_000) * 30.0
+        elif model == "gemini-3.6-flash":
+            cost = (prompt_tokens / 1_000_000) * 0.075 + (completion_tokens / 1_000_000) * 0.30
+        else:
+            # Free tier models (gpt-5.4, o1, etc) from benefit
+            cost = 0.0
+
         with self._lock:
             usage = self._usage.setdefault(
                 (provider, model),
@@ -83,6 +95,7 @@ class MlflowLLMTracker:
                             "completion_tokens": completion_tokens,
                             "total_tokens": prompt_tokens + completion_tokens,
                             "latency_seconds": elapsed_seconds,
+                            "estimated_cost_usd": cost,
                         }
                     )
                     mlflow.set_tags(
@@ -92,6 +105,11 @@ class MlflowLLMTracker:
                             "privacy": "metadata-only",
                         }
                     )
+                    
+                    # Log to the current trace span if one is active (LangGraph autolog)
+                    active_span = mlflow.get_current_active_span()
+                    if active_span:
+                        active_span.set_attribute("estimated_cost_usd", cost)
         except Exception as exc:  # pragma: no cover - observabilidad no bloquea negocio
             if not self._warned:
                 logger.warning("MLflow no disponible", error=type(exc).__name__)

@@ -90,6 +90,12 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 60
     llm_max_retries: int = 2
 
+    # ── OpenAI ───────────────────────────────────────────────────────────────
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-5.6-luna", alias="OPENAI_MODEL")
+    openai_temperature: float = Field(default=0.2, alias="OPENAI_TEMPERATURE")
+    openai_max_output_tokens: int = Field(default=1000, alias="OPENAI_MAX_OUTPUT_TOKENS")
+
     # ── Observabilidad ───────────────────────────────────────────────────────
     log_level: str = "INFO"
     log_json: bool = True

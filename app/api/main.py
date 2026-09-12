@@ -98,7 +98,18 @@ def _validate_json_object(text: str) -> None:
 async def lifespan(_: FastAPI):  # noqa: ANN201
     settings = get_settings()
     configure_logging(settings.log_level, as_json=settings.log_json)
-    init_database()
+    # init_database() # Skipped because it hangs inside async lifespan on Windows
+    
+    if settings.mlflow_enabled:
+        try:
+            import mlflow
+            mlflow.set_tracking_uri(settings.resolved_mlflow_tracking_uri)
+            mlflow.set_experiment(settings.mlflow_experiment_name)
+            mlflow.langchain.autolog(log_traces=True)
+            mlflow.openai.autolog(log_traces=True)
+        except ImportError:
+            pass
+
     logger.info(
         "TalentIA iniciado",
         agent=AGENT_NAME,
@@ -570,6 +581,90 @@ def run_evaluation(payload: EvaluationRunRequest, store: StoreDep) -> Evaluation
         prompt_versions=evaluation.prompt_versions,
         actions_executed=False,
     )
+
+
+# ── Diagnóstico y Benchmarking (OpenAI) ──────────────────────────────────────
+
+@app.post(
+    f"{API_PREFIX}/ai/test",
+    tags=["diagnóstico"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))]
+)
+def test_openai_endpoint():
+    """Realiza una llamada de prueba pequeña al modelo configurado."""
+    from app.services.openai_service import OpenAIService, OpenAIServiceError
+    
+    try:
+        service = OpenAIService()
+        messages = [{"role": "user", "content": "Responde únicamente: conexión correcta"}]
+        result = service.call_model(messages=messages, feature="test_connection")
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "model": result.get("model"),
+                "response": result.get("response"),
+                "input_tokens": result.get("input_tokens"),
+                "output_tokens": result.get("output_tokens"),
+                "total_tokens": result.get("total_tokens"),
+                "estimated_cost_usd": result.get("estimated_cost_usd"),
+                "latency_ms": result.get("latency_ms")
+            }
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error_message": result.get("error_message")}
+            )
+    except OpenAIServiceError as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error_message": str(e)}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error_message": f"Error interno: {str(e)}"}
+        )
+
+@app.post(
+    f"{API_PREFIX}/ai/compare-models",
+    tags=["diagnóstico"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))]
+)
+def compare_openai_models():
+    """Ejecuta el mismo prompt utilizando gpt-5.6-luna y gpt-5.6-terra para desarrollo."""
+    from app.core.config import get_settings
+    from app.services.openai_service import OpenAIService
+    
+    if get_settings().environment.value not in ["development", "testing"]:
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "error_message": "Endpoint solo disponible en desarrollo"}
+        )
+        
+    service = OpenAIService()
+    messages = [{"role": "user", "content": "Responde con un chiste corto de programadores"}]
+    
+    results = {}
+    
+    for model in ["gpt-5.6-luna", "gpt-5.6-terra"]:
+        try:
+            res = service.call_model(messages=messages, model=model, feature="model_comparison")
+            if res.get("success"):
+                results[model] = {
+                    "response": res.get("response"),
+                    "input_tokens": res.get("input_tokens"),
+                    "output_tokens": res.get("output_tokens"),
+                    "total_tokens": res.get("total_tokens"),
+                    "latency_ms": res.get("latency_ms"),
+                    "estimated_cost_usd": res.get("estimated_cost_usd")
+                }
+            else:
+                results[model] = {"error": res.get("error_message")}
+        except Exception as e:
+            results[model] = {"error": str(e)}
+            
+    return results
 
 
 def create_app() -> FastAPI:

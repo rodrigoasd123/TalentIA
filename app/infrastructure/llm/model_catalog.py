@@ -91,6 +91,8 @@ def provider_for_model(model: str) -> str:
         return "gemini"
     if model in GENAI_LAB_CHAT_MODELS:
         return "genai_lab"
+    if model in ("gpt-5.6-luna", "gpt-5.6-terra") or model.startswith("gpt-") or model.startswith("o1") or model.startswith("o3") or model.startswith("o4"):
+        return "openai"
     raise ValueError(f"Modelo no admitido: {model}")
 
 __all__ = [
