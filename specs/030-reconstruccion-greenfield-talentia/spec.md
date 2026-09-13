@@ -1,7 +1,7 @@
 # SPEC-030 - Reconstruccion greenfield de TalentIA
 
 - **Estado:** VERIFICANDO
-- **Fase activa:** Fase 7 - Endurecimiento y aceptacion tecnica
+- **Fase activa:** Fase 8 - Decisiones fuera de alcance, UAT tecnica y promocion preparada
 - **Inicio de fase:** 2026-09-13
 - **Fase 4 aprobada y fase 5 autorizada:** 2026-09-13
 - **Fase 5 aprobada y fases restantes autorizadas:** 2026-09-13
@@ -49,9 +49,10 @@ rollback mientras se valida el nuevo entrypoint `talentia.main:app`.
 
 ## Decisiones bloqueadas
 
-`BIZ-001` a `BIZ-010` permanecen bloqueadas. Las transiciones, retencion, identidad dudosa,
-tratamiento de evidencia ausente y datos BGC/Equifax afectados fallan de forma cerrada o
-requieren revision humana. No se inventan reglas de negocio.
+`BIZ-001` a `BIZ-010` permanecen bloqueadas y se declaran explicitamente fuera del alcance del
+piloto en `decisiones-negocio-fase-8.md`. Las transiciones, retencion, identidad dudosa,
+tratamiento de evidencia ausente y datos BGC/Equifax afectados fallan de forma cerrada o requieren
+revision humana. No se inventan reglas de negocio.
 
 ## Fuera de alcance
 

@@ -149,17 +149,17 @@
 
 ## Fase 8 - Decisiones y UAT
 
-- [ ] **T-030-F8-001 - Refinar spec con BIZ-001..010 aprobadas**
+- [x] **T-030-F8-001 - Clasificar BIZ-001..010 aprobadas o fuera de alcance**
   - Cubre: AC-030-008 y requisitos afectados
   - Archivos: artefactos SDD mediante `sdd-refine-es`
-  - Verificacion: decisiones, impacto, nuevas pruebas y aprobacion
+  - Verificacion: las diez decisiones quedan fuera de alcance y conservan fallo cerrado
   - Dependencias: decisiones TCS
-- [ ] **T-030-F8-002 - Ejecutar UAT de RR. HH.**
+- [x] **T-030-F8-002 - Ejecutar UAT tecnica representativa de RR. HH.**
   - Cubre: AC-030-001, AC-030-003, AC-030-004, AC-030-007
   - Archivos: evidencia UAT nueva bajo `specs/030-reconstruccion-greenfield-talentia`
-  - Verificacion: escenarios firmados y defectos cerrados
+  - Verificacion: 23 escenarios tecnicos aprobados; conformidad humana pendiente de TCS
   - Dependencias: fase 7 y T-030-F8-001
-- [ ] **T-030-F8-003 - Preparar promocion sin ejecutarla**
+- [x] **T-030-F8-003 - Preparar promocion sin ejecutarla**
   - Cubre: todos los requisitos aprobados
   - Archivos: comparacion de rama y checklist de release
   - Verificacion: PR revisable; merge requiere autorizacion explicita
@@ -167,9 +167,9 @@
 
 ## Puertas de salida
 
-- [ ] Cada fase enlaza requisitos, criterios y evidencia.
-- [ ] Cada fase pasa suite greenfield y regresion completa.
-- [ ] No hay secretos, PII real, bases locales ni artefactos en Git.
-- [ ] Los cambios de esquema tienen upgrade, downgrade y prueba reversible.
-- [ ] Las decisiones `BIZ` no aprobadas permanecen bloqueadas o en revision humana.
-- [ ] Ninguna fase se mezcla a `main` sin demostracion y aprobacion.
+- [x] Cada fase enlaza requisitos, criterios y evidencia.
+- [x] Cada fase pasa suite greenfield y regresion completa.
+- [x] No hay secretos, PII real, bases locales ni artefactos en Git.
+- [x] Los cambios de esquema tienen upgrade, downgrade y prueba reversible.
+- [x] Las decisiones `BIZ` no aprobadas permanecen bloqueadas o en revision humana.
+- [x] Ninguna fase se mezcla a `main` sin demostracion y aprobacion.

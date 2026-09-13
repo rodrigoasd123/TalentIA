@@ -2,7 +2,31 @@
 
 Fecha de verificacion: 2026-09-13.
 
-Estado SDD: fase 7 implementada y en verificacion; no se declara `VERIFIED` global.
+Estado SDD: fase 8 implementada y en verificacion; no se declara `VERIFIED` global hasta recibir
+conformidad de RR. HH. y autorizacion de promocion.
+
+## Evidencia de fase 8 - decisiones, UAT y promocion
+
+- `decisiones-negocio-fase-8.md` registra `BIZ-001..010` como explicitamente fuera del alcance del
+  piloto. No asigna valores ni aprobaciones a TCS y conserva el comportamiento seguro ya probado.
+- `uat-fase-8.md` define diez recorridos con datos sinteticos para perfiles, postulaciones, CV,
+  evaluacion, revision, lotes, ex-TCS, exclusiones y recuperacion.
+- La ejecucion UAT tecnica aprobo 23 pruebas, con 2 advertencias, en 13,13 segundos y codigo 0. No
+  se encontraron incidencias tecnicas o funcionales en los escenarios ejecutados.
+- La conformidad humana de RR. HH. no se falsifica: queda pendiente de una persona designada por
+  TCS y es una condicion de la aceptacion global.
+- `checklist-despliegue-fase-8.md` cubre instalacion, secretos externos, respaldo, migracion, smoke,
+  rollback y condiciones de bloqueo.
+- `pull-request-fase-8.md` contiene titulo, resumen, evidencia, riesgos y limites para revisar la
+  comparacion `codex/rubrica-greenfield-talentia` hacia `main`.
+- `pytest -q tests/greenfield --basetemp=.pytest-tmp/fase8-greenfield -p no:cacheprovider`:
+  81 pruebas aprobadas, 2 advertencias, en 67,48 segundos.
+- `pytest -q --basetemp=.pytest-tmp/fase8-completa -p no:cacheprovider`: 391 pruebas aprobadas,
+  2 advertencias, en 89,80 segundos.
+- `ruff check`: aprobado; `ruff format --check`: 88 archivos conformes.
+- `mypy src/talentia`: 65 archivos sin observaciones.
+- `python scripts/check_repository.py`: 538 archivos revisados, repositorio seguro.
+- No se realizo merge ni modificacion de `main`.
 
 ## Evidencia de fase 7 - endurecimiento y aceptacion tecnica
 

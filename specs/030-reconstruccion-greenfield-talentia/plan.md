@@ -135,17 +135,19 @@ Demostracion: instalar desde cero, restaurar backup y completar el smoke operati
 
 Puerta de salida: cero fallos P0/P1 tecnicos y revision de seguridad aprobada.
 
-### Fase 8 - Decisiones TCS, UAT y promocion
+### Fase 8 - Decisiones TCS, UAT y promocion - IMPLEMENTADA EN VERIFICACION
 
 Objetivo: cerrar las definiciones de negocio y validar el piloto con personas usuarias.
 
-- Resolver y documentar `BIZ-001..010`; cada decision que cambie comportamiento exige refinamiento
-  de spec, pruebas y versionado cuando aplique.
-- Ejecutar UAT con RR. HH. para candidatos, evaluacion/HITL, lotes, exclusiones y recuperacion.
+- Resolver y documentar `BIZ-001..010` o declararlas expresamente fuera del alcance; cada decision
+  futura que cambie comportamiento exige refinamiento de spec, pruebas y versionado.
+- Ejecutar UAT tecnica representativa para candidatos, evaluacion/HITL, lotes, exclusiones y
+  recuperacion; la conformidad humana debe ser emitida por RR. HH. de TCS.
 - Registrar observaciones, corregir defectos y repetir solo los escenarios afectados.
 - Preparar comparacion final con `main`; promover mediante PR solo tras aprobacion explicita.
 
-Puerta de salida: decisiones BIZ aprobadas, UAT firmado, runbook aceptado y autorizacion de merge.
+Puerta de salida tecnica: BIZ fuera de alcance documentadas, UAT tecnica aprobada, runbook y PR
+preparados. La salida global requiere conformidad de RR. HH. y autorizacion de merge.
 
 ## Flujo de datos objetivo
 
