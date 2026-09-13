@@ -19,6 +19,15 @@ Consulta primero el [mapa funcional](./MAPA_FUNCIONAL.md), que define la spec pr
 - [`SPEC-018`](./018-base-general-candidatos/spec.md): Base general de candidatos y reporte de seguimiento (verificada).
 - [`SPEC-019`](./019-consolidacion-definitiva-talentia/spec.md): Consolidación definitiva, SQLite TalentIA y análisis documental integrado (verificada localmente).
 - [`SPEC-020`](./020-gestion-centralizada-candidatos/spec.md): Gestión centralizada y editable de candidatos (verificada localmente).
+- [`SPEC-021`](./021-evaluacion-criterios-no-excluyentes/spec.md): Criterios no excluyentes y penalización configurable (verificada localmente).
+- [`SPEC-022`](./022-integridad-operativa-postulaciones/spec.md): Integridad operativa, CV faltante y fuentes consistentes (verificada localmente).
+- [`SPEC-023`](./023-catalogo-proveedores-modelos/spec.md): Catálogo y credenciales aisladas por proveedor de IA (verificada localmente).
+- [`SPEC-024`](./024-observabilidad-mlflow-consumo-ia/spec.md): MLflow y consumo de IA sin contenido sensible (verificada localmente).
+- [`SPEC-025`](./025-benchmarking-gobernado-modelos/spec.md): Benchmark sintético, versionado y con quality gate (verificada localmente).
+- [`SPEC-026`](./026-deduplicacion-identidad-candidatos/spec.md): Preflight y deduplicación de identidad sin fusión automática (verificada localmente).
+- [`SPEC-027`](./027-precarga-ficha-desde-cv/spec.md): Precarga selectiva y confirmada desde CV (verificada localmente).
+- [`SPEC-028`](./028-control-proveedor-exclusiones/spec.md): Lista operativa de exclusiones de proveedor (verificada localmente).
+- [`SPEC-029`](./029-metricas-impacto-operativo-tcs/spec.md): Métricas verificables del piloto TCS (verificada localmente).
 
 ## Cambio pendiente de aprobación
 

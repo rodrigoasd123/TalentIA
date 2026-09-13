@@ -3,7 +3,7 @@
 ## Metadatos
 
 - **ID:** SPEC-021
-- **Estado:** VERIFICANDO
+- **Estado:** VERIFIED
 - **Fecha:** 2026-09-11
 - **Responsable de aprobación:** responsable de producto
 

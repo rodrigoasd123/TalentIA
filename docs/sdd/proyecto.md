@@ -1,6 +1,23 @@
 # Contexto del proyecto — TalentIA
 
 > Estado: contexto inicial observado el 2026-08-20. Los campos marcados como `POR CONFIRMAR` no se deducen de forma fiable del repositorio.
+## Actualización operativa TCS — SPEC-023 a SPEC-029 (2026-09-12)
+
+- **Problema objetivo:** TalentIA prioriza las 10 horas semanales repetitivas descritas por TCS: gestión histórica y cruce con proveedor. Las 15 horas de búsqueda/contacto en LinkedIn conservan juicio y ejecución humana; no se añadió scraping ni contacto automático.
+- **Identidad antes del CV:** Postulaciones ofrece preflight por documento, correo, teléfono y nombre normalizado, muestra procesos anteriores y solo alerta; nunca fusiona personas automáticamente.
+- **Lectura del CV:** la extracción estructurada persiste con el documento y Candidate 360 permite revisar, corregir y confirmar únicamente conocimiento técnico y disponibilidad, con versión y auditoría.
+- **Filtro temprano:** se conserva la evaluación explicable, ponderada y con revisión humana. La IA no decide contratación.
+- **Trazabilidad:** la auditoría encadenada y las trazas exportables permanecen como fuente de explicación de cada cambio.
+- **Proveedor:** Reportes expone una lista determinística de exclusiones con vigencia y CSV neutralizado para Excel.
+- **Medición:** Reportes muestra CV útiles, evaluaciones tempranas, duplicados advertidos y horas potenciales con parámetros visibles. Son indicadores del piloto, no ROI ni ahorro validado.
+- **Modelos:** catálogo único para Gemini, GenAI Lab y OpenAI; cada proveedor usa una credencial cifrada independiente. El benchmark usa una suite sintética versionada, máximo cinco modelos, confirmación explícita y quality gate contra baseline.
+- **Privacidad MLflow:** no se habilita autologging de prompts/respuestas. Solo se registran metadatos técnicos; Streamlit consulta la API y no abre SQLite directamente.
+- **Evidencia local:** instalación editable reproducible, migraciones completas, identidad visual, compilación y 310 pruebas aprobadas.
+
+La línea base inmediatamente anterior queda trazada por SPEC-021 (criterios ponderados sin
+descarte automático) y SPEC-022 (integridad de CV, cola humana, filtros y fuente Adecco). Ambas
+se verificaron nuevamente junto con esta actualización.
+
 ## Actualización consolidada — SPEC-004 (2026-09-10)
 
 Esta sección prevalece sobre las descripciones iniciales que entren en conflicto con ella.

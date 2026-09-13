@@ -20,6 +20,15 @@ Este mapa distribuye la línea base consolidada por capacidad sin modificar el a
 | Base general de candidatos y seguimiento | SPEC-018 | Ampliación aprobada por el usuario |
 | Consolidación de identidad, SQLite y análisis documental | SPEC-019 | Consolidación aprobada por el usuario |
 | Gestión centralizada y editable de candidatos | SPEC-020 | Refinamiento aprobado de SPEC-018 |
+| Criterios no excluyentes y penalización configurable | SPEC-021 | Evaluación explicable y revisión humana |
+| Integridad operativa de postulaciones | SPEC-022 | CV faltante, filtros, fuentes y cola humana |
+| Proveedores y modelos de IA | SPEC-023 | Funcionalidad añadida sin spec en cambios recientes |
+| Observabilidad MLflow y consumo IA | SPEC-024 | Funcionalidad añadida sin spec en cambios recientes |
+| Benchmarking gobernado de modelos | SPEC-025 | Funcionalidad añadida sin spec en cambios recientes |
+| Deduplicación e historial de identidad | SPEC-026 | Agente 1 del documento operativo TCS |
+| Precarga de ficha desde CV | SPEC-027 | Agente 2 del documento operativo TCS |
+| Exclusiones para proveedor/Adecco | SPEC-028 | Agente 5 del documento operativo TCS |
+| Métricas de impacto operativo | SPEC-029 | Validación del piloto descrito por TCS |
 
 ## Reglas de mantenimiento
 

@@ -1,10 +1,10 @@
 ---
 id: SPEC-022
 titulo: Integridad operativa de postulaciones
-estado: VERIFICANDO
+estado: VERIFIED
 responsable_producto: Rodrigo
 creado: 2026-09-11
-actualizado: 2026-09-11
+actualizado: 2026-09-12
 ---
 
 # SPEC-022 — Integridad operativa de postulaciones
