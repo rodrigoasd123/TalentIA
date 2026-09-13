@@ -68,6 +68,20 @@ ajenos:
 .\scripts\start_lab.ps1
 ```
 
+### Benchmark sintetico greenfield
+
+Con el entorno activado, ejecute:
+
+```powershell
+python scripts/ejecutar_benchmark_greenfield.py
+```
+
+La corrida compara AG-02, AG-03 y el flujo combinado sobre
+`tests/golden/corpus_cv_anonimizado.json`. Registra en MLflow solo version de configuracion, hash del
+dataset y metricas agregadas; no activa autologging ni envia CV, prompts, secretos o PII. Para
+comparar corridas, abra el panel MLflow iniciado por `scripts/start_lab.ps1` y seleccione el
+experimento `talentia-greenfield`.
+
 ## Configuración
 
 Las variables oficiales usan el prefijo `TALENTIA_`. Consulta `.env.example`.

@@ -113,17 +113,17 @@
 
 ## Fase 6 - Observabilidad, metricas y MLflow
 
-- [ ] **T-030-F6-001 - Persistir telemetria correlacionada y sanitizada**
+- [x] **T-030-F6-001 - Persistir telemetria correlacionada y sanitizada**
   - Cubre: FR-030-005, SEC-030-001, AC-030-005
   - Archivos: servicio/repositorio y posible migracion Alembic nueva
   - Verificacion: request-job-nodo-evaluacion reconstruible sin PII
   - Dependencias: fases 2 y 5
-- [ ] **T-030-F6-002 - Calcular metricas y percentiles desde eventos reales**
+- [x] **T-030-F6-002 - Calcular metricas y percentiles desde eventos reales**
   - Cubre: FR-030-003, AC-030-003
   - Archivos: casos de uso y panel de metricas
   - Verificacion: exactitud p50/p95, vacio y filtros
   - Dependencias: T-030-F6-001, BIZ-006 solo para metrica CV util
-- [ ] **T-030-F6-003 - Integrar benchmark greenfield con MLflow**
+- [x] **T-030-F6-003 - Integrar benchmark greenfield con MLflow**
   - Cubre: FR-030-004, NFR-030-002, AC-030-004
   - Archivos: scripts y pruebas de benchmark nuevos bajo `scripts` y `tests/greenfield`
   - Verificacion: corrida reproducible con corpus sintetico y proveedor opcional

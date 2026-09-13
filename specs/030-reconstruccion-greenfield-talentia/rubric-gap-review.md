@@ -21,8 +21,8 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`e5c924b`)
 | Autenticacion, RBAC y alcance | Cumple | JWT/cookie firmada, CSRF web, roles, clientes y autoampliacion denegada | Aceptacion de usuarios del piloto |
 | Base general de candidatos | Cumple | Preflight, 18 campos, busqueda, versionado optimista, traza | Definir `BIZ-004`, `BIZ-008..010` |
 | CV y almacenamiento privado | Parcial | Firma/tamano, hash, ruta privada, escritura atomica, PDF/DOCX local, PII sanitizada, sugerencias con fuente y fallback OCR manual; worker conectado | Elegir motor OCR si TCS lo requiere y definir `BIZ-007` |
-| Cinco agentes definidos | Cumple en backend | AG-01/04/05 deterministas; AG-02 y AG-03 separados y conectados al worker con evidencia | Completar UAT y benchmark gobernado |
-| LangGraph y recuperacion | Cumple en backend | Diez nodos reales, estado seguro, checkpoint unico por nodo, correlacion, lease, timeout, reintento y reinicio probado sin duplicados | Telemetria persistente de fase 6 y aceptacion operativa |
+| Cinco agentes definidos | Cumple en backend | AG-01/04/05 deterministas; AG-02 y AG-03 separados, conectados al worker y comparados con corpus sintetico en MLflow | Completar UAT |
+| LangGraph y recuperacion | Cumple en backend | Diez nodos reales, estado seguro, checkpoint y telemetria por nodo, correlacion, lease, timeout, reintento y reinicio sin duplicados | Aceptacion operativa |
 | Evaluacion con evidencia | Cumple | AG-03 persiste valoracion por requisito y la web muestra evidencia minima navegable, fuente y fallback humano | UAT con usuarios del piloto |
 | Revision humana | Cumple | Fallback fail-closed, evidencia navegable, formulario aceptar/corregir/rechazar, justificacion, correcciones, CSRF/RBAC/IDOR y decision/auditoria atomicas | UAT con usuarios del piloto |
 | Interfaz Jinja2/HTMX | Cumple fase 5 | Login, candidatos, perfiles/versiones, postulaciones, CV/evaluacion, HITL, trabajos, lotes, ex-TCS y exclusiones con recorridos web | UAT de fase 8 |
@@ -30,14 +30,13 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`e5c924b`)
 | Exclusiones y descargas | Cumple fase 5 | AG-05 determinista, filtros y hash persistidos, CSV minimo, integridad, RBAC, IDOR y auditoria de crear/cambiar/consultar/descargar | Definir `BIZ-001` para producir vigencias reales |
 | Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
 | Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas, lotes y descargas sensibles auditados; correlacion conservada | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
-| Metricas y observabilidad | Parcial | Metricas basicas, scripts de laboratorio y MLflow historico | Persistir eventos de piloto, panel de baseline y benchmark greenfield |
-| Calidad y regresion | Cumple fase 5 | 74 greenfield y 384 totales; E2E, validacion, rollback, RBAC, IDOR e idempotencia; Ruff, formato, mypy y escaner aprobados | Resolver advertencias al actualizar dependencias |
+| Metricas y observabilidad | Cumple fase 6 | Telemetria sanitizada correlacionada, tasas y percentiles reales, filtros protegidos y benchmark AG-02/03 reproducible en MLflow | `BIZ-006/007` y aceptacion del piloto |
+| Calidad y regresion | Cumple fase 6 | 78 greenfield y 388 totales; Ruff, formato, mypy y escaner aprobados | Resolver advertencias al actualizar dependencias |
 
 ## Orden de cierre recomendado
 
-1. Persistir metricas de piloto y ejecutar benchmark greenfield con MLflow.
-2. Completar endurecimiento y aceptacion tecnica.
-3. Ejecutar decisiones de negocio y UAT con aprobacion expresa.
+1. Completar endurecimiento y aceptacion tecnica.
+2. Ejecutar decisiones de negocio y UAT con aprobacion expresa.
 
 ## Decisiones que permanecen cerradas
 

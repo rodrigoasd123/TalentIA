@@ -20,6 +20,7 @@ from talentia.shared.infrastructure.modelos_orm import (
     EvaluacionModelo,
     EvaluacionRequisitoModelo,
     EventoAuditoriaModelo,
+    EventoMetricaPilotoModelo,
     ExtraccionDocumentoModelo,
     RevisionHumanaModelo,
     SugerenciaCampoModelo,
@@ -194,6 +195,22 @@ def test_workflow_real_persiste_evidencia_y_checkpoint_por_nodo(cliente_api) -> 
         )
         assert evidencia_python[0]["fragmento"].casefold() == "python"
         assert all("texto_original" not in item.estado for item in checkpoints)
+        telemetria = sesion.scalars(
+            select(EventoMetricaPilotoModelo).where(
+                EventoMetricaPilotoModelo.cliente_id == trabajo.cliente_id
+            )
+        ).all()
+        nombres = {evento.nombre for evento in telemetria}
+        assert {"trabajo.creado", "workflow.nodo.duracion_ms", "trabajo.duracion_ms"} <= nombres
+        assert all(
+            evento.dimensiones.get("correlacion_id") == "corr-workflow-001" for evento in telemetria
+        )
+        auditoria = sesion.scalars(
+            select(EventoAuditoriaModelo).where(
+                EventoAuditoriaModelo.correlacion_id == "corr-workflow-001"
+            )
+        ).all()
+        assert {"trabajo.creado", "evaluacion.creada"} <= {evento.accion for evento in auditoria}
 
 
 def test_reinicio_continua_sin_duplicar_efectos(cliente_api) -> None:

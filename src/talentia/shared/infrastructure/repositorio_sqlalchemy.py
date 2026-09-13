@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import TracebackType
@@ -21,6 +22,7 @@ from talentia.modules.candidates.domain.modelos import (
     normalizar_documento,
     tokens_nombre,
 )
+from talentia.platform.observabilidad.telemetria import registrar_metrica as persistir_metrica
 from talentia.shared.application.errores import ConflictoError, EntradaInvalidaError
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.modelos_orm import (
@@ -34,6 +36,7 @@ from talentia.shared.infrastructure.modelos_orm import (
     EvaluacionRequisitoModelo,
     EventoAuditoriaModelo,
     EventoCandidatoModelo,
+    EventoMetricaPilotoModelo,
     ExcolaboradorModelo,
     ExtraccionDocumentoModelo,
     FilaImportacionModelo,
@@ -108,6 +111,14 @@ def _candidato_a_modelo(candidato: Candidato) -> CandidatoModelo:
         creado_en=candidato.creado_en,
         actualizado_en=candidato.actualizado_en,
     )
+
+
+def _percentil(valores: list[float], percentil: float) -> float | None:
+    if not valores:
+        return None
+    ordenados = sorted(valores)
+    indice = max(0, math.ceil(percentil * len(ordenados)) - 1)
+    return ordenados[indice]
 
 
 class RepositorioSqlalchemy:
@@ -780,16 +791,63 @@ class RepositorioSqlalchemy:
             "version": version + 1,
         }
 
-    def metricas(self, clientes: frozenset[str]) -> dict[str, object]:
-        filtro = CandidatoModelo.cliente_id.in_(clientes) if clientes else true()
+    def metricas(
+        self,
+        clientes: frozenset[str],
+        desde: datetime | None = None,
+        hasta: datetime | None = None,
+    ) -> dict[str, object]:
+        filtro: Any = CandidatoModelo.cliente_id.in_(clientes) if clientes else true()
+        if desde is not None:
+            filtro = filtro & (CandidatoModelo.creado_en >= desde)
+        if hasta is not None:
+            filtro = filtro & (CandidatoModelo.creado_en <= hasta)
         candidatos = (
             self.sesion.scalar(select(func.count()).select_from(CandidatoModelo).where(filtro)) or 0
         )
+        filtro_postulaciones: Any = (
+            PostulacionModelo.cliente_id.in_(clientes) if clientes else true()
+        )
+        filtro_trabajos: Any = TrabajoAgenteModelo.cliente_id.in_(clientes) if clientes else true()
+        filtro_evaluaciones: Any = EvaluacionModelo.cliente_id.in_(clientes) if clientes else true()
+        filtro_metricas: Any = (
+            EventoMetricaPilotoModelo.cliente_id.in_(clientes) if clientes else true()
+        )
+        if desde is not None:
+            filtro_postulaciones &= PostulacionModelo.creado_en >= desde
+            filtro_trabajos &= TrabajoAgenteModelo.creado_en >= desde
+            filtro_evaluaciones &= EvaluacionModelo.creado_en >= desde
+            filtro_metricas &= EventoMetricaPilotoModelo.ocurrido_en >= desde
+        if hasta is not None:
+            filtro_postulaciones &= PostulacionModelo.creado_en <= hasta
+            filtro_trabajos &= TrabajoAgenteModelo.creado_en <= hasta
+            filtro_evaluaciones &= EvaluacionModelo.creado_en <= hasta
+            filtro_metricas &= EventoMetricaPilotoModelo.ocurrido_en <= hasta
         postulaciones = (
             self.sesion.scalar(
+                select(func.count()).select_from(PostulacionModelo).where(filtro_postulaciones)
+            )
+            or 0
+        )
+        trabajos_total = (
+            self.sesion.scalar(
+                select(func.count()).select_from(TrabajoAgenteModelo).where(filtro_trabajos)
+            )
+            or 0
+        )
+        trabajos_completados = (
+            self.sesion.scalar(
                 select(func.count())
-                .select_from(PostulacionModelo)
-                .where(PostulacionModelo.cliente_id.in_(clientes) if clientes else true())
+                .select_from(TrabajoAgenteModelo)
+                .where(filtro_trabajos, TrabajoAgenteModelo.estado == "completado")
+            )
+            or 0
+        )
+        trabajos_fallidos = (
+            self.sesion.scalar(
+                select(func.count())
+                .select_from(TrabajoAgenteModelo)
+                .where(filtro_trabajos, TrabajoAgenteModelo.estado == "fallido")
             )
             or 0
         )
@@ -798,19 +856,80 @@ class RepositorioSqlalchemy:
                 select(func.count())
                 .select_from(TrabajoAgenteModelo)
                 .where(
+                    filtro_trabajos,
                     TrabajoAgenteModelo.estado.in_(["pendiente", "reservado"]),
-                    TrabajoAgenteModelo.cliente_id.in_(clientes) if clientes else true(),
                 )
             )
             or 0
         )
+        revisiones = (
+            self.sesion.scalar(
+                select(func.count())
+                .select_from(EvaluacionModelo)
+                .where(filtro_evaluaciones, EvaluacionModelo.requiere_revision.is_(True))
+            )
+            or 0
+        )
+        evaluaciones = (
+            self.sesion.scalar(
+                select(func.count()).select_from(EvaluacionModelo).where(filtro_evaluaciones)
+            )
+            or 0
+        )
+        reintentos = (
+            self.sesion.scalar(
+                select(func.sum(func.max(TrabajoAgenteModelo.intentos - 1, 0))).where(
+                    filtro_trabajos
+                )
+            )
+            or 0
+        )
+        duraciones = [
+            float(valor)
+            for valor in self.sesion.scalars(
+                select(EventoMetricaPilotoModelo.valor).where(
+                    filtro_metricas,
+                    EventoMetricaPilotoModelo.nombre == "trabajo.duracion_ms",
+                )
+            )
+        ]
         return {
             "candidatos": candidatos,
             "postulaciones": postulaciones,
+            "trabajos_total": trabajos_total,
+            "trabajos_completados": trabajos_completados,
+            "trabajos_fallidos": trabajos_fallidos,
             "trabajos_pendientes": trabajos_pendientes,
-            "muestra_suficiente": postulaciones >= 20,
-            "ahorro_validado": False,
+            "tasa_exito": round(trabajos_completados / trabajos_total, 4)
+            if trabajos_total
+            else 0.0,
+            "tasa_error": round(trabajos_fallidos / trabajos_total, 4) if trabajos_total else 0.0,
+            "tasa_revision_humana": round(revisiones / evaluaciones, 4) if evaluaciones else 0.0,
+            "reintentos": int(reintentos),
+            "duracion_ms_p50": _percentil(duraciones, 0.50),
+            "duracion_ms_p95": _percentil(duraciones, 0.95),
+            "cv_util": None,
+            "cv_util_estado": "bloqueado_BIZ_006",
         }
+
+    def registrar_metrica(
+        self,
+        cliente_id: str,
+        nombre: str,
+        valor: int | float | Decimal,
+        unidad: str,
+        dimensiones: dict[str, object],
+        clave_idempotencia: str | None = None,
+    ) -> None:
+        persistir_metrica(
+            self.sesion,
+            cliente_id=cliente_id,
+            nombre=nombre,
+            valor=valor,
+            unidad=unidad,
+            dimensiones=dimensiones,
+            clave_idempotencia=clave_idempotencia,
+        )
 
     def listar_panel_operativo(
         self, modulo: str, clientes: frozenset[str], limite: int

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
+from datetime import datetime
+from decimal import Decimal
 from typing import Protocol
 
 from talentia.modules.candidates.domain.modelos import Candidato
@@ -106,7 +108,22 @@ class DatosTalentIA(Protocol):
         correcciones: list[dict[str, object]],
     ) -> dict[str, object]: ...
 
-    def metricas(self, clientes: frozenset[str]) -> dict[str, object]: ...
+    def metricas(
+        self,
+        clientes: frozenset[str],
+        desde: datetime | None = None,
+        hasta: datetime | None = None,
+    ) -> dict[str, object]: ...
+
+    def registrar_metrica(
+        self,
+        cliente_id: str,
+        nombre: str,
+        valor: int | float | Decimal,
+        unidad: str,
+        dimensiones: dict[str, object],
+        clave_idempotencia: str | None = None,
+    ) -> None: ...
 
     def crear_lote(
         self, datos: dict[str, object], filas: list[dict[str, object]]

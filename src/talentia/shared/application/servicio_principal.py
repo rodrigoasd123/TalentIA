@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Protocol, cast
 
@@ -738,7 +738,7 @@ class ServicioTalentIA:
                 raise EntradaInvalidaError(
                     "La postulacion, el CV y la version del perfil no forman un contexto valido"
                 )
-            return unidad.datos.crear_trabajo(
+            trabajo = unidad.datos.crear_trabajo(
                 {
                     "cliente_id": cliente_id,
                     "tipo": "evaluacion",
@@ -753,6 +753,29 @@ class ServicioTalentIA:
                     "clave_idempotencia": clave,
                 }
             )
+            if not trabajo.get("reutilizado"):
+                unidad.datos.registrar_evento(
+                    cliente_id=cliente_id,
+                    actor_id=usuario.id,
+                    accion="trabajo.creado",
+                    recurso_tipo="trabajo",
+                    recurso_id=str(trabajo["id"]),
+                    detalle={"tipo": "evaluacion"},
+                    correlacion_id=correlacion_id,
+                )
+                unidad.datos.registrar_metrica(
+                    cliente_id,
+                    "trabajo.creado",
+                    1,
+                    "evento",
+                    {
+                        "trabajo_id": str(trabajo["id"]),
+                        "correlacion_id": correlacion_id,
+                        "estado": "pendiente",
+                    },
+                    f"trabajo.creado:{trabajo['id']}",
+                )
+            return trabajo
 
     def obtener_trabajo(self, usuario: UsuarioActual, trabajo_id: str) -> dict[str, object]:
         _exigir_permiso(usuario, "candidatos:leer")
@@ -819,14 +842,38 @@ class ServicioTalentIA:
                 },
                 correlacion_id=correlacion_id,
             )
+            unidad.datos.registrar_metrica(
+                cliente_id,
+                "revision.resuelta",
+                1,
+                "evento",
+                {
+                    "evaluacion_id": evaluacion_id,
+                    "revision_id": str(revision["id"]),
+                    "correlacion_id": correlacion_id,
+                    "resultado": decision,
+                },
+                f"revision.resuelta:{revision['id']}",
+            )
             return revision
 
-    def obtener_metricas(self, usuario: UsuarioActual) -> dict[str, object]:
+    def obtener_metricas(
+        self,
+        usuario: UsuarioActual,
+        desde: datetime | None = None,
+        hasta: datetime | None = None,
+        cliente_id: str | None = None,
+    ) -> dict[str, object]:
         _exigir_permiso(usuario, "reportes:leer")
+        if desde and hasta and desde > hasta:
+            raise EntradaInvalidaError("El rango temporal no es valido")
+        if cliente_id:
+            _exigir_cliente(usuario, cliente_id)
+            alcance = frozenset({cliente_id})
+        else:
+            alcance = usuario.clientes if "administrador" not in usuario.roles else frozenset()
         with self._fabrica() as unidad:
-            return unidad.datos.metricas(
-                usuario.clientes if "administrador" not in usuario.roles else frozenset()
-            )
+            return unidad.datos.metricas(alcance, desde, hasta)
 
     def obtener_panel_operativo(self, usuario: UsuarioActual, modulo: str) -> dict[str, object]:
         permisos = {

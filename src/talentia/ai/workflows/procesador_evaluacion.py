@@ -12,6 +12,7 @@ from sqlalchemy.engine import CursorResult
 from talentia.ai.workflows.estado import EstadoEvaluacion, estado_persistible
 from talentia.ai.workflows.evaluation_graph import NODOS, construir_grafo
 from talentia.ai.workflows.nodos_evaluacion import ContextoNodosEvaluacion, ExtractorDocumento
+from talentia.platform.observabilidad.telemetria import registrar_metrica
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.base_datos import FabricaSesiones
 from talentia.shared.infrastructure.modelos_orm import (
@@ -118,6 +119,21 @@ class ProcesadorEvaluacion:
                             estado=datos,
                             secuencia=100 + NODOS.index(nombre),
                         )
+                    )
+                    registrar_metrica(
+                        sesion,
+                        cliente_id=str(actual["cliente_id"]),
+                        nombre="workflow.nodo.duracion_ms",
+                        valor=round((time.monotonic() - inicio) * 1000, 3),
+                        unidad="ms",
+                        dimensiones={
+                            "trabajo_id": trabajo_id,
+                            "correlacion_id": correlacion_id,
+                            "nodo": nombre,
+                            "estado": "completado",
+                            "error": actual.get("error"),
+                        },
+                        clave_idempotencia=f"workflow.nodo:{trabajo_id}:{nombre}",
                     )
                 renovado = sesion.execute(
                     update(TrabajoAgenteModelo)

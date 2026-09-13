@@ -1,9 +1,10 @@
 # SPEC-030 - Reconstruccion greenfield de TalentIA
 
 - **Estado:** VERIFICANDO
-- **Fase activa:** Fase 5 - Lotes, ex-TCS y exclusiones
+- **Fase activa:** Fase 6 - Observabilidad, metricas y MLflow
 - **Inicio de fase:** 2026-09-13
 - **Fase 4 aprobada y fase 5 autorizada:** 2026-09-13
+- **Fase 5 aprobada y fases restantes autorizadas:** 2026-09-13
 - **Fuente ejecutable:** `IMPLEMENTATION_SPEC.md`
 - **Metodo:** Spec-Driven Development
 

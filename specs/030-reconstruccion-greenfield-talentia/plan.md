@@ -106,7 +106,7 @@ Demostracion: cargar un CSV sintetico, corregir errores, confirmar una vez y des
 
 Puerta de salida: integracion, idempotencia, rollback transaccional, seguridad y E2E aprobados.
 
-### Fase 6 - Observabilidad, metricas y MLflow
+### Fase 6 - Observabilidad, metricas y MLflow - IMPLEMENTADA EN VERIFICACION
 
 Objetivo: medir el piloto con eventos reales sin convertir estimaciones en resultados.
 

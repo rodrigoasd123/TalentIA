@@ -13,6 +13,7 @@ from talentia.ai.workflows.procesador_evaluacion import ProcesadorEvaluacion
 from talentia.bootstrap import migrar
 from talentia.config import cargar_configuracion
 from talentia.modules.documents.infrastructure.extractores import extraer_documento
+from talentia.platform.observabilidad.telemetria import clasificar_error, registrar_metrica
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.base_datos import FabricaSesiones, crear_motor
 from talentia.shared.infrastructure.modelos_orm import TrabajoAgenteModelo
@@ -26,6 +27,7 @@ def procesar_siguiente(
 ) -> str | None:
     ahora = datetime.now(UTC)
     sesion = fabrica.nueva()
+    inicio_proceso = time.monotonic()
     try:
         sesion.execute(
             update(TrabajoAgenteModelo)
@@ -122,6 +124,21 @@ def procesar_siguiente(
                     lease_expira_en=None,
                 )
             )
+            registrar_metrica(
+                sesion,
+                cliente_id=str(carga["cliente_id"]),
+                nombre="trabajo.duracion_ms",
+                valor=round((time.monotonic() - inicio_proceso) * 1000, 3),
+                unidad="ms",
+                dimensiones={
+                    "trabajo_id": trabajo_id,
+                    "correlacion_id": correlacion_id,
+                    "estado": estado,
+                    "error": clasificar_error(error),
+                    "intento": intento,
+                },
+                clave_idempotencia=f"trabajo.duracion:{trabajo_id}:{intento}",
+            )
             sesion.commit()
         finally:
             sesion.close()
@@ -143,6 +160,21 @@ def procesar_siguiente(
                 lease_token=None,
                 lease_expira_en=None,
             )
+        )
+        registrar_metrica(
+            sesion,
+            cliente_id=str(carga["cliente_id"]),
+            nombre="trabajo.duracion_ms",
+            valor=round((time.monotonic() - inicio_proceso) * 1000, 3),
+            unidad="ms",
+            dimensiones={
+                "trabajo_id": trabajo_id,
+                "correlacion_id": correlacion_id,
+                "estado": "completado",
+                "intento": intento,
+                "resultado": str(resultado.get("estado", "completado")),
+            },
+            clave_idempotencia=f"trabajo.duracion:{trabajo_id}:{intento}",
         )
         sesion.commit()
     finally:

@@ -18,8 +18,14 @@ Detener API y worker. Ejecutar `scripts/backup.ps1`. Para comprobar una recupera
 `scripts/restore.ps1 -Origen <respaldo>`; nunca sobrescribe una base existente. Configure
 `TALENTIA_GREENFIELD_DATABASE_URL` con la copia restaurada y ejecute migraciones.
 
+## Telemetria y retencion
+
+TalentIA conserva eventos tecnicos sanitizados con correlacion, duracion, estado, intento y codigo de
+error. No se persisten textos de CV, secretos ni identificadores personales en telemetria. La
+eliminacion automatica permanece deshabilitada hasta que TCS resuelva `BIZ-007`; no debe aplicarse una
+ventana de retencion inferida.
+
 ## Limites
 
 Piloto local, datos ficticios y un unico equipo. No desplegar como servicio compartido hasta
 aprobar identidad, retencion, BGC/Equifax, responsables de seguridad, privacidad y publicacion.
-

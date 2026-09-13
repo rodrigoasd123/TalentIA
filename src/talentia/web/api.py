@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, File, Form, Header, Request, UploadFile
@@ -340,8 +341,14 @@ def registrar_revision(
 
 
 @router.get("/metrics/pilot")
-def metricas_piloto(usuario: UsuarioDep, servicio_actual: ServicioDep) -> dict[str, object]:
-    return servicio_actual.obtener_metricas(usuario)
+def metricas_piloto(
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    desde: datetime | None = None,
+    hasta: datetime | None = None,
+    cliente_id: str | None = None,
+) -> dict[str, object]:
+    return servicio_actual.obtener_metricas(usuario, desde, hasta, cliente_id)
 
 
 @router.post("/import-batches", status_code=201)

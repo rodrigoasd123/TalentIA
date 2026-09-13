@@ -2,7 +2,35 @@
 
 Fecha de verificacion: 2026-09-13.
 
-Estado SDD: fase 5 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 6.
+Estado SDD: fase 6 implementada y en verificacion; no se declara `VERIFIED` global.
+
+## Evidencia de fase 6 - observabilidad, metricas y MLflow
+
+- La solicitud de evaluacion registra `trabajo.creado` con el mismo identificador de correlacion que
+  conserva el trabajo, los checkpoints, la evaluacion y su auditoria.
+- Cada nodo nuevo persiste una metrica idempotente con trabajo, correlacion, nombre, estado y tiempo
+  acumulado. Cada intento del worker registra duracion, resultado o clase segura de error.
+- La lista blanca de telemetria descarta atributos desconocidos y sustituye correos, documentos
+  numericos extensos y tokens Bearer. No se guardan textos de CV ni mensajes de excepcion.
+- `/api/v1/metrics/pilot` calcula conteos, tasas de exito/error/revision, reintentos y p50/p95 desde
+  trabajos, evaluaciones y eventos persistidos. Admite rango temporal y cliente con RBAC/IDOR; el
+  conjunto vacio devuelve tasas cero y percentiles nulos.
+- La metrica de CV util queda nula como `bloqueado_BIZ_006`. La retencion automatica permanece
+  deshabilitada y documentada hasta resolver `BIZ-007`.
+- `scripts/ejecutar_benchmark_greenfield.py` ejecuta AG-02, AG-03 y el flujo combinado sobre 20 CV
+  sinteticos, sin proveedor remoto. La corrida verificada registro AG-02 `1,0`, AG-03 `0,95`, hash de
+  dataset, configuracion `greenfield-v1` y artefacto agregado en MLflow SQLite.
+- Una prueba con prompt injection confirma que el proveedor doble recibe cero llamadas. No se
+  incorporo LangSmith ni autologging de contenido.
+- `pytest -q tests/greenfield/test_fase_6_observabilidad.py tests/greenfield/test_workflow_restart.py`:
+  11 pruebas aprobadas, 2 advertencias.
+- `pytest -q tests/greenfield`: 78 pruebas aprobadas, 2 advertencias, en 65,25 segundos.
+- `pytest -q`: 388 pruebas aprobadas, 2 advertencias, en 98,34 segundos.
+- `ruff check`: aprobado; `ruff format --check`: 85 archivos conformes.
+- `mypy src/talentia`: 63 archivos sin observaciones.
+- `python scripts/check_repository.py`: 529 archivos revisados, repositorio seguro.
+- No fue necesaria una migracion: `pilot_metric_events`, correlacion de trabajos y checkpoints ya
+  existian en el esquema greenfield aprobado.
 
 ## Evidencia de fase 5 - lotes, ex-TCS y exclusiones
 
