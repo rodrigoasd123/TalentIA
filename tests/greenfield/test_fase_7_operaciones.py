@@ -23,7 +23,8 @@ def _configuracion_alembic(base: Path) -> Config:
     return configuracion
 
 
-def test_migraciones_son_reversibles_revision_por_revision(tmp_path) -> None:
+def test_migraciones_son_reversibles_revision_por_revision(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("TALENTIA_GREENFIELD_DATABASE_URL", raising=False)
     base = tmp_path / "migraciones.db"
     configuracion = _configuracion_alembic(base)
     command.upgrade(configuracion, "0001_greenfield")

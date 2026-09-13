@@ -13,13 +13,14 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from api_client import ApiError  # noqa: E402
-from talentia import design, session  # noqa: E402
 from talentia.formatters import (  # noqa: E402
     import_status,
     row_classification,
     short_id,
     tone_for_status,
 )
+
+from talentia import design, session  # noqa: E402
 
 MAX_IMPORT_BYTES = 20 * 1024 * 1024
 

@@ -5,6 +5,31 @@ Fecha de verificacion: 2026-09-13.
 Estado SDD: fase 8 implementada y en verificacion; no se declara `VERIFIED` global hasta recibir
 conformidad de RR. HH. y autorizacion de promocion.
 
+## Cierre tecnico posterior a la fase 8
+
+- Se reprodujeron los dos fallos unicos que aparecian duplicados en los cuatro checks del PR 2.
+- El workflow historico fallaba por el orden de imports en `ats_frontend/views/imports.py`; el
+  bloque quedo ordenado sin cambiar comportamiento.
+- El workflow greenfield heredaba `TALENTIA_GREENFIELD_DATABASE_URL` y desviaba la prueba reversible
+  hacia la base global de CI. La prueba elimina esa variable antes de crear su SQLite temporal.
+- La prueba de migraciones aprobo incluso iniciando el proceso con la misma variable usada por CI.
+- La regresion local final aprobo 391 pruebas y 2 advertencias conocidas.
+- Ruff, formato, mypy, migraciones de ambos esquemas, identidad y escaner aprobaron localmente.
+- GitHub Actions debe confirmar estas correcciones sobre el commit publicado antes del merge.
+
+## Matriz final por criterio de aceptacion
+
+| Criterio | Evidencia principal | Resultado tecnico |
+|---|---|---|
+| AC-030-001 | instalacion limpia, smoke y suite sin proveedor | APROBADO |
+| AC-030-002 | autenticacion, RBAC, CSRF, alcance e IDOR | APROBADO |
+| AC-030-003 | flujos P0, persistencia, versionado y auditoria | APROBADO |
+| AC-030-004 | AG-01..05, evidencia, fallback y corpus sintetico | APROBADO |
+| AC-030-005 | lease, checkpoints, reinicio, timeout e idempotencia | APROBADO |
+| AC-030-006 | prueba de arquitectura, Ruff y mypy | APROBADO |
+| AC-030-007 | migraciones reversibles, backup y restore | APROBADO |
+| AC-030-008 | BIZ-001..010 fuera de alcance y fallo cerrado | APROBADO PARA EL PILOTO |
+
 ## Evidencia de fase 8 - decisiones, UAT y promocion
 
 - `decisiones-negocio-fase-8.md` registra `BIZ-001..010` como explicitamente fuera del alcance del
@@ -224,10 +249,10 @@ conformidad de RR. HH. y autorizacion de promocion.
 - `ruff format --check src/talentia migrations_greenfield tests/greenfield`: aprobado.
 - `python scripts/check_repository.py`: 507 archivos revisados, repositorio seguro.
 
-## Evidencia aprobada
+## Evidencia historica conservada de la fase 1
 
-- `pytest -q tests/greenfield`: 44 pruebas aprobadas.
-- `pytest -q`: 359 pruebas aprobadas; suite historica y greenfield compatibles.
+- En el cierre de la fase 1, `pytest -q tests/greenfield` aprobo 44 pruebas.
+- En el cierre de la fase 1, `pytest -q` aprobo 359 pruebas.
 - `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
 - `ruff format --check src/talentia migrations_greenfield tests/greenfield`: aprobado.
 - `mypy src/talentia`: 58 archivos sin observaciones.
@@ -253,11 +278,12 @@ conformidad de RR. HH. y autorizacion de promocion.
   (`Starlette/AnyIO` y serializador de checkpoint de LangGraph), sin fallos funcionales actuales.
 - AG-02 y AG-03 ya se ejecutan desde el worker. En esta fase ambos adaptadores son locales y
   deterministas; la seleccion o evaluacion de un proveedor LLM permanece fuera del recorrido.
-- El mapeo/correccion de lotes, flujo ex-TCS y descargas de exclusion permanecen para la fase 5; no
-  se adelantaron ni se resolvieron decisiones BIZ.
+- El mapeo/correccion de lotes, flujo ex-TCS y descargas de exclusion quedaron implementados en la
+  fase 5 sin resolver silenciosamente decisiones BIZ.
 - No se incluyo un motor OCR concreto: el adaptador es opcional y la ausencia de texto deriva a
   revision humana, segun el alcance aprobado de la fase 1.
 - `BIZ-001..010` continuan en estado `BLOCKED`; las capacidades afectadas fallan cerrado o exigen
   revision humana. No se asignaron umbrales, vigencias, retenciones ni alcances ficticios.
-- La Definition of Done global no puede declararse completa mientras esas decisiones y las tareas
-  parciales registradas en `tasks.md` sigan abiertas.
+- Las tareas tecnicas de `tasks.md` estan completas. La Definition of Done global permanece abierta
+  solo hasta la conformidad humana de RR. HH., los checks remotos verdes y la autorizacion de
+  promocion.

@@ -4,7 +4,8 @@ Fecha: 2026-09-13
 
 Rama de trabajo: `codex/rubrica-greenfield-talentia`
 
-Base revisada: `origin/codex/rubrica-greenfield-talentia` (`e5c924b`)
+Base funcional revisada: `talentia/codex/rubrica-greenfield-talentia` (`fde1f74`) mas las
+correcciones de cierre tecnico del commit actual.
 
 ## Regla de lectura
 
@@ -29,9 +30,9 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`e5c924b`)
 | Importaciones y ex-TCS | Cumple fase 5 | Staging separado, mapeo/correccion, errores por fila, confirmacion/cancelacion, rollback, idempotencia, hash y revision humana | Decisiones `BIZ-001/008` permanecen bloqueadas |
 | Exclusiones y descargas | Cumple fase 5 | AG-05 determinista, filtros y hash persistidos, CSV minimo, integridad, RBAC, IDOR y auditoria de crear/cambiar/consultar/descargar | Definir `BIZ-001` para producir vigencias reales |
 | Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
-| Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas, lotes y descargas sensibles auditados; correlacion conservada | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
+| Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas, lotes y descargas sensibles auditados; correlacion y telemetria por nodo conservadas | Politica `BIZ-007` fuera del alcance del piloto |
 | Metricas y observabilidad | Cumple piloto | Telemetria sanitizada correlacionada, tasas y percentiles reales, filtros protegidos y benchmark AG-02/03 reproducible en MLflow | `BIZ-006/007` fuera de alcance |
-| Calidad y regresion | Cumple fase 7 | 81 greenfield y 391 totales; instalacion limpia, Ruff, formato, mypy y escaner aprobados | Dos advertencias de deprecacion aceptadas hasta actualizar dependencias |
+| Calidad y regresion | Cumple tecnicamente | 81 greenfield y 391 totales; instalacion limpia, Ruff, formato, mypy, migraciones y escaner aprobados; correcciones de CI reproducidas localmente | Confirmacion del nuevo commit por GitHub Actions y dos deprecaciones aceptadas |
 
 ## Orden de cierre recomendado
 

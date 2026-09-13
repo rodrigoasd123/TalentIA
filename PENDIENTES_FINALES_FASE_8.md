@@ -6,10 +6,12 @@ Fecha: 2026-09-13
 
 - Las fases tecnicas 1 a 8 de `SPEC-030` estan implementadas y verificadas.
 - Rama: `codex/rubrica-greenfield-talentia`.
-- Ultimo commit funcional y documental: `89e9a7687c9bb67b9db2cfed000807197d67f9a1`.
+- Base funcional revisada: `fde1f74ce5cab3cfd3a6338ccc998ecb1aa7a672`.
 - Pull request preparado: <https://github.com/rodrigoasd123/TalentIA/pull/2>.
 - Verificacion final: 81 pruebas greenfield y 391 pruebas totales aprobadas.
 - Ruff, formato, mypy, instalacion limpia, migraciones, backup, restauracion y escaner aprobados.
+- Los fallos de CI detectados en el PR 2 (orden de imports y aislamiento de la base de migraciones)
+  fueron corregidos y reproducidos localmente; GitHub Actions debe confirmar el commit de cierre.
 - No se realizo merge ni modificacion directa de `main`.
 
 ## Pendientes externos
