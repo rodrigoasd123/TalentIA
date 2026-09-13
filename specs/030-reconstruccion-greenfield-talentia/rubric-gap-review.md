@@ -17,7 +17,7 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`e5c924b`)
 | Area de rubrica | Estado | Evidencia actual | Brecha restante |
 |---|---|---|---|
 | Arquitectura modular Python | Cumple | `src/talentia`, puertos, UoW, API y web separados; pruebas de arquitectura | Ninguna P0 observada |
-| Persistencia y migraciones | Cumple | Alembic greenfield, FK activas, SQLite WAL, rollback probado | Definir motor productivo fuera del piloto |
+| Persistencia y migraciones | Cumple fase 7 | Alembic greenfield, FK activas, SQLite WAL, reversibilidad revision por revision, backup y restore integros | Motor productivo fuera del alcance del piloto |
 | Autenticacion, RBAC y alcance | Cumple | JWT/cookie firmada, CSRF web, roles, clientes y autoampliacion denegada | Aceptacion de usuarios del piloto |
 | Base general de candidatos | Cumple | Preflight, 18 campos, busqueda, versionado optimista, traza | Definir `BIZ-004`, `BIZ-008..010` |
 | CV y almacenamiento privado | Parcial | Firma/tamano, hash, ruta privada, escritura atomica, PDF/DOCX local, PII sanitizada, sugerencias con fuente y fallback OCR manual; worker conectado | Elegir motor OCR si TCS lo requiere y definir `BIZ-007` |
@@ -31,12 +31,12 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`e5c924b`)
 | Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
 | Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas, lotes y descargas sensibles auditados; correlacion conservada | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
 | Metricas y observabilidad | Cumple fase 6 | Telemetria sanitizada correlacionada, tasas y percentiles reales, filtros protegidos y benchmark AG-02/03 reproducible en MLflow | `BIZ-006/007` y aceptacion del piloto |
-| Calidad y regresion | Cumple fase 6 | 78 greenfield y 388 totales; Ruff, formato, mypy y escaner aprobados | Resolver advertencias al actualizar dependencias |
+| Calidad y regresion | Cumple fase 7 | 81 greenfield y 391 totales; instalacion limpia, Ruff, formato, mypy y escaner aprobados | Dos advertencias de deprecacion aceptadas hasta actualizar dependencias |
 
 ## Orden de cierre recomendado
 
-1. Completar endurecimiento y aceptacion tecnica.
-2. Ejecutar decisiones de negocio y UAT con aprobacion expresa.
+1. Obtener o declarar fuera de alcance las decisiones `BIZ-001..010` mediante SDD.
+2. Ejecutar UAT representativa y obtener la aceptacion humana correspondiente.
 
 ## Decisiones que permanecen cerradas
 

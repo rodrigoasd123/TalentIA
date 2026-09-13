@@ -20,6 +20,9 @@ Abra `http://127.0.0.1:8000/login`. Sin `TALENTIA_LLM_PROVIDER`, TalentIA funcio
 modo manual y nunca presenta una simulacion como evaluacion real. Para procesar trabajos
 durables, ejecute `.\scripts\start_worker.ps1` en otra terminal.
 
+La instalacion limpia, migracion, verificacion, respaldo y restauracion estan detalladas en
+[`docs/INSTALACION_GREENFIELD_WINDOWS.md`](docs/INSTALACION_GREENFIELD_WINDOWS.md).
+
 
 TalentIA es una sola aplicación para administrar vacantes, candidatos, CV,
 postulaciones, evaluaciones, revisión humana, pipeline, Candidate 360,

@@ -2,8 +2,8 @@
 
 ## Preparacion
 
-1. Instalar Python 3.12 y crear `.venv`.
-2. Instalar `pip install -e ".[dev]"`.
+1. Seguir `docs/INSTALACION_GREENFIELD_WINDOWS.md` con Python 3.12.
+2. Instalar `pip install -e ".[dev]"` para desarrollo o `pip install -e .` para operar.
 3. Configurar secreto de sesion y administrador mediante variables `TALENTIA_*`.
 4. Ejecutar `scripts/migrate.ps1` y `scripts/verify_pilot.ps1`.
 
@@ -14,8 +14,9 @@ Iniciar `scripts/start_api.ps1` y, en otra terminal, `scripts/start_worker.ps1`.
 
 ## Recuperacion
 
-Detener API y worker. Ejecutar `scripts/backup.ps1`. Para comprobar una recuperacion, usar
-`scripts/restore.ps1 -Origen <respaldo>`; nunca sobrescribe una base existente. Configure
+Detener API y worker. Ejecutar `scripts/backup.ps1 -Origen <base> -Destino <respaldo>`. Para
+comprobar una recuperacion, usar `scripts/restore.ps1 -Origen <respaldo> -Destino <base-limpia>`;
+nunca sobrescribe una base existente. Configure
 `TALENTIA_GREENFIELD_DATABASE_URL` con la copia restaurada y ejecute migraciones.
 
 ## Telemetria y retencion

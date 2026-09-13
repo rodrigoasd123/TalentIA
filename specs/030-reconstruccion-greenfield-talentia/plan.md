@@ -121,7 +121,7 @@ Demostracion: ejecutar benchmark reproducible y abrir corrida, parametros, metri
 
 Puerta de salida: pruebas de exactitud de metricas, privacidad, rendimiento y reproducibilidad.
 
-### Fase 7 - Endurecimiento y aceptacion tecnica
+### Fase 7 - Endurecimiento y aceptacion tecnica - IMPLEMENTADA EN VERIFICACION
 
 Objetivo: demostrar que el conjunto es seguro, recuperable y desplegable como piloto local.
 

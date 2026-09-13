@@ -131,17 +131,17 @@
 
 ## Fase 7 - Endurecimiento y aceptacion tecnica
 
-- [ ] **T-030-F7-001 - Completar matriz security/E2E/restart**
+- [x] **T-030-F7-001 - Completar matriz security/E2E/restart**
   - Cubre: todos los requisitos y AC-030-001..008
   - Archivos: suites `tests/greenfield` nuevas o ampliadas
   - Verificacion: regresion completa y reporte de cobertura por riesgo
   - Dependencias: fases 1..6
-- [ ] **T-030-F7-002 - Verificar migracion, backup, restore e instalacion limpia**
+- [x] **T-030-F7-002 - Verificar migracion, backup, restore e instalacion limpia**
   - Cubre: OPS-030-001, AC-030-001, AC-030-007
   - Archivos: scripts y runbook existentes
   - Verificacion: ejecucion Windows documentada
   - Dependencias: T-030-F7-001
-- [ ] **T-030-F7-003 - Cerrar evidencia tecnica de rubrica**
+- [x] **T-030-F7-003 - Cerrar evidencia tecnica de rubrica**
   - Cubre: AC-030-001..008
   - Archivos: `verification.md`, `rubric-gap-review.md`
   - Verificacion: cero P0/P1 tecnicas abiertas no aceptadas

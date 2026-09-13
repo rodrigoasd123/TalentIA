@@ -2,7 +2,35 @@
 
 Fecha de verificacion: 2026-09-13.
 
-Estado SDD: fase 6 implementada y en verificacion; no se declara `VERIFIED` global.
+Estado SDD: fase 7 implementada y en verificacion; no se declara `VERIFIED` global.
+
+## Evidencia de fase 7 - endurecimiento y aceptacion tecnica
+
+- `matriz-riesgos-fase-7.md` enlaza autenticacion, RBAC, CSRF, IDOR, aislamiento por cliente,
+  uploads, prompt injection, privacidad, control humano, idempotencia, concurrencia y recuperacion
+  con pruebas automatizadas. No quedan brechas tecnicas P0/P1 conocidas sin control.
+- `test_fase_7_operaciones.py` recorre las revisiones `0001_greenfield`, `0002_esquema` y
+  `0003_workflow`: upgrade individual, downgrade individual, downgrade a base y nuevo upgrade a
+  `head`. La misma secuencia se repitio manualmente sobre SQLite desechable con codigo de salida 0.
+- El respaldo usa la API nativa de SQLite, comprueba `PRAGMA integrity_check`, no sobrescribe el
+  destino y rechaza una fuente corrupta. Se creo un respaldo y se restauro en otra base con codigo
+  de salida 0.
+- Una instalacion limpia de Windows en `.pytest-tmp/fase7-venv`, creada solo desde
+  `pip install -e ".[dev]"`, termino con codigo 0. `pip check` informo `No broken requirements
+  found`; el smoke importo `talentia.main:app` y mostro `TalentIA`.
+- En ese entorno limpio, `pytest -q test_fase_7_operaciones.py test_api.py` aprobo 9 pruebas, con
+  1 advertencia, en 3,44 segundos.
+- `pytest -q tests/greenfield --basetemp=.pytest-tmp/fase7-greenfield -p no:cacheprovider`:
+  81 pruebas aprobadas, 2 advertencias, en 39,55 segundos.
+- `pytest -q --basetemp=.pytest-tmp/fase7-completa -p no:cacheprovider`: 391 pruebas aprobadas,
+  2 advertencias, en 57,90 segundos.
+- `ruff check`: aprobado; `ruff format --check`: 88 archivos conformes.
+- `mypy src/talentia`: 65 archivos sin observaciones.
+- `python scripts/check_repository.py`: 534 archivos revisados, repositorio seguro.
+- Las dos advertencias pertenecen a deprecaciones pendientes de Starlette/AnyIO y LangGraph; no
+  representan fallos de seguridad ni funcionales y se documentan para una actualizacion controlada.
+- `docs/INSTALACION_GREENFIELD_WINDOWS.md` diferencia runtime/desarrollo y documenta configuracion,
+  migracion, API, worker, verificacion, respaldo, restauracion y rollback sin Node.js ni proveedor.
 
 ## Evidencia de fase 6 - observabilidad, metricas y MLflow
 
