@@ -138,9 +138,7 @@ class RegisterCandidateUseCase:
         if existing is not None:
             # Reutilizar en vez de duplicar. Una persona que aplica a una segunda
             # vacante es la misma persona, no un registro nuevo.
-            synchronize_candidate_source(
-                self.uow, candidate=existing, source=source, actor=actor
-            )
+            synchronize_candidate_source(self.uow, candidate=existing, source=source, actor=actor)
             logger.info("Candidato ya registrado; se reutiliza", candidate_id=existing.id)
             return IntakeResult(candidate=existing, was_existing=True)
 
@@ -172,7 +170,8 @@ class RegisterCandidateUseCase:
             new_state={
                 "source": source,
                 "consent_expires": stored.consent.expires_at.isoformat()
-                if stored.consent else None,
+                if stored.consent
+                else None,
             },
             duplicates_found=len(duplicates),
         )
@@ -222,9 +221,7 @@ class UploadResumeUseCase:
         if not candidate.can_be_processed:
             from app.core.exceptions import ConsentMissingOrExpired
 
-            raise ConsentMissingOrExpired(
-                "El candidato no tiene consentimiento vigente"
-            )
+            raise ConsentMissingOrExpired("El candidato no tiene consentimiento vigente")
 
         extracted = self.extractor.extract(content=content, filename=filename)
 
@@ -232,8 +229,7 @@ class UploadResumeUseCase:
             # Distinguir «CV vacío» de «no pudimos leerlo» importa: la primera
             # conclusión perjudica al candidato por un problema técnico nuestro.
             raise ResumeParsingError(
-                "No se pudo extraer texto suficiente del documento. "
-                + " ".join(extracted.warnings)
+                "No se pudo extraer texto suficiente del documento. " + " ".join(extracted.warnings)
             )
 
         duplicate = self.uow.resumes.get_by_hash(extracted.content_hash)
@@ -387,27 +383,43 @@ class IntakePipelineUseCase:
         filename: str,
         actor: Actor,
         phone: str = "",
+        national_id: str = "",
         source: str = "direct",
         consent_granted: bool = True,
     ) -> IntakeResult:
         source = normalize_recruitment_source(source)
         result = self.register.execute(
-            full_name=full_name, email=email, phone=phone, source=source,
-            consent_granted=consent_granted, actor=actor,
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            national_id=national_id,
+            source=source,
+            consent_granted=consent_granted,
+            actor=actor,
         )
         result.resume = self.upload.execute(
-            candidate_id=result.candidate.id, content=content,
-            filename=filename, actor=actor,
+            candidate_id=result.candidate.id,
+            content=content,
+            filename=filename,
+            actor=actor,
         )
         result.application = self.create.execute(
-            candidate_id=result.candidate.id, job_id=job_id,
-            resume_id=result.resume.id, source=source, actor=actor,
+            candidate_id=result.candidate.id,
+            job_id=job_id,
+            resume_id=result.resume.id,
+            source=source,
+            actor=actor,
         )
         return result
 
 
 __all__ = [
-    "DEFAULT_CONSENT_MONTHS", "CreateApplicationUseCase", "IntakePipelineUseCase",
-    "IntakeResult", "RegisterCandidateUseCase", "UploadResumeUseCase",
-    "normalize_recruitment_source", "synchronize_candidate_source",
+    "DEFAULT_CONSENT_MONTHS",
+    "CreateApplicationUseCase",
+    "IntakePipelineUseCase",
+    "IntakeResult",
+    "RegisterCandidateUseCase",
+    "UploadResumeUseCase",
+    "normalize_recruitment_source",
+    "synchronize_candidate_source",
 ]

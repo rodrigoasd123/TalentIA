@@ -71,7 +71,7 @@ def _render_evaluation(evaluation: dict | None) -> None:
         st.caption("El endpoint actual no devuelve número de página por cita.")
 
 
-def _render_resume(data: dict, candidate: dict) -> None:
+def _render_resume(data: dict, candidate: dict, application_id: str) -> None:
     resume = data.get("resume")
     if not resume:
         design.empty_state("Sin CV", "Esta postulación no tiene CV asociado.")
@@ -115,6 +115,50 @@ def _render_resume(data: dict, candidate: dict) -> None:
             st.subheader("Educación")
             for item in extraction["education"]:
                 st.write(f"- {item.get('degree', '-')} · {item.get('level', '-')}")
+
+        if session.has_permission("candidate:write"):
+            st.subheader("Precargar ficha desde el CV")
+            st.caption(
+                "TalentIA propone valores; nada se guarda hasta que RR. HH. los confirma."
+            )
+            knowledge = ", ".join(skills)
+            edited_knowledge = st.text_area(
+                "Conocimiento técnico propuesto",
+                value=knowledge,
+                help="Puedes corregir el texto antes de confirmarlo.",
+            )
+            use_knowledge = st.checkbox(
+                "Aplicar habilidades a conocimiento técnico",
+                value=bool(edited_knowledge),
+                disabled=not edited_knowledge,
+            )
+            availability = str(extraction.get("availability") or "").strip()
+            edited_availability = st.text_input(
+                "Disponibilidad propuesta", value=availability
+            )
+            use_availability = st.checkbox(
+                "Aplicar disponibilidad",
+                value=bool(edited_availability),
+                disabled=not edited_availability,
+            )
+            confidence = extraction.get("field_confidence", {}) or {}
+            if confidence:
+                st.caption(
+                    "Confianza declarada por campo: "
+                    + ", ".join(f"{key}: {value:.0%}" for key, value in confidence.items())
+                )
+            if st.button("Confirmar campos seleccionados del CV"):
+                try:
+                    session.client().apply_resume_prefill(
+                        application_id,
+                        expected_version=int(candidate.get("version", 1)),
+                        technical_knowledge=edited_knowledge if use_knowledge else None,
+                        availability=edited_availability if use_availability else None,
+                    )
+                    st.success("Ficha actualizada con los campos confirmados.")
+                    st.rerun()
+                except ApiError as exc:
+                    design.api_error(exc, "No se pudo aplicar la precarga")
 
     st.subheader("Contacto protegido")
     st.caption("Estos datos no se envían al proveedor de IA.")
@@ -342,7 +386,7 @@ def render() -> None:
             hide_index=True,
         )
     with resume_tab:
-        _render_resume(data, candidate)
+        _render_resume(data, candidate, selected)
     with evaluation_tab:
         _render_evaluation(data.get("current_evaluation"))
     with communications_tab:

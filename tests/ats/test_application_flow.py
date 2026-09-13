@@ -138,6 +138,40 @@ def test_un_candidato_existente_se_reutiliza(uow: UnitOfWork, actor: Actor) -> N
     assert segunda.candidate.id == primera.candidate.id
 
 
+def test_nombre_equivalente_solo_genera_alerta_no_fusion_automatica(
+    uow: UnitOfWork, actor: Actor
+) -> None:
+    use_case = RegisterCandidateUseCase(uow)
+    first = use_case.execute(
+        full_name="José Pérez García",
+        email="jose.primero@ejemplo.test",
+        consent_granted=True,
+        actor=actor,
+    )
+    second = use_case.execute(
+        full_name="Jose Perez Garcia",
+        email="jose.segundo@ejemplo.test",
+        consent_granted=True,
+        actor=actor,
+    )
+    assert second.candidate.id != first.candidate.id
+    assert second.duplicates[0]["id"] == first.candidate.id
+    assert second.warnings
+
+
+def test_documento_identifica_posible_duplicado(uow: UnitOfWork, actor: Actor) -> None:
+    use_case = RegisterCandidateUseCase(uow)
+    first = use_case.execute(
+        full_name="Ana Uno", email="ana.uno@ejemplo.test", national_id="12345678",
+        consent_granted=True, actor=actor,
+    )
+    second = use_case.execute(
+        full_name="Ana Dos", email="ana.dos@ejemplo.test", national_id="12345678",
+        consent_granted=True, actor=actor,
+    )
+    assert second.duplicates[0]["id"] == first.candidate.id
+
+
 def test_no_se_permite_una_segunda_candidatura_en_la_misma_vacante(
     uow: UnitOfWork, job: Job, application, actor: Actor
 ) -> None:

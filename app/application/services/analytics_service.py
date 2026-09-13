@@ -26,7 +26,7 @@ from __future__ import annotations
 import statistics
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.application.unit_of_work import UnitOfWork
@@ -211,9 +211,7 @@ class AnalyticsService:
         )
         buckets: dict[str, list[float]] = {}
         for application in applications:
-            buckets.setdefault(application.status.value, []).append(
-                application.hours_in_stage
-            )
+            buckets.setdefault(application.status.value, []).append(application.hours_in_stage)
         return {k: round(statistics.mean(v), 1) for k, v in buckets.items() if v}
 
     def sla_alerts(self, hours: int = 72) -> list[dict[str, Any]]:
@@ -250,10 +248,14 @@ class AnalyticsService:
         for source, items in by_source.items():
             scores = [a.final_score for a in items if a.final_score is not None]
             advanced = sum(
-                1 for a in items
-                if a.status in {
-                    ApplicationStatus.SHORTLISTED, ApplicationStatus.APPROVED_FOR_INTERVIEW,
-                    ApplicationStatus.INTERVIEWED, ApplicationStatus.APPROVED,
+                1
+                for a in items
+                if a.status
+                in {
+                    ApplicationStatus.SHORTLISTED,
+                    ApplicationStatus.APPROVED_FOR_INTERVIEW,
+                    ApplicationStatus.INTERVIEWED,
+                    ApplicationStatus.APPROVED,
                     ApplicationStatus.HIRED,
                 }
             )
@@ -270,7 +272,8 @@ class AnalyticsService:
     def candidate_disposition_report(self) -> list[dict[str, Any]]:
         """Seguimiento operativo sin PII sensible ni inferencias de un LLM."""
         interviewed = {
-            ApplicationStatus.INTERVIEWED, ApplicationStatus.APPROVED,
+            ApplicationStatus.INTERVIEWED,
+            ApplicationStatus.APPROVED,
             ApplicationStatus.HIRED,
         }
         applications = self.uow.applications.list_all(limit=10000)
@@ -300,21 +303,127 @@ class AnalyticsService:
                 continue
             latest = max(candidate_apps, key=lambda app: app.applied_at, default=None)
             job = self.uow.jobs.get(latest.job_id) if latest else None
-            rows.append({
-                "candidate_id": candidate.id, "candidate": candidate.full_name,
-                "client": candidate.client, "recruiter": candidate.recruiter,
-                "source": adecco_source or (latest.source if latest else candidate.source),
-                "categories": categories,
-                "application_id": latest.id if latest else None,
-                "application_status": latest.status.value if latest else None,
-                "job_code": job.code if job else None,
-                "job_title": job.title if job else None,
-                "date": (
-                    candidate.record_date.isoformat() if candidate.record_date
-                    else candidate.created_at.date().isoformat()
-                ),
-            })
+            rows.append(
+                {
+                    "candidate_id": candidate.id,
+                    "candidate": candidate.full_name,
+                    "client": candidate.client,
+                    "recruiter": candidate.recruiter,
+                    "source": adecco_source or (latest.source if latest else candidate.source),
+                    "categories": categories,
+                    "application_id": latest.id if latest else None,
+                    "application_status": latest.status.value if latest else None,
+                    "job_code": job.code if job else None,
+                    "job_title": job.title if job else None,
+                    "date": (
+                        candidate.record_date.isoformat()
+                        if candidate.record_date
+                        else candidate.created_at.date().isoformat()
+                    ),
+                }
+            )
         return sorted(rows, key=lambda row: (row["date"], row["candidate"]), reverse=True)
+
+    def vendor_exclusion_report(
+        self,
+        *,
+        job_id: str | None = None,
+        source: str | None = None,
+        recontact_days: int = 180,
+    ) -> list[dict[str, Any]]:
+        """Lista operativa determinística para evitar recontactos improductivos."""
+        applications = (
+            self.uow.applications.list_for_job(job_id)
+            if job_id
+            else self.uow.applications.list_all(limit=10000)
+        )
+        if source:
+            applications = [
+                item for item in applications if source.casefold() in (item.source or "").casefold()
+            ]
+        rows: list[dict[str, Any]] = []
+        for application in applications:
+            if application.status is not ApplicationStatus.REJECTED:
+                continue
+            candidate = self.uow.candidates.get(application.candidate_id)
+            job = self.uow.jobs.get(application.job_id)
+            valid_until = application.updated_at + timedelta(days=recontact_days)
+            rows.append(
+                {
+                    "candidate_id": application.candidate_id,
+                    "candidate": candidate.full_name if candidate else "—",
+                    "application_id": application.id,
+                    "job_code": job.code if job else "—",
+                    "source": application.source,
+                    "reason": "Candidatura rechazada",
+                    "recorded_at": application.updated_at.date().isoformat(),
+                    "valid_until": valid_until.date().isoformat(),
+                    "recontact_allowed": datetime.now(UTC) >= valid_until,
+                }
+            )
+        return sorted(rows, key=lambda row: row["recorded_at"], reverse=True)
+
+    def operational_impact(
+        self,
+        *,
+        job_id: str | None = None,
+        source: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        minutes_per_cv: float = 5.0,
+        minutes_per_duplicate: float = 3.0,
+    ) -> dict[str, Any]:
+        """Indicadores observables del piloto; no inventa ahorro ni retorno financiero."""
+        applications = (
+            self.uow.applications.list_for_job(job_id)
+            if job_id
+            else self.uow.applications.list_all(limit=10000)
+        )
+        if source:
+            applications = [
+                item for item in applications if source.casefold() in (item.source or "").casefold()
+            ]
+        if date_from:
+            applications = [item for item in applications if item.applied_at.date() >= date_from]
+        if date_to:
+            applications = [item for item in applications if item.applied_at.date() <= date_to]
+        useful = 0
+        evaluated = 0
+        for application in applications:
+            resume = self.uow.resumes.get(application.resume_id) if application.resume_id else None
+            useful += int(bool(resume and resume.char_count > 0))
+            evaluated += int(self.uow.evaluations.get_current(application.id) is not None)
+        duplicate_events = self.uow.audit.list(action="candidate.possible_duplicate", limit=10000)
+        if date_from:
+            duplicate_events = [event for event in duplicate_events if event.timestamp.date() >= date_from]
+        if date_to:
+            duplicate_events = [event for event in duplicate_events if event.timestamp.date() <= date_to]
+        estimated_minutes = useful * minutes_per_cv + len(duplicate_events) * minutes_per_duplicate
+        return {
+            "scope": {
+                "job_id": job_id,
+                "source": source,
+                "date_from": date_from.isoformat() if date_from else None,
+                "date_to": date_to.isoformat() if date_to else None,
+            },
+            "applications": len(applications),
+            "useful_cvs": useful,
+            "useful_cv_rate": _ratio(useful, len(applications)) if applications else None,
+            "useful_cv_formula": "CV con archivo asociado y texto extraído / postulaciones",
+            "early_evaluations": evaluated,
+            "early_evaluation_rate": (
+                _ratio(evaluated, len(applications)) if applications else None
+            ),
+            "possible_duplicates_detected": len(duplicate_events),
+            "applications_by_source": dict(Counter(item.source for item in applications)),
+            "estimated_hours_avoided": round(estimated_minutes / 60, 2),
+            "estimation_parameters": {
+                "minutes_per_cv": minutes_per_cv,
+                "minutes_per_duplicate": minutes_per_duplicate,
+                "baseline_manual_hours_per_week": 10,
+            },
+            "claim": "Métricas observadas del piloto; no equivalen a ahorro validado.",
+        }
 
     # ── Panel de equidad ─────────────────────────────────────────────────────
 
@@ -353,9 +462,7 @@ class AnalyticsService:
         evidence_rates = [e.evidence_verification_rate for e in semantic]
         recommendations = Counter(e.recommendation.value for e in evaluations)
         review_needed = sum(1 for e in evaluations if e.requires_human_review)
-        bias_flagged = sum(
-            1 for e in evaluations if e.bias_audit and e.bias_audit.bias_detected
-        )
+        bias_flagged = sum(1 for e in evaluations if e.bias_audit and e.bias_audit.bias_detected)
 
         failed_filters = Counter()
         for evaluation in evaluations:
@@ -368,9 +475,7 @@ class AnalyticsService:
             "semantically_evaluated": len(semantic),
             "score_mean": _mean(scores),
             "score_median": round(statistics.median(scores), 2) if scores else None,
-            "score_stdev": (
-                round(statistics.stdev(scores), 2) if len(scores) > 1 else 0.0
-            ),
+            "score_stdev": (round(statistics.stdev(scores), 2) if len(scores) > 1 else 0.0),
             "score_min": round(min(scores), 2) if scores else None,
             "score_max": round(max(scores), 2) if scores else None,
             "evidence_rate_mean": _mean(evidence_rates),
@@ -394,7 +499,8 @@ class AnalyticsService:
             if item is not None:
                 continue  # sin resolver todavía
             decisions = [
-                e for e in self.uow.audit.list(
+                e
+                for e in self.uow.audit.list(
                     resource_id=evaluation.application_id,
                     action="human_review.decided",
                     limit=10,
@@ -404,9 +510,8 @@ class AnalyticsService:
                 continue
             decision = (decisions[0].new_state or {}).get("decision", "")
             suggested = evaluation.recommendation
-            coincide = (
-                (decision == "approve" and suggested is Recommendation.SHORTLIST)
-                or (decision == "reject" and suggested is Recommendation.REJECT)
+            coincide = (decision == "approve" and suggested is Recommendation.SHORTLIST) or (
+                decision == "reject" and suggested is Recommendation.REJECT
             )
             agreed += int(coincide)
             disagreed += int(not coincide)
@@ -451,8 +556,7 @@ class AnalyticsService:
                         severity="high",
                         title="Supervisión humana casi inexistente",
                         detail=(
-                            f"Solo el {review_rate:.0%} de las evaluaciones pasa por una "
-                            "persona."
+                            f"Solo el {review_rate:.0%} de las evaluaciones pasa por una persona."
                         ),
                         recommendation=(
                             "Comprueba que los umbrales no se hayan relajado en exceso. "
@@ -589,6 +693,10 @@ def _mean(values: list[float]) -> float | None:
 
 
 __all__ = [
-    "EXPECTED_REVIEW_RATE", "FUNNEL_STAGES", "MIN_HEALTHY_EVIDENCE_RATE",
-    "AnalyticsService", "EquityFinding", "EquityReport",
+    "EXPECTED_REVIEW_RATE",
+    "FUNNEL_STAGES",
+    "MIN_HEALTHY_EVIDENCE_RATE",
+    "AnalyticsService",
+    "EquityFinding",
+    "EquityReport",
 ]

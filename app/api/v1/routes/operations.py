@@ -18,6 +18,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, Query, Response, Uploa
 from app.api.dependencies import ActorDep, CurrentUserDep, UowDep, requires
 from app.api.schemas import (
     CandidateCreateRequest,
+    CandidateIdentityCheckRequest,
     CandidateUpdateRequest,
     ImportCancelRequest,
     ImportConfirmRequest,
@@ -26,6 +27,7 @@ from app.api.schemas import (
     IntakeResponse,
     JobCreateRequest,
     JobUpdateRequest,
+    ResumePrefillRequest,
 )
 from app.application.services.analytics_service import AnalyticsService
 from app.application.services.audit_service import AuditService
@@ -100,31 +102,37 @@ def _candidate_payload(candidate: Candidate, *, reveal_sensitive: bool) -> dict[
     }
     if not reveal_sensitive:
         sensitive = {
-            "national_id": _mask(candidate.national_id), "bgc": "RESTRINGIDO",
-            "equifax_debt": None, "salary_expectation": None, "role_ctc": None,
-            "ctc_variation_pct": None, "notes": "RESTRINGIDO",
+            "national_id": _mask(candidate.national_id),
+            "bgc": "RESTRINGIDO",
+            "equifax_debt": None,
+            "salary_expectation": None,
+            "role_ctc": None,
+            "ctc_variation_pct": None,
+            "notes": "RESTRINGIDO",
         }
     return {
-        "id": candidate.id, "full_name": candidate.full_name,
+        "id": candidate.id,
+        "full_name": candidate.full_name,
         "email": (
-            str(candidate.email or "")
-            if reveal_sensitive
-            else _mask(str(candidate.email or ""))
+            str(candidate.email or "") if reveal_sensitive else _mask(str(candidate.email or ""))
         ),
         "phone": candidate.phone if reveal_sensitive else _mask(candidate.phone),
-        "location": candidate.location, "client": candidate.client,
+        "location": candidate.location,
+        "client": candidate.client,
         "candidate_status": candidate.candidate_status.value,
         "record_date": candidate.record_date.isoformat() if candidate.record_date else None,
-        "recruiter": candidate.recruiter, "source": candidate.source, "q": candidate.q,
+        "recruiter": candidate.recruiter,
+        "source": candidate.source,
+        "q": candidate.q,
         "birth_date": (
-            candidate.birth_date.isoformat()
-            if candidate.birth_date and reveal_sensitive
-            else None
+            candidate.birth_date.isoformat() if candidate.birth_date and reveal_sensitive else None
         ),
         "age": candidate.age if reveal_sensitive else None,
         "technical_knowledge": candidate.technical_knowledge,
-        "requested": candidate.requested, "availability": candidate.availability,
-        "version": candidate.version, **sensitive,
+        "requested": candidate.requested,
+        "availability": candidate.availability,
+        "version": candidate.version,
+        **sensitive,
     }
 
 
@@ -179,9 +187,7 @@ def login(
         raise AuthenticationError("Credenciales inválidas")
 
     if user.is_locked:
-        raise AuthenticationError(
-            "La cuenta está bloqueada temporalmente por intentos fallidos"
-        )
+        raise AuthenticationError("La cuenta está bloqueada temporalmente por intentos fallidos")
 
     if not verify_password(password, user.password_hash):
         user.failed_login_attempts += 1
@@ -190,9 +196,7 @@ def login(
 
             user.locked_until = datetime.now(UTC) + timedelta(minutes=15)
         uow.users.update(user)
-        uow.audit.append(
-            _security_event("auth.login_failed", user.id, user.failed_login_attempts)
-        )
+        uow.audit.append(_security_event("auth.login_failed", user.id, user.failed_login_attempts))
         raise AuthenticationError("Credenciales inválidas")
 
     if not user.is_active:
@@ -202,9 +206,7 @@ def login(
     user.locked_until = None
     uow.users.update(user)
 
-    pair = TokenService().issue_pair(
-        user_id=user.id, email=str(user.email), role=user.role
-    )
+    pair = TokenService().issue_pair(user_id=user.id, email=str(user.email), role=user.role)
     uow.audit.append(_security_event("auth.login_success", user.id, 0, severity="info"))
 
     return {
@@ -289,9 +291,13 @@ def _job_payload(job: Job) -> dict[str, Any]:
         "weights": {d.value: w for d, w in job.requirements.weights.weights.items()},
         "requirements_version": job.requirements.version,
         "language_required": language_filter is not None,
-        "language_level": str(language_filter.value.get("level", "b2")) if language_filter else "b2",
+        "language_level": str(language_filter.value.get("level", "b2"))
+        if language_filter
+        else "b2",
         "language_mode": language_filter.effective_mode.value if language_filter else "weighted",
-        "language_penalty_percent": language_filter.effective_penalty_percent if language_filter else 15.0,
+        "language_penalty_percent": language_filter.effective_penalty_percent
+        if language_filter
+        else 15.0,
     }
 
 
@@ -326,13 +332,22 @@ def create_job(payload: JobCreateRequest, uow: UowDep, actor: ActorDep) -> dict[
         location=payload.location.strip(),
         status=JobStatus.OPEN if payload.criteria_approved else JobStatus.DRAFT,
         requirements=JobRequirements(
-            mandatory_skills=sorted({s.strip().lower() for s in payload.mandatory_skills if s.strip()}),
+            mandatory_skills=sorted(
+                {s.strip().lower() for s in payload.mandatory_skills if s.strip()}
+            ),
             minimum_score=payload.minimum_score,
             review_threshold=payload.review_threshold,
             min_years_experience=payload.min_years_experience,
             hard_filters=(
-                [_language_filter(payload.language_level, payload.language_mode, payload.language_penalty_percent)]
-                if payload.language_required else []
+                [
+                    _language_filter(
+                        payload.language_level,
+                        payload.language_mode,
+                        payload.language_penalty_percent,
+                    )
+                ]
+                if payload.language_required
+                else []
             ),
         ),
     )
@@ -342,7 +357,11 @@ def create_job(payload: JobCreateRequest, uow: UowDep, actor: ActorDep) -> dict[
         actor=actor,
         resource_type="job",
         resource_id=stored.id,
-        new_state={"code": stored.code, "status": stored.status.value, "criteria_approved": payload.criteria_approved},
+        new_state={
+            "code": stored.code,
+            "status": stored.status.value,
+            "criteria_approved": payload.criteria_approved,
+        },
     )
     return _job_payload(stored)
 
@@ -352,11 +371,17 @@ def create_job(payload: JobCreateRequest, uow: UowDep, actor: ActorDep) -> dict[
     tags=["vacantes"],
     dependencies=[Depends(requires(Permission.JOB_WRITE))],
 )
-def update_job(job_id: str, payload: JobUpdateRequest, uow: UowDep, actor: ActorDep) -> dict[str, Any]:
+def update_job(
+    job_id: str, payload: JobUpdateRequest, uow: UowDep, actor: ActorDep
+) -> dict[str, Any]:
     job = uow.jobs.get(job_id)
     if job is None:
         raise NotFoundError(f"No existe la vacante {job_id}")
-    previous = {"title": job.title, "status": job.status.value, "requirements_version": job.requirements.version}
+    previous = {
+        "title": job.title,
+        "status": job.status.value,
+        "requirements_version": job.requirements.version,
+    }
     changed_criteria = False
     for field_name in ("title", "description", "department", "location"):
         value = getattr(payload, field_name)
@@ -383,12 +408,20 @@ def update_job(job_id: str, payload: JobUpdateRequest, uow: UowDep, actor: Actor
             (f for f in job.requirements.hard_filters if f.operator is FilterOperator.MIN_LEVEL),
             None,
         )
-        keep = [f for f in job.requirements.hard_filters if f.operator is not FilterOperator.MIN_LEVEL]
-        required = payload.language_required if payload.language_required is not None else existing is not None
+        keep = [
+            f for f in job.requirements.hard_filters if f.operator is not FilterOperator.MIN_LEVEL
+        ]
+        required = (
+            payload.language_required
+            if payload.language_required is not None
+            else existing is not None
+        )
         if required:
             old_value = existing.value if existing else {"level": "b2"}
             level = payload.language_level or str(old_value.get("level", "b2"))
-            mode = payload.language_mode or (existing.effective_mode.value if existing else "weighted")
+            mode = payload.language_mode or (
+                existing.effective_mode.value if existing else "weighted"
+            )
             penalty = payload.language_penalty_percent
             if penalty is None:
                 penalty = existing.effective_penalty_percent if existing else 15.0
@@ -408,7 +441,11 @@ def update_job(job_id: str, payload: JobUpdateRequest, uow: UowDep, actor: Actor
         resource_type="job",
         resource_id=stored.id,
         previous_state=previous,
-        new_state={"title": stored.title, "status": stored.status.value, "requirements_version": stored.requirements.version},
+        new_state={
+            "title": stored.title,
+            "status": stored.status.value,
+            "requirements_version": stored.requirements.version,
+        },
     )
     return _job_payload(stored)
 
@@ -453,6 +490,7 @@ async def intake_application(
     consent_granted: bool = Form(...),
     resume: UploadFile = File(...),
     phone: str = Form(""),
+    national_id: str = Form("", max_length=40),
     source: str = Form("direct"),
 ) -> IntakeResponse:
     content = await resume.read()
@@ -460,6 +498,7 @@ async def intake_application(
         full_name=full_name,
         email=email,
         phone=phone,
+        national_id=national_id,
         job_id=job_id,
         content=content,
         filename=resume.filename or "cv",
@@ -653,13 +692,16 @@ def import_error_report(batch_id: str, uow: UowDep) -> Response:
     writer.writerow(["row_number", "field", "message"])
     for row in rows:
         for error in row.errors:
-            writer.writerow([
-                row.row_number,
-                neutralize_spreadsheet_formula(error.get("field", "")),
-                neutralize_spreadsheet_formula(error.get("message", "")),
-            ])
+            writer.writerow(
+                [
+                    row.row_number,
+                    neutralize_spreadsheet_formula(error.get("field", "")),
+                    neutralize_spreadsheet_formula(error.get("message", "")),
+                ]
+            )
     return Response(
-        content=output.getvalue(), media_type="text/csv; charset=utf-8",
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="errores-{batch_id[:8]}.csv"'},
     )
 
@@ -668,11 +710,15 @@ def import_error_report(batch_id: str, uow: UowDep) -> Response:
 
 
 @router.post(
-    "/candidates", tags=["candidatos"], status_code=status.HTTP_201_CREATED,
+    "/candidates",
+    tags=["candidatos"],
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(requires(Permission.CANDIDATE_WRITE))],
 )
 def create_candidate(
-    payload: CandidateCreateRequest, uow: UowDep, actor: ActorDep,
+    payload: CandidateCreateRequest,
+    uow: UowDep,
+    actor: ActorDep,
 ) -> dict[str, Any]:
     if payload.candidate_status is not CandidateStatus.PENDIENTE_CONTACTO:
         raise ValidationError(
@@ -693,7 +739,9 @@ def create_candidate(
     )
     uow.candidates.add(candidate)
     AuditService(uow.audit).record(
-        action="candidate.created", actor=actor, resource_type="candidate",
+        action="candidate.created",
+        actor=actor,
+        resource_type="candidate",
         resource_id=candidate.id,
         new_state={"candidate_status": candidate.candidate_status.value},
         fields_populated=[key for key, value in data.items() if value not in (None, "")],
@@ -702,7 +750,8 @@ def create_candidate(
 
 
 @router.get(
-    "/candidates", tags=["candidatos"],
+    "/candidates",
+    tags=["candidatos"],
     dependencies=[Depends(requires(Permission.CANDIDATE_READ))],
 )
 def list_candidates(uow: UowDep, user: CurrentUserDep) -> list[dict[str, Any]]:
@@ -713,8 +762,58 @@ def list_candidates(uow: UowDep, user: CurrentUserDep) -> list[dict[str, Any]]:
     ]
 
 
+@router.post(
+    "/candidates/preflight",
+    tags=["candidatos"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_WRITE))],
+)
+def candidate_identity_preflight(
+    payload: CandidateIdentityCheckRequest, uow: UowDep, actor: ActorDep
+) -> dict[str, Any]:
+    """Busca identidad e historial antes de cargar o procesar un CV."""
+    probe = Candidate(
+        full_name=payload.full_name.strip(),
+        email=EmailAddress(value=payload.email) if payload.email.strip() else None,
+        phone=payload.phone.strip(),
+        national_id=payload.national_id.strip(),
+    )
+    matches = uow.candidates.find_potential_duplicates(probe)
+    rows: list[dict[str, Any]] = []
+    for candidate in matches:
+        history = []
+        for application in uow.applications.list_for_candidate(candidate.id):
+            job = uow.jobs.get(application.job_id)
+            history.append(
+                {
+                    "application_id": application.id,
+                    "job_code": job.code if job else "—",
+                    "status": application.status.value,
+                    "source": application.source,
+                    "date": application.applied_at.date().isoformat(),
+                    "recruiter": candidate.recruiter,
+                }
+            )
+        rows.append(
+            {
+                "candidate_id": candidate.id,
+                "name": candidate.full_name,
+                "email": candidate.email.masked() if candidate.email else "",
+                "history": history,
+            }
+        )
+    AuditService(uow.audit).record(
+        action="candidate.identity_preflight",
+        actor=actor,
+        resource_type="candidate",
+        resource_id="preflight",
+        match_count=len(rows),
+    )
+    return {"possible_duplicate": bool(rows), "matches": rows}
+
+
 @router.get(
-    "/candidates/{candidate_id}", tags=["candidatos"],
+    "/candidates/{candidate_id}",
+    tags=["candidatos"],
     dependencies=[Depends(requires(Permission.CANDIDATE_READ))],
 )
 def get_candidate(
@@ -726,18 +825,24 @@ def get_candidate(
     reveal = user.has(Permission.CANDIDATE_PII_READ)
     if reveal:
         AuditService(uow.audit).record_access(
-            actor=actor, resource_type="candidate", resource_id=candidate_id,
+            actor=actor,
+            resource_type="candidate",
+            resource_id=candidate_id,
             purpose="consulta ficha general",
         )
     return _candidate_payload(candidate, reveal_sensitive=reveal)
 
 
 @router.patch(
-    "/candidates/{candidate_id}", tags=["candidatos"],
+    "/candidates/{candidate_id}",
+    tags=["candidatos"],
     dependencies=[Depends(requires(Permission.CANDIDATE_WRITE))],
 )
 def update_candidate(
-    candidate_id: str, payload: CandidateUpdateRequest, uow: UowDep, actor: ActorDep,
+    candidate_id: str,
+    payload: CandidateUpdateRequest,
+    uow: UowDep,
+    actor: ActorDep,
 ) -> dict[str, Any]:
     candidate = uow.candidates.get(candidate_id)
     if candidate is None:
@@ -745,7 +850,8 @@ def update_candidate(
     if candidate.version != payload.expected_version:
         raise ValidationError(
             "La ficha cambió desde que fue abierta; vuelve a cargarla",
-            expected_version=payload.expected_version, current_version=candidate.version,
+            expected_version=payload.expected_version,
+            current_version=candidate.version,
         )
     changes = payload.model_dump(exclude_unset=True)
     changes.pop("expected_version", None)
@@ -773,8 +879,11 @@ def update_candidate(
             uow, candidate=candidate, source=requested_source, actor=actor
         )
     AuditService(uow.audit).record(
-        action="candidate.updated", actor=actor, resource_type="candidate",
-        resource_id=candidate.id, fields_changed=sorted(changes),
+        action="candidate.updated",
+        actor=actor,
+        resource_type="candidate",
+        resource_id=candidate.id,
+        fields_changed=sorted(changes),
         new_state={
             "candidate_status": candidate.candidate_status.value,
             "source": candidate.source,
@@ -801,8 +910,7 @@ def pipeline(uow: UowDep, job_id: str | None = Query(None)) -> dict[str, Any]:
 )
 def list_applications(uow: UowDep, job_id: str | None = Query(None)) -> list[dict[str, Any]]:
     applications = (
-        uow.applications.list_for_job(job_id) if job_id
-        else uow.applications.list_all(limit=1000)
+        uow.applications.list_for_job(job_id) if job_id else uow.applications.list_all(limit=1000)
     )
     rows = []
     for application in applications:
@@ -903,8 +1011,10 @@ def candidate_360(application_id: str, uow: UowDep, actor: ActorDep) -> dict[str
     from app.application.services.audit_service import AuditService
 
     AuditService(uow.audit).record_access(
-        actor=actor, resource_type="candidate",
-        resource_id=application.candidate_id, purpose="consulta candidate 360",
+        actor=actor,
+        resource_type="candidate",
+        resource_id=application.candidate_id,
+        purpose="consulta candidate 360",
     )
 
     return {
@@ -923,7 +1033,9 @@ def candidate_360(application_id: str, uow: UowDep, actor: ActorDep) -> dict[str
             "consent_expires": (
                 candidate.consent.expires_at.isoformat() if candidate.consent else None
             ),
-        } if candidate else None,
+        }
+        if candidate
+        else None,
         "job": {"code": job.code, "title": job.title} if job else None,
         "resume": {
             "id": resume.id,
@@ -932,22 +1044,30 @@ def candidate_360(application_id: str, uow: UowDep, actor: ActorDep) -> dict[str
             "chars": resume.char_count,
             "is_suspicious": resume.is_suspicious,
             "extraction": resume.extraction.model_dump(mode="json") if resume.extraction else None,
-        } if resume else None,
+        }
+        if resume
+        else None,
         "current_evaluation": _evaluation_payload(current) if current else None,
         "evaluation_history": [_evaluation_payload(e) for e in evaluations],
         "emails": [
             {
-                "id": e.id, "template_id": e.template_id, "subject": e.subject,
-                "status": e.status.value, "sent_at": e.sent_at.isoformat() if e.sent_at else None,
+                "id": e.id,
+                "template_id": e.template_id,
+                "subject": e.subject,
+                "status": e.status.value,
+                "sent_at": e.sent_at.isoformat() if e.sent_at else None,
                 "recipient": e.recipient.masked(),
             }
             for e in emails
         ],
         "open_review": {
-            "id": review.id, "priority": review.priority.value,
+            "id": review.id,
+            "priority": review.priority.value,
             "reasons": [r.value for r in review.reasons],
             "is_overdue": review.is_overdue,
-        } if review else None,
+        }
+        if review
+        else None,
         "timeline": [s.to_dict() for s in trail.steps],
     }
 
@@ -973,14 +1093,22 @@ def _evaluation_payload(evaluation) -> dict[str, Any]:
         "prompt_versions": evaluation.prompt_versions,
         "cost_usd": evaluation.cost_usd,
         "hard_filters": [
-            {"label": f.filter_label, "passed": f.passed, "mandatory": f.mandatory,
-             "explanation": f.explanation, "status": f.status.value,
-             "mode": f.mode.value, "penalty_percent": f.penalty_percent}
+            {
+                "label": f.filter_label,
+                "passed": f.passed,
+                "mandatory": f.mandatory,
+                "explanation": f.explanation,
+                "status": f.status.value,
+                "mode": f.mode.value,
+                "penalty_percent": f.penalty_percent,
+            }
             for f in evaluation.hard_filter_results
         ],
         "dimensions": [
             {
-                "dimension": d.dimension.value, "score": d.score, "weight": d.weight,
+                "dimension": d.dimension.value,
+                "score": d.score,
+                "weight": d.weight,
                 "reasoning": d.reasoning,
                 "evidence": [
                     {"quote": s.quote, "verified": s.verified, "match_ratio": s.match_ratio}
@@ -996,6 +1124,46 @@ def _evaluation_payload(evaluation) -> dict[str, Any]:
 
 
 @router.post(
+    "/applications/{application_id}/resume-prefill",
+    tags=["candidatos"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_WRITE))],
+)
+def apply_resume_prefill(
+    application_id: str,
+    payload: ResumePrefillRequest,
+    uow: UowDep,
+    actor: ActorDep,
+) -> dict[str, Any]:
+    """Aplica solo campos que una persona confirmó desde la extracción del CV."""
+    application = uow.applications.get(application_id)
+    if application is None:
+        raise NotFoundError(f"No existe la candidatura {application_id}")
+    candidate = uow.candidates.get(application.candidate_id)
+    if candidate is None:
+        raise NotFoundError(f"No existe el candidato {application.candidate_id}")
+    if candidate.version != payload.expected_version:
+        raise ValidationError("La ficha cambió; recárgala antes de aplicar la precarga.")
+    changed: list[str] = []
+    for field_name in ("technical_knowledge", "availability"):
+        value = getattr(payload, field_name)
+        if value is not None:
+            setattr(candidate, field_name, value.strip())
+            changed.append(field_name)
+    if not changed:
+        raise ValidationError("Selecciona al menos un campo extraído para aplicar.")
+    candidate.touch()
+    uow.candidates.update(candidate)
+    AuditService(uow.audit).record(
+        action="candidate.resume_prefill_confirmed",
+        actor=actor,
+        resource_type="candidate",
+        resource_id=candidate.id,
+        new_state={"fields": changed, "application_id": application_id},
+    )
+    return {"candidate_id": candidate.id, "version": candidate.version, "fields": changed}
+
+
+@router.post(
     "/applications/{application_id}/evaluate",
     tags=["evaluación"],
     dependencies=[Depends(requires(Permission.EVALUATION_RUN))],
@@ -1005,13 +1173,9 @@ def evaluate(
 ) -> dict[str, Any]:
     """Ejecuta la evaluación TalentIA y aplica lo que la política permita."""
     use_case = EvaluateApplicationUseCase(uow)
-    outcome = use_case.execute(
-        application_id=application_id, actor=actor, dry_run=dry_run
-    )
+    outcome = use_case.execute(application_id=application_id, actor=actor, dry_run=dry_run)
     evaluation_payload = _evaluation_payload(outcome.evaluation)
-    evaluation_payload["execution_errors"] = outcome.agent_result.state_summary.get(
-        "errors", []
-    )
+    evaluation_payload["execution_errors"] = outcome.agent_result.state_summary.get("errors", [])
     return {
         **outcome.summary,
         "explanation": outcome.agent_result.explain(),
@@ -1049,8 +1213,11 @@ def transition(
     uow.applications.update(application)
 
     AuditService(uow.audit).record_status_change(
-        actor=user.as_actor(), application_id=application_id,
-        previous=previous.value, new=target.value, reason=reason,
+        actor=user.as_actor(),
+        application_id=application_id,
+        previous=previous.value,
+        new=target.value,
+        reason=reason,
         approved_by=user.user_id,
     )
     return {"application_id": application_id, "from": previous.value, "to": target.value}
@@ -1064,7 +1231,9 @@ def transition(
 def ranking(
     job_id: str, uow: UowDep, include_rejected: bool = Query(False)
 ) -> list[dict[str, Any]]:
-    return [r.to_dict() for r in RankingService(uow).rank_job(job_id, include_rejected=include_rejected)]
+    return [
+        r.to_dict() for r in RankingService(uow).rank_job(job_id, include_rejected=include_rejected)
+    ]
 
 
 @router.get(
@@ -1089,9 +1258,7 @@ def review_queue(uow: UowDep, status: str | None = Query(None)) -> list[dict[str
     rows = []
     for item in ReviewService(uow).queue(status=status):
         application = uow.applications.get(item.application_id)
-        candidate = (
-            uow.candidates.get(application.candidate_id) if application else None
-        )
+        candidate = uow.candidates.get(application.candidate_id) if application else None
         job = uow.jobs.get(application.job_id) if application else None
         rows.append(
             {
@@ -1220,20 +1387,32 @@ def expire_overdue(uow: UowDep) -> dict[str, Any]:
 # ── Comunicaciones ───────────────────────────────────────────────────────────
 
 
-@router.get("/email-templates", tags=["comunicaciones"], dependencies=[Depends(requires(Permission.EMAIL_PREPARE))])
+@router.get(
+    "/email-templates",
+    tags=["comunicaciones"],
+    dependencies=[Depends(requires(Permission.EMAIL_PREPARE))],
+)
 def list_templates(uow: UowDep) -> list[dict[str, Any]]:
     return [
         {
-            "id": t.id, "code": t.code, "kind": t.kind.value,
-            "subject": t.subject_template, "approved": t.approved,
+            "id": t.id,
+            "code": t.code,
+            "kind": t.kind.value,
+            "subject": t.subject_template,
+            "approved": t.approved,
             "requires_human_approval": t.requires_human_approval,
-            "allowed_variables": t.allowed_variables, "version": t.template_version,
+            "allowed_variables": t.allowed_variables,
+            "version": t.template_version,
         }
         for t in uow.templates.list()
     ]
 
 
-@router.get("/emails/provider", tags=["comunicaciones"], dependencies=[Depends(requires(Permission.SETTINGS_READ))])
+@router.get(
+    "/emails/provider",
+    tags=["comunicaciones"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
 def email_provider(uow: UowDep) -> dict[str, Any]:
     return EmailService(uow).provider_status()
 
@@ -1252,8 +1431,10 @@ def prepare_email(
 ) -> dict[str, Any]:
     service = EmailService(uow, llm=build_llm_from_settings(uow.settings))
     prepared = service.prepare(
-        application_id=application_id, template_code=template_code,
-        actor=actor, use_ai=use_ai,
+        application_id=application_id,
+        template_code=template_code,
+        actor=actor,
+        use_ai=use_ai,
     )
     return {
         "id": prepared.message.id,
@@ -1274,8 +1455,11 @@ def prepare_email(
 def pending_emails(uow: UowDep) -> list[dict[str, Any]]:
     return [
         {
-            "id": e.id, "application_id": e.application_id, "subject": e.subject,
-            "body": e.body, "recipient": e.recipient.masked(),
+            "id": e.id,
+            "application_id": e.application_id,
+            "subject": e.subject,
+            "body": e.body,
+            "recipient": e.recipient.masked(),
             "created_at": e.created_at.isoformat(),
         }
         for e in EmailService(uow).pending_approval()
@@ -1291,8 +1475,10 @@ def approve_email(
     email_id: str, uow: UowDep, user: CurrentUserDep, note: str = Body("", embed=True)
 ) -> dict[str, Any]:
     message = EmailService(uow).approve(
-        email_id=email_id, actor=user.as_actor(),
-        actor_permissions=user.permissions, note=note,
+        email_id=email_id,
+        actor=user.as_actor(),
+        actor_permissions=user.permissions,
+        note=note,
     )
     return {"id": message.id, "status": message.status.value, "approved_by": message.approved_by}
 
@@ -1303,15 +1489,20 @@ def approve_email(
     dependencies=[Depends(requires(Permission.EMAIL_SEND))],
 )
 def send_email(
-    email_id: str, uow: UowDep, user: CurrentUserDep,
+    email_id: str,
+    uow: UowDep,
+    user: CurrentUserDep,
     force_dry_run: bool | None = Body(None, embed=True),
 ) -> dict[str, Any]:
     message = EmailService(uow).send(
-        email_id=email_id, actor=user.as_actor(),
-        actor_permissions=user.permissions, force_dry_run=force_dry_run,
+        email_id=email_id,
+        actor=user.as_actor(),
+        actor_permissions=user.permissions,
+        force_dry_run=force_dry_run,
     )
     return {
-        "id": message.id, "status": message.status.value,
+        "id": message.id,
+        "status": message.status.value,
         "gmail_message_id": message.gmail_message_id,
         "sent_at": message.sent_at.isoformat() if message.sent_at else None,
     }
@@ -1354,8 +1545,7 @@ def screen_documents(
             for item in extraction.criteria
         ],
         "excluded_sensitive": [
-            {"page": item.page, "text": item.text}
-            for item in extraction.excluded_sensitive
+            {"page": item.page, "text": item.text} for item in extraction.excluded_sensitive
         ],
         "errors": errors,
         "ranking": [
@@ -1369,7 +1559,8 @@ def screen_documents(
                         "coverage": round(match.coverage, 4),
                         "evidence": (
                             {"page": match.cv_evidence.page, "text": match.cv_evidence.text}
-                            if match.cv_evidence else None
+                            if match.cv_evidence
+                            else None
                         ),
                     }
                     for match in review.matches
@@ -1404,14 +1595,15 @@ def query_documents(
     except PdfReadError as exc:
         raise ValidationError(str(exc)) from exc
     context = build_review_context(profile_pages, cv_pages)
-    answer = ApplicationAgent(
-        context, gemini_api_key="disabled", use_remote_embeddings=False
-    ).ask(question)
+    answer = ApplicationAgent(context, gemini_api_key="disabled", use_remote_embeddings=False).ask(
+        question
+    )
     return {
-        "answer": answer.answer, "found": answer.found, "origin": answer.origin,
+        "answer": answer.answer,
+        "found": answer.found,
+        "origin": answer.origin,
         "evidence": [
-            {"page": item.page, "text": item.text, "score": item.score}
-            for item in answer.evidence
+            {"page": item.page, "text": item.text, "score": item.score} for item in answer.evidence
         ],
         "decision_notice": "La respuesta explica evidencia; no toma decisiones laborales.",
     }
@@ -1420,27 +1612,47 @@ def query_documents(
 # ── Analítica ────────────────────────────────────────────────────────────────
 
 
-@router.get("/dashboard/summary", tags=["analítica"], dependencies=[Depends(requires(Permission.APPLICATION_READ))])
+@router.get(
+    "/dashboard/summary",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.APPLICATION_READ))],
+)
 def dashboard(uow: UowDep) -> dict[str, Any]:
     return AnalyticsService(uow).dashboard()
 
 
-@router.get("/dashboard/funnel", tags=["analítica"], dependencies=[Depends(requires(Permission.APPLICATION_READ))])
+@router.get(
+    "/dashboard/funnel",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.APPLICATION_READ))],
+)
 def funnel(uow: UowDep, job_id: str | None = Query(None)) -> list[dict[str, Any]]:
     return AnalyticsService(uow).funnel(job_id)
 
 
-@router.get("/dashboard/sla-alerts", tags=["analítica"], dependencies=[Depends(requires(Permission.APPLICATION_READ))])
+@router.get(
+    "/dashboard/sla-alerts",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.APPLICATION_READ))],
+)
 def sla_alerts(uow: UowDep, hours: int = Query(72, ge=1, le=2000)) -> list[dict[str, Any]]:
     return AnalyticsService(uow).sla_alerts(hours)
 
 
-@router.get("/dashboard/sources", tags=["analítica"], dependencies=[Depends(requires(Permission.APPLICATION_READ))])
+@router.get(
+    "/dashboard/sources",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.APPLICATION_READ))],
+)
 def sources(uow: UowDep) -> list[dict[str, Any]]:
     return AnalyticsService(uow).source_analytics()
 
 
-@router.get("/dashboard/stage-durations", tags=["analítica"], dependencies=[Depends(requires(Permission.APPLICATION_READ))])
+@router.get(
+    "/dashboard/stage-durations",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.APPLICATION_READ))],
+)
 def stage_durations(uow: UowDep, job_id: str | None = Query(None)) -> dict[str, float]:
     return AnalyticsService(uow).stage_durations(job_id)
 
@@ -1456,7 +1668,8 @@ def equity(uow: UowDep, job_id: str | None = Query(None)) -> dict[str, Any]:
 
 
 @router.get(
-    "/reports/candidate-disposition", tags=["analítica"],
+    "/reports/candidate-disposition",
+    tags=["analítica"],
     dependencies=[Depends(requires(Permission.CANDIDATE_READ, Permission.APPLICATION_READ))],
 )
 def candidate_disposition_report(uow: UowDep) -> dict[str, Any]:
@@ -1472,16 +1685,103 @@ def candidate_disposition_report(uow: UowDep) -> dict[str, Any]:
 
 
 @router.get(
-    "/reports/candidate-disposition.csv", tags=["analítica"],
+    "/reports/vendor-exclusions",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_READ, Permission.APPLICATION_READ))],
+)
+def vendor_exclusions(
+    uow: UowDep,
+    job_id: str | None = Query(None),
+    source: str | None = Query(None),
+    recontact_days: int = Query(180, ge=1, le=3650),
+    active_only: bool = Query(False),
+) -> dict[str, Any]:
+    rows = AnalyticsService(uow).vendor_exclusion_report(
+        job_id=job_id, source=source, recontact_days=recontact_days
+    )
+    if active_only:
+        rows = [row for row in rows if not row["recontact_allowed"]]
+    return {"count": len(rows), "rows": rows, "generated_by": "deterministic_rules"}
+
+
+@router.get(
+    "/reports/operational-impact",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.APPLICATION_READ))],
+)
+def operational_impact(
+    uow: UowDep,
+    job_id: str | None = Query(None),
+    source: str | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    minutes_per_cv: float = Query(5.0, ge=0, le=120),
+    minutes_per_duplicate: float = Query(3.0, ge=0, le=120),
+) -> dict[str, Any]:
+    if date_from and date_to and date_from > date_to:
+        raise ValidationError("La fecha inicial no puede ser posterior a la fecha final.")
+    return AnalyticsService(uow).operational_impact(
+        job_id=job_id,
+        source=source,
+        date_from=date_from,
+        date_to=date_to,
+        minutes_per_cv=minutes_per_cv,
+        minutes_per_duplicate=minutes_per_duplicate,
+    )
+
+
+@router.get(
+    "/reports/vendor-exclusions.csv",
+    tags=["analítica"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_READ, Permission.APPLICATION_READ))],
+)
+def vendor_exclusions_csv(
+    uow: UowDep,
+    job_id: str | None = Query(None),
+    source: str | None = Query(None),
+) -> Response:
+    rows = AnalyticsService(uow).vendor_exclusion_report(job_id=job_id, source=source)
+    output = io.StringIO(newline="")
+    columns = [
+        "candidate_id", "candidate", "application_id", "job_code", "source",
+        "reason", "recorded_at", "valid_until", "recontact_allowed",
+    ]
+    writer = csv.DictWriter(output, fieldnames=columns)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(
+            {
+                key: neutralize_spreadsheet_formula(str(row.get(key, "") or ""))
+                for key in columns
+            }
+        )
+    return Response(
+        content="\ufeff" + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="exclusiones-proveedor.csv"'},
+    )
+
+
+@router.get(
+    "/reports/candidate-disposition.csv",
+    tags=["analítica"],
     dependencies=[Depends(requires(Permission.CANDIDATE_READ, Permission.APPLICATION_READ))],
 )
 def candidate_disposition_csv(uow: UowDep) -> Response:
     rows = AnalyticsService(uow).candidate_disposition_report()
     output = io.StringIO(newline="")
     columns = [
-        "candidate_id", "candidate", "client", "recruiter", "source",
-        "categories", "application_id", "application_status",
-        "job_code", "job_title", "date",
+        "candidate_id",
+        "candidate",
+        "client",
+        "recruiter",
+        "source",
+        "categories",
+        "application_id",
+        "application_status",
+        "job_code",
+        "job_title",
+        "date",
     ]
     writer = csv.DictWriter(output, fieldnames=columns)
     writer.writeheader()
@@ -1490,12 +1790,12 @@ def candidate_disposition_csv(uow: UowDep) -> Response:
             key: ", ".join(value) if isinstance(value, list) else value
             for key, value in row.items()
         }
-        writer.writerow({
-            key: neutralize_spreadsheet_formula(str(safe.get(key, "") or ""))
-            for key in columns
-        })
+        writer.writerow(
+            {key: neutralize_spreadsheet_formula(str(safe.get(key, "") or "")) for key in columns}
+        )
     return Response(
-        content="\ufeff" + output.getvalue(), media_type="text/csv; charset=utf-8",
+        content="\ufeff" + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="seguimiento-candidatos.csv"'},
     )
 
@@ -1515,9 +1815,7 @@ def audit_events(
     severity: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
 ) -> list[dict[str, Any]]:
-    events = uow.audit.list(
-        resource_id=resource_id, action=action, severity=severity, limit=limit
-    )
+    events = uow.audit.list(resource_id=resource_id, action=action, severity=severity, limit=limit)
     return [
         {
             "event_id": e.event_id,

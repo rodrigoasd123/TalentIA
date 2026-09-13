@@ -88,8 +88,44 @@ def _technical_settings() -> None:  # noqa: C901 - Configuración técnica agrup
         help="TalentIA selecciona automáticamente el proveedor y la clave correspondiente.",
     )
     provider = provider_for_model(model)
-    provider_label = "Google Gemini directo" if provider == "gemini" else "GenAI Lab"
+    provider_label = {
+        "gemini": "Google Gemini directo",
+        "openai": "OpenAI directo",
+        "genai_lab": "GenAI Lab",
+    }.get(provider, provider)
     st.caption(f"Proveedor asignado automáticamente: {provider_label}.")
+
+    secret_key = {
+        "gemini": "llm.gemini_api_key",
+        "openai": "llm.openai_api_key",
+        "genai_lab": "llm.genai_lab_api_key",
+    }.get(provider)
+    secret_item = items.get(secret_key or "", {})
+    if secret_key:
+        api_key = st.text_input(
+            f"Credencial de {provider_label}",
+            type="password",
+            placeholder=(
+                "Ya configurada; escribe una nueva para reemplazarla"
+                if secret_item.get("is_set")
+                else "Ingresa la credencial"
+            ),
+            disabled=not can_write,
+            help="La clave se envía al backend, se cifra y nunca vuelve a mostrarse.",
+        )
+        if can_write and st.button("Guardar credencial", width="stretch"):
+            if not api_key.strip():
+                st.warning("Escribe una credencial para guardarla.")
+            else:
+                try:
+                    session.client().update_settings(
+                        {secret_key: api_key.strip()},
+                        updated_by=session.current_user().get("email", "ui"),
+                    )
+                    st.success("Credencial guardada de forma cifrada.")
+                    st.rerun()
+                except ApiError as exc:
+                    design.api_error(exc, "No se pudo guardar la credencial")
 
     if can_write and model != str(current.get("model", "")):
         try:
@@ -117,6 +153,33 @@ def _technical_settings() -> None:  # noqa: C901 - Configuración técnica agrup
         f"Los modelos de {', '.join(GENAI_LAB_EMBEDDING_MODELS)} (embeddings) y "
         f"{', '.join(GENAI_LAB_TRANSCRIPTION_MODELS)} (audio) no aparecen aquí."
     )
+
+    if can_write:
+        with st.expander("Benchmark gobernado de modelos"):
+            st.caption(
+                "Usa tres casos sintéticos versionados. No envía CVs ni datos de candidatos. "
+                "Cada ejecución consume llamadas reales de los modelos seleccionados."
+            )
+            selected = st.multiselect(
+                "Modelos a comparar (máximo 5)", known_models, max_selections=5
+            )
+            baseline = st.selectbox("Modelo base", selected or [model], disabled=not selected)
+            confirm_benchmark = st.checkbox("Confirmo el consumo de la ejecución del benchmark")
+            if st.button("Ejecutar benchmark", disabled=not selected):
+                try:
+                    with st.spinner("Ejecutando suite sintética..."):
+                        result = session.client().benchmark_models(
+                            models=selected,
+                            baseline_model=baseline,
+                            confirmed=confirm_benchmark,
+                        )
+                    st.success(
+                        f"Suite {result.get('suite_version')} ejecutada. "
+                        f"Hash: {result.get('suite_hash')}"
+                    )
+                    st.dataframe(result.get("ranking", []), hide_index=True)
+                except ApiError as exc:
+                    design.api_error(exc, "No se pudo ejecutar el benchmark")
 
     st.subheader("Integraciones")
     try:

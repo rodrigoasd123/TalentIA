@@ -33,9 +33,7 @@ GENAI_LAB_CHAT_MODELS: tuple[str, ...] = (
     "genailab-maas-gpt-5.3-codex",
 )
 
-GENAI_LAB_EMBEDDING_MODELS: tuple[str, ...] = (
-    "azure/genailab-maas-text-embedding-3-large",
-)
+GENAI_LAB_EMBEDDING_MODELS: tuple[str, ...] = ("azure/genailab-maas-text-embedding-3-large",)
 
 GENAI_LAB_TRANSCRIPTION_MODELS: tuple[str, ...] = (
     "azure/genailab-maas-whisper",
@@ -58,16 +56,23 @@ GEMINI_DIRECT_MODELS: tuple[str, ...] = (
     "gemini-1.5-pro",
 )
 
+OPENAI_DIRECT_MODELS: tuple[str, ...] = (
+    "gpt-5.6-luna",
+    "gpt-5.6-terra",
+    "gpt-4o",
+    "gpt-4o-mini",
+)
+
 # El selector es único. Los nombres Gemini duplicados en el gateway se muestran
 # una sola vez y se enrutan a Google AI Studio.
-SELECTABLE_LLM_MODELS: tuple[str, ...] = GEMINI_DIRECT_MODELS + tuple(
-    model for model in GENAI_LAB_CHAT_MODELS if not model.startswith("gemini-")
+SELECTABLE_LLM_MODELS: tuple[str, ...] = (
+    GEMINI_DIRECT_MODELS
+    + OPENAI_DIRECT_MODELS
+    + tuple(model for model in GENAI_LAB_CHAT_MODELS if not model.startswith("gemini-"))
 )
 
 GENAI_LAB_ALL_MODELS = (
-    GENAI_LAB_CHAT_MODELS
-    + GENAI_LAB_EMBEDDING_MODELS
-    + GENAI_LAB_TRANSCRIPTION_MODELS
+    GENAI_LAB_CHAT_MODELS + GENAI_LAB_EMBEDDING_MODELS + GENAI_LAB_TRANSCRIPTION_MODELS
 )
 
 
@@ -76,9 +81,7 @@ def gateway_model_id(model: str) -> str:
     aliases = {
         "azure/genailab-maas-gpt-35-turbo": "genailab-maas-gpt-35-turbo",
         "azure/genailab-maas-gpt-4o": "genailab-maas-gpt-4o",
-        "azure_ai/genailab-maas-DeepSeek-V3-0324": (
-            "genailab-maas-DeepSeek-v3-0324"
-        ),
+        "azure_ai/genailab-maas-DeepSeek-V3-0324": ("genailab-maas-DeepSeek-v3-0324"),
     }
     return aliases.get(model, model)
 
@@ -91,9 +94,16 @@ def provider_for_model(model: str) -> str:
         return "gemini"
     if model in GENAI_LAB_CHAT_MODELS:
         return "genai_lab"
-    if model in ("gpt-5.6-luna", "gpt-5.6-terra") or model.startswith("gpt-") or model.startswith("o1") or model.startswith("o3") or model.startswith("o4"):
+    if (
+        model in ("gpt-5.6-luna", "gpt-5.6-terra")
+        or model.startswith("gpt-")
+        or model.startswith("o1")
+        or model.startswith("o3")
+        or model.startswith("o4")
+    ):
         return "openai"
     raise ValueError(f"Modelo no admitido: {model}")
+
 
 __all__ = [
     "GEMINI_DIRECT_MODELS",
@@ -101,6 +111,7 @@ __all__ = [
     "GENAI_LAB_CHAT_MODELS",
     "GENAI_LAB_EMBEDDING_MODELS",
     "GENAI_LAB_TRANSCRIPTION_MODELS",
+    "OPENAI_DIRECT_MODELS",
     "SELECTABLE_LLM_MODELS",
     "gateway_model_id",
     "provider_for_model",

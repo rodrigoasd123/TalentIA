@@ -69,6 +69,7 @@ from app.infrastructure.llm.model_catalog import (
     SELECTABLE_LLM_MODELS,
     provider_for_model,
 )
+from app.infrastructure.llm.openai_adapter import OpenAIAdapter
 from app.infrastructure.llm.openai_compatible_adapter import (
     DEFAULT_GENAI_LAB_BASE_URL,
     OpenAICompatibleAdapter,
@@ -95,18 +96,18 @@ def _validate_json_object(text: str) -> None:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):  # noqa: ANN201
+async def lifespan(_: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level, as_json=settings.log_json)
-    # init_database() # Skipped because it hangs inside async lifespan on Windows
-    
+    # Asegura el esquema también cuando la API se inicia sin el script auxiliar.
+    init_database()
+
     if settings.mlflow_enabled:
         try:
             import mlflow
+
             mlflow.set_tracking_uri(settings.resolved_mlflow_tracking_uri)
             mlflow.set_experiment(settings.mlflow_experiment_name)
-            mlflow.langchain.autolog(log_traces=True)
-            mlflow.openai.autolog(log_traces=True)
         except ImportError:
             pass
 
@@ -148,7 +149,7 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def trace_and_headers(request: Request, call_next):  # noqa: ANN001, ANN201
+async def trace_and_headers(request: Request, call_next):
     """Asigna un identificador de traza y aplica cabeceras de seguridad."""
     trace_id = set_trace_id(request.headers.get("X-Trace-Id"))
     response = await call_next(request)
@@ -233,17 +234,26 @@ def llm_observability() -> dict[str, object]:
 )
 def benchmark_models(payload: ModelBenchmarkRequest, store: StoreDep) -> dict[str, object]:
     """Compara modelos con la misma suite sintética y conserva las llamadas en MLflow."""
-    models = payload.models or list(SELECTABLE_LLM_MODELS)
+    if not payload.confirmed:
+        raise ValidationError("Confirma explícitamente el consumo antes de ejecutar.")
+    models = payload.models
     invalid = sorted(set(models) - set(SELECTABLE_LLM_MODELS))
     if invalid:
         raise ValidationError(f"Modelos fuera del catálogo: {', '.join(invalid)}")
-    return run_model_benchmark(store, models)
+    if payload.baseline_model and payload.baseline_model not in models:
+        raise ValidationError("El modelo base debe formar parte de los modelos seleccionados.")
+    return run_model_benchmark(store, models, baseline_model=payload.baseline_model or models[0])
 
 
 # ── Configuración ────────────────────────────────────────────────────────────
 
 
-@app.get(f"{API_PREFIX}/config/settings", response_model=SettingsResponse, tags=["configuración"], dependencies=[Depends(requires(Permission.SETTINGS_READ))])
+@app.get(
+    f"{API_PREFIX}/config/settings",
+    response_model=SettingsResponse,
+    tags=["configuración"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
 def read_settings(store: StoreDep) -> SettingsResponse:
     """Configuración actual. Los secretos van enmascarados, nunca en claro."""
     config = store.llm_config()
@@ -258,7 +268,12 @@ def read_settings(store: StoreDep) -> SettingsResponse:
     )
 
 
-@app.patch(f"{API_PREFIX}/config/settings", response_model=SettingsResponse, tags=["configuración"], dependencies=[Depends(requires_settings_write)])
+@app.patch(
+    f"{API_PREFIX}/config/settings",
+    response_model=SettingsResponse,
+    tags=["configuración"],
+    dependencies=[Depends(requires_settings_write)],
+)
 def update_settings(
     payload: SettingsUpdateRequest, store: StoreDep, session: SessionDep
 ) -> SettingsResponse:
@@ -304,23 +319,21 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
             available_models=["mock"],
         )
 
-    stored_key_name = (
-        "llm.genai_lab_api_key"
-        if provider == "genai_lab"
-        else "llm.gemini_api_key"
-    )
+    stored_key_name = {
+        "genai_lab": "llm.genai_lab_api_key",
+        "gemini": "llm.gemini_api_key",
+        "openai": "llm.openai_api_key",
+    }[provider]
     api_key = payload.api_key or store.get(stored_key_name, "")
     if not api_key and provider == "genai_lab":
         api_key = store.get("llm.api_key", "")
     if provider == "genai_lab":
-        base_url = payload.base_url or store.get(
-            "llm.base_url", DEFAULT_GENAI_LAB_BASE_URL
-        )
-        adapter = OpenAICompatibleAdapter(
-            api_key=api_key, model=payload.model, base_url=base_url
-        )
-    else:
+        base_url = payload.base_url or store.get("llm.base_url", DEFAULT_GENAI_LAB_BASE_URL)
+        adapter = OpenAICompatibleAdapter(api_key=api_key, model=payload.model, base_url=base_url)
+    elif provider == "gemini":
         adapter = GeminiAdapter(api_key=api_key, model=payload.model)
+    else:
+        adapter = OpenAIAdapter(api_key=api_key, model=payload.model)
     ok, message = adapter.verify_credentials()
     if ok and provider in {"genai_lab", "gemini"}:
         try:
@@ -332,21 +345,22 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
                 timeout_seconds=60,
             )
             _validate_json_object(probe.text)
-            message = (
-                f"Clave y generación verificadas con el modelo {payload.model}."
-            )
+            message = f"Clave y generación verificadas con el modelo {payload.model}."
         except (VeraError, ValueError, json.JSONDecodeError) as exc:
             ok = False
             message = (
-                "La clave es válida, pero el modelo seleccionado no pudo generar: "
-                f"{str(exc)[:300]}"
+                f"La clave es válida, pero el modelo seleccionado no pudo generar: {str(exc)[:300]}"
             )
     return CredentialTestResponse(
         ok=ok, message=message, available_models=adapter.list_models() if ok else []
     )
 
 
-@app.get(f"{API_PREFIX}/config/models", tags=["configuración"], dependencies=[Depends(requires(Permission.SETTINGS_READ))])
+@app.get(
+    f"{API_PREFIX}/config/models",
+    tags=["configuración"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
 def list_models(store: StoreDep) -> dict[str, list[str]]:
     """Catálogo único; el proveedor y la credencial se resuelven internamente."""
     return {"models": list(SELECTABLE_LLM_MODELS)}
@@ -355,7 +369,12 @@ def list_models(store: StoreDep) -> dict[str, list[str]]:
 # ── Agente ───────────────────────────────────────────────────────────────────
 
 
-@app.get(f"{API_PREFIX}/agent/health", response_model=AgentHealthResponse, tags=["agente"], dependencies=[Depends(requires(Permission.SETTINGS_READ))])
+@app.get(
+    f"{API_PREFIX}/agent/health",
+    response_model=AgentHealthResponse,
+    tags=["agente"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
 def agent_health(store: StoreDep) -> AgentHealthResponse:
     llm = build_llm_from_settings(store)
     info = describe_provider(llm)
@@ -379,7 +398,11 @@ def agent_health(store: StoreDep) -> AgentHealthResponse:
     )
 
 
-@app.get(f"{API_PREFIX}/agent/graph", tags=["agente"], dependencies=[Depends(requires(Permission.SETTINGS_READ))])
+@app.get(
+    f"{API_PREFIX}/agent/graph",
+    tags=["agente"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
 def agent_graph() -> dict[str, str]:
     """Diagrama del grafo, derivado de su definición real."""
     from app.ai.graphs.evaluation_graph import graph_diagram
@@ -394,7 +417,12 @@ def agent_graph() -> dict[str, str]:
 # ── Catálogo del laboratorio ─────────────────────────────────────────────────
 
 
-@app.get(f"{API_PREFIX}/jobs", response_model=list[JobSummary], tags=["vacantes"], dependencies=[Depends(requires(Permission.JOB_READ))])
+@app.get(
+    f"{API_PREFIX}/jobs",
+    response_model=list[JobSummary],
+    tags=["vacantes"],
+    dependencies=[Depends(requires(Permission.JOB_READ))],
+)
 def list_jobs(session: SessionDep) -> list[JobSummary]:
     jobs = UnitOfWork(session).jobs.list(limit=100)
     if not jobs:
@@ -418,15 +446,27 @@ def list_jobs(session: SessionDep) -> list[JobSummary]:
                 f.operator.value == "min_level" for f in job.requirements.hard_filters
             ),
             language_level=next(
-                (str(f.value.get("level", "b2")) for f in job.requirements.hard_filters if f.operator.value == "min_level"),
+                (
+                    str(f.value.get("level", "b2"))
+                    for f in job.requirements.hard_filters
+                    if f.operator.value == "min_level"
+                ),
                 "b2",
             ),
             language_mode=next(
-                (f.effective_mode.value for f in job.requirements.hard_filters if f.operator.value == "min_level"),
+                (
+                    f.effective_mode.value
+                    for f in job.requirements.hard_filters
+                    if f.operator.value == "min_level"
+                ),
                 "weighted",
             ),
             language_penalty_percent=next(
-                (f.effective_penalty_percent for f in job.requirements.hard_filters if f.operator.value == "min_level"),
+                (
+                    f.effective_penalty_percent
+                    for f in job.requirements.hard_filters
+                    if f.operator.value == "min_level"
+                ),
                 15.0,
             ),
         )
@@ -434,7 +474,11 @@ def list_jobs(session: SessionDep) -> list[JobSummary]:
     ]
 
 
-@app.get(f"{API_PREFIX}/jobs/{{code}}/brief", tags=["vacantes"], dependencies=[Depends(requires(Permission.JOB_READ))])
+@app.get(
+    f"{API_PREFIX}/jobs/{{code}}/brief",
+    tags=["vacantes"],
+    dependencies=[Depends(requires(Permission.JOB_READ))],
+)
 def job_brief(code: str, session: SessionDep) -> dict[str, str]:
     """Bases de convocatoria en su versión legible."""
     content = job_brief_markdown(code)
@@ -446,7 +490,12 @@ def job_brief(code: str, session: SessionDep) -> dict[str, str]:
     return {"code": code, "markdown": content}
 
 
-@app.get(f"{API_PREFIX}/resumes", response_model=list[ResumeSummary], tags=["candidatos"], dependencies=[Depends(requires(Permission.CANDIDATE_READ))])
+@app.get(
+    f"{API_PREFIX}/resumes",
+    response_model=list[ResumeSummary],
+    tags=["candidatos"],
+    dependencies=[Depends(requires(Permission.CANDIDATE_READ))],
+)
 def list_resumes() -> list[ResumeSummary]:
     """CVs ficticios disponibles. El correo se devuelve enmascarado."""
     return [
@@ -585,20 +634,21 @@ def run_evaluation(payload: EvaluationRunRequest, store: StoreDep) -> Evaluation
 
 # ── Diagnóstico y Benchmarking (OpenAI) ──────────────────────────────────────
 
+
 @app.post(
     f"{API_PREFIX}/ai/test",
     tags=["diagnóstico"],
-    dependencies=[Depends(requires(Permission.SETTINGS_READ))]
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
 )
 def test_openai_endpoint():
     """Realiza una llamada de prueba pequeña al modelo configurado."""
     from app.services.openai_service import OpenAIService, OpenAIServiceError
-    
+
     try:
         service = OpenAIService()
         messages = [{"role": "user", "content": "Responde únicamente: conexión correcta"}]
         result = service.call_model(messages=messages, feature="test_connection")
-        
+
         if result.get("success"):
             return {
                 "success": True,
@@ -608,45 +658,42 @@ def test_openai_endpoint():
                 "output_tokens": result.get("output_tokens"),
                 "total_tokens": result.get("total_tokens"),
                 "estimated_cost_usd": result.get("estimated_cost_usd"),
-                "latency_ms": result.get("latency_ms")
+                "latency_ms": result.get("latency_ms"),
             }
         else:
             return JSONResponse(
                 status_code=500,
-                content={"success": False, "error_message": result.get("error_message")}
+                content={"success": False, "error_message": result.get("error_message")},
             )
     except OpenAIServiceError as e:
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "error_message": str(e)}
-        )
+        return JSONResponse(status_code=500, content={"success": False, "error_message": str(e)})
     except Exception as e:
         return JSONResponse(
-            status_code=500,
-            content={"success": False, "error_message": f"Error interno: {str(e)}"}
+            status_code=500, content={"success": False, "error_message": f"Error interno: {e!s}"}
         )
+
 
 @app.post(
     f"{API_PREFIX}/ai/compare-models",
     tags=["diagnóstico"],
-    dependencies=[Depends(requires(Permission.SETTINGS_READ))]
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
 )
 def compare_openai_models():
     """Ejecuta el mismo prompt utilizando gpt-5.6-luna y gpt-5.6-terra para desarrollo."""
     from app.core.config import get_settings
     from app.services.openai_service import OpenAIService
-    
+
     if get_settings().environment.value not in ["development", "testing"]:
         return JSONResponse(
             status_code=403,
-            content={"success": False, "error_message": "Endpoint solo disponible en desarrollo"}
+            content={"success": False, "error_message": "Endpoint solo disponible en desarrollo"},
         )
-        
+
     service = OpenAIService()
     messages = [{"role": "user", "content": "Responde con un chiste corto de programadores"}]
-    
+
     results = {}
-    
+
     for model in ["gpt-5.6-luna", "gpt-5.6-terra"]:
         try:
             res = service.call_model(messages=messages, model=model, feature="model_comparison")
@@ -657,13 +704,13 @@ def compare_openai_models():
                     "output_tokens": res.get("output_tokens"),
                     "total_tokens": res.get("total_tokens"),
                     "latency_ms": res.get("latency_ms"),
-                    "estimated_cost_usd": res.get("estimated_cost_usd")
+                    "estimated_cost_usd": res.get("estimated_cost_usd"),
                 }
             else:
                 results[model] = {"error": res.get("error_message")}
         except Exception as e:
             results[model] = {"error": str(e)}
-            
+
     return results
 
 

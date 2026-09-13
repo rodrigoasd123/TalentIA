@@ -64,7 +64,7 @@ class SettingsUpdateRequest(BaseModel):
 
 class CredentialTestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    provider: Literal["genai_lab", "gemini", "mock"] = "genai_lab"
+    provider: Literal["genai_lab", "gemini", "openai", "mock"] = "genai_lab"
     api_key: str = ""
     model: str = "gemini-2.5-flash"
     base_url: str = ""
@@ -77,7 +77,9 @@ class CredentialTestResponse(BaseModel):
 
 
 class ModelBenchmarkRequest(BaseModel):
-    models: list[str] = Field(default_factory=list, max_length=30)
+    models: list[str] = Field(min_length=1, max_length=5)
+    baseline_model: str = ""
+    confirmed: bool = False
 
 
 class JobSummary(BaseModel):
@@ -168,6 +170,14 @@ class CandidateCreateRequest(BaseModel):
         return value
 
 
+class CandidateIdentityCheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    full_name: str = Field(min_length=2, max_length=200)
+    email: str = Field(default="", max_length=255)
+    phone: str = Field(default="", max_length=40)
+    national_id: str = Field(default="", max_length=40)
+
+
 class CandidateUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: int = Field(ge=1)
@@ -207,6 +217,15 @@ class IntakeResponse(BaseModel):
     was_existing_candidate: bool
     duplicates: list[dict[str, str]] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+
+class ResumePrefillRequest(BaseModel):
+    """Campos extraídos que RR. HH. decidió incorporar explícitamente."""
+
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    technical_knowledge: str | None = Field(default=None, max_length=10000)
+    availability: str | None = Field(default=None, max_length=160)
 
 
 class ResumeSummary(BaseModel):
@@ -346,6 +365,7 @@ __all__ = [
     "AgentHealthResponse",
     "CredentialTestRequest",
     "CredentialTestResponse",
+    "CandidateIdentityCheckRequest",
     "DimensionOut",
     "ErrorDetail",
     "ErrorResponse",
@@ -362,6 +382,8 @@ __all__ = [
     "JobCreateRequest",
     "JobSummary",
     "JobUpdateRequest",
+    "ModelBenchmarkRequest",
+    "ResumePrefillRequest",
     "ResumeSummary",
     "SettingItem",
     "SettingsResponse",

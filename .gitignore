@@ -6,6 +6,8 @@ ENV/
 
 # Byte-compiled / cache
 __pycache__/
+*.egg-info/
+.codex-tmp/
 *.py[cod]
 *$py.class
 .pytest_cache/

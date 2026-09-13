@@ -128,7 +128,9 @@ def test_sourcing_solo_devuelve_una_consulta_para_ejecucion_manual(client: TestC
     assert '"python"' in response.json()["boolean_query"]
 
 
-def _create_application(client: TestClient, code: str = "LAB-022") -> dict:
+def _create_application(
+    client: TestClient, code: str = "LAB-022", *, resume_content: bytes | None = None
+) -> dict:
     job = client.post(
         "/api/v1/jobs",
         json={"code": code, "title": "Vacante de integridad", "criteria_approved": True},
@@ -141,14 +143,21 @@ def _create_application(client: TestClient, code: str = "LAB-022") -> dict:
             "job_id": job["id"],
             "consent_granted": "true",
         },
-        files={"resume": ("cv.docx", _docx_bytes(), "application/octet-stream")},
+        files={
+            "resume": (
+                "cv.docx",
+                resume_content if resume_content is not None else _docx_bytes(),
+                "application/octet-stream",
+            )
+        },
     )
     assert response.status_code == 201, response.text
     return response.json()
 
 
 def test_lista_identifica_y_endpoint_asocia_cv_faltante(client: TestClient) -> None:
-    created = _create_application(client)
+    resume_content = _docx_bytes()
+    created = _create_application(client, resume_content=resume_content)
     with session_scope() as database_session:
         uow = UnitOfWork(database_session)
         application = uow.applications.get(created["application_id"])
@@ -163,7 +172,9 @@ def test_lista_identifica_y_endpoint_asocia_cv_faltante(client: TestClient) -> N
 
     attached = client.post(
         f"/api/v1/applications/{created['application_id']}/resume",
-        files={"resume": ("cv-recuperado.docx", _docx_bytes(), "application/octet-stream")},
+        files={
+            "resume": ("cv-recuperado.docx", resume_content, "application/octet-stream")
+        },
     )
     assert attached.status_code == 200, attached.text
     assert attached.json()["resume_id"] == created["resume_id"]

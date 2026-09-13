@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import unicodedata
 from datetime import UTC, datetime, timedelta
-from typing import Any, Sequence
+from difflib import SequenceMatcher
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -35,7 +36,7 @@ from app.domain.entities import (
     User,
     WorkflowRun,
 )
-from app.domain.enums import ApplicationStatus, EmailStatus, ReviewStatus
+from app.domain.enums import ApplicationStatus, EmailStatus
 from app.infrastructure.database.models import (
     ApplicationModel,
     AuditEventModel,
@@ -164,9 +165,7 @@ class SqlCandidateRepository(BaseRepository):
             return []
         matches: dict[str, CandidateModel] = {}
         if conditions:
-            for row in self.session.scalars(
-                select(CandidateModel).where(or_(*conditions))
-            ):
+            for row in self.session.scalars(select(CandidateModel).where(or_(*conditions))):
                 matches[row.id] = row
         if len(digits) >= 8:
             phone_suffix = digits[-8:]
@@ -176,12 +175,12 @@ class SqlCandidateRepository(BaseRepository):
         return [m.candidate_to_entity(row) for row in matches.values()]
 
     def find_by_normalized_name(self, name: str) -> list[Candidate]:
-        normalized = " ".join(name.lower().split())
+        normalized = _normalized_name(name)
         rows = self.session.scalars(select(CandidateModel)).all()
         return [
             m.candidate_to_entity(row)
             for row in rows
-            if " ".join(row.full_name.lower().split()) == normalized
+            if _normalized_name(row.full_name) == normalized
         ]
 
     def update(self, candidate: Candidate) -> Candidate:
@@ -217,16 +216,34 @@ class SqlCandidateRepository(BaseRepository):
 
         from sqlalchemy import or_
 
-        if not conditions:
-            return []
-        stmt = select(CandidateModel).where(
-            or_(*conditions), CandidateModel.id != candidate.id
-        )
-        return [m.candidate_to_entity(x) for x in self.session.scalars(stmt)]
+        matches: dict[str, CandidateModel] = {}
+        if conditions:
+            stmt = select(CandidateModel).where(or_(*conditions), CandidateModel.id != candidate.id)
+            for row in self.session.scalars(stmt):
+                matches[row.id] = row
+
+        # El nombre es una señal débil: alerta, pero nunca fusiona personas.
+        target_name = _normalized_name(candidate.full_name)
+        if target_name:
+            for row in self.session.scalars(select(CandidateModel)):
+                if row.id == candidate.id:
+                    continue
+                similarity = SequenceMatcher(
+                    None, target_name, _normalized_name(row.full_name)
+                ).ratio()
+                if similarity >= 0.92:
+                    matches[row.id] = row
+        return [m.candidate_to_entity(row) for row in matches.values()]
 
 
 def _digits(value: str) -> str:
     return "".join(c for c in value if c.isdigit())
+
+
+def _normalized_name(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    without_accents = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return " ".join("".join(c if c.isalnum() else " " for c in without_accents).split())
 
 
 # ── Documentos ───────────────────────────────────────────────────────────────
@@ -326,9 +343,7 @@ class SqlApplicationRepository(BaseRepository):
         return [m.application_to_entity(x) for x in self.session.scalars(stmt)]
 
     def list_all(self, *, limit: int = 500) -> list[Application]:
-        stmt = select(ApplicationModel).order_by(
-            ApplicationModel.applied_at.desc()
-        ).limit(limit)
+        stmt = select(ApplicationModel).order_by(ApplicationModel.applied_at.desc()).limit(limit)
         return [m.application_to_entity(x) for x in self.session.scalars(stmt)]
 
     def count_by_status(self, job_id: str | None = None) -> dict[str, int]:
@@ -439,9 +454,7 @@ class SqlReviewRepository(BaseRepository):
         if status:
             stmt = stmt.where(HumanReviewModel.status == status)
         else:
-            stmt = stmt.where(
-                HumanReviewModel.status.in_(["pending", "assigned", "in_progress"])
-            )
+            stmt = stmt.where(HumanReviewModel.status.in_(["pending", "assigned", "in_progress"]))
         if assigned_to:
             stmt = stmt.where(HumanReviewModel.assigned_to == assigned_to)
 
@@ -484,9 +497,7 @@ class SqlEmailRepository(BaseRepository):
         return m.email_to_entity(model) if model else None
 
     def get_by_idempotency_key(self, key: str) -> EmailMessage | None:
-        model = self.session.scalar(
-            select(EmailModel).where(EmailModel.idempotency_key == key)
-        )
+        model = self.session.scalar(select(EmailModel).where(EmailModel.idempotency_key == key))
         return m.email_to_entity(model) if model else None
 
     def update(self, message: EmailMessage) -> EmailMessage:
@@ -506,22 +517,23 @@ class SqlEmailRepository(BaseRepository):
         return [m.email_to_entity(x) for x in self.session.scalars(stmt)]
 
     def list_pending_approval(self) -> list[EmailMessage]:
-        stmt = select(EmailModel).where(
-            EmailModel.status == EmailStatus.PENDING_APPROVAL.value
-        )
+        stmt = select(EmailModel).where(EmailModel.status == EmailStatus.PENDING_APPROVAL.value)
         return [m.email_to_entity(x) for x in self.session.scalars(stmt)]
 
     def count_sent_since(self, job_id: str, hours: int) -> int:
         limit = datetime.now(UTC) - timedelta(hours=hours)
-        return self.session.scalar(
-            select(func.count())
-            .select_from(EmailModel)
-            .where(
-                EmailModel.job_id == job_id,
-                EmailModel.status == EmailStatus.SENT.value,
-                EmailModel.sent_at >= limit,
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(EmailModel)
+                .where(
+                    EmailModel.job_id == job_id,
+                    EmailModel.status == EmailStatus.SENT.value,
+                    EmailModel.sent_at >= limit,
+                )
             )
-        ) or 0
+            or 0
+        )
 
 
 class SqlTemplateRepository(BaseRepository):
@@ -541,9 +553,7 @@ class SqlTemplateRepository(BaseRepository):
         return m.template_to_entity(model) if model else None
 
     def list(self) -> list[EmailTemplate]:
-        return [
-            m.template_to_entity(x) for x in self.session.scalars(select(EmailTemplateModel))
-        ]
+        return [m.template_to_entity(x) for x in self.session.scalars(select(EmailTemplateModel))]
 
 
 # ── Auditoría ────────────────────────────────────────────────────────────────
@@ -563,9 +573,9 @@ class SqlAuditRepository(BaseRepository):
 
     def append(self, event: AuditEvent) -> AuditEvent:
         last = self.session.scalar(
-            select(AuditEventModel).order_by(
-                AuditEventModel.timestamp.desc(), AuditEventModel.event_id.desc()
-            ).limit(1)
+            select(AuditEventModel)
+            .order_by(AuditEventModel.timestamp.desc(), AuditEventModel.event_id.desc())
+            .limit(1)
         )
         if last is not None:
             last_timestamp = last.timestamp
@@ -673,9 +683,7 @@ class SqlAuditRepository(BaseRepository):
         return [m.audit_to_entity(x) for x in self.session.scalars(stmt)]
 
     def count_by_severity(self) -> dict[str, int]:
-        stmt = select(AuditEventModel.severity, func.count()).group_by(
-            AuditEventModel.severity
-        )
+        stmt = select(AuditEventModel.severity, func.count()).group_by(AuditEventModel.severity)
         return {severity: count for severity, count in self.session.execute(stmt)}
 
 
@@ -724,8 +732,16 @@ class SqlWorkflowRepository(BaseRepository):
 
 
 __all__ = [
-    "GENESIS_HASH", "SqlApplicationRepository", "SqlAuditRepository",
-    "SqlCandidateRepository", "SqlEmailRepository", "SqlEvaluationRepository",
-    "SqlJobRepository", "SqlResumeRepository", "SqlReviewRepository",
-    "SqlTemplateRepository", "SqlUserRepository", "SqlWorkflowRepository",
+    "GENESIS_HASH",
+    "SqlApplicationRepository",
+    "SqlAuditRepository",
+    "SqlCandidateRepository",
+    "SqlEmailRepository",
+    "SqlEvaluationRepository",
+    "SqlJobRepository",
+    "SqlResumeRepository",
+    "SqlReviewRepository",
+    "SqlTemplateRepository",
+    "SqlUserRepository",
+    "SqlWorkflowRepository",
 ]

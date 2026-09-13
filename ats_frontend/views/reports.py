@@ -154,8 +154,7 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
     with tracking_tab:
         st.subheader("Enviados por Adecco, entrevistados y descartados")
         st.caption(
-            "Reporte generado con reglas operativas verificables; "
-            "no usa un LLM ni toma decisiones."
+            "Reporte generado con reglas operativas verificables; no usa un LLM ni toma decisiones."
         )
         try:
             tracking = session.client().candidate_disposition_report()
@@ -165,23 +164,148 @@ def render() -> None:  # noqa: C901 - Reporte resumido con pestañas.
             tracking, csv_report = {}, ""
         if tracking:
             counts = tracking.get("counts", {})
-            design.metric_grid([
-                ("Adecco", str(counts.get("adecco", 0)), "Fuente de reclutamiento"),
-                ("Entrevistados", str(counts.get("entrevistado", 0)), "Estado de postulación"),
-                ("Descartados", str(counts.get("descartado", 0)), "No apto o rechazado"),
-            ])
-            st.dataframe([{
-                "Candidato": row["candidate"], "Cliente": row.get("client", ""),
-                "Reclutador": row.get("recruiter", ""), "Fuente": row.get("source", ""),
-                "Categorías": ", ".join(row.get("categories", [])),
-                "Vacante": row.get("job_code") or "—",
-                "Estado postulación": app_status(row.get("application_status") or ""),
-                "Fecha": row.get("date"),
-            } for row in tracking.get("rows", [])], width="stretch", hide_index=True)
-            st.download_button(
-                "Descargar CSV", data=csv_report.encode("utf-8"),
-                file_name="seguimiento-candidatos.csv", mime="text/csv",
+            design.metric_grid(
+                [
+                    ("Adecco", str(counts.get("adecco", 0)), "Fuente de reclutamiento"),
+                    ("Entrevistados", str(counts.get("entrevistado", 0)), "Estado de postulación"),
+                    ("Descartados", str(counts.get("descartado", 0)), "No apto o rechazado"),
+                ]
             )
+            st.dataframe(
+                [
+                    {
+                        "Candidato": row["candidate"],
+                        "Cliente": row.get("client", ""),
+                        "Reclutador": row.get("recruiter", ""),
+                        "Fuente": row.get("source", ""),
+                        "Categorías": ", ".join(row.get("categories", [])),
+                        "Vacante": row.get("job_code") or "—",
+                        "Estado postulación": app_status(row.get("application_status") or ""),
+                        "Fecha": row.get("date"),
+                    }
+                    for row in tracking.get("rows", [])
+                ],
+                width="stretch",
+                hide_index=True,
+            )
+            st.download_button(
+                "Descargar CSV",
+                data=csv_report.encode("utf-8"),
+                file_name="seguimiento-candidatos.csv",
+                mime="text/csv",
+            )
+
+        st.subheader("Lista de exclusión para proveedores")
+        st.caption(
+            "Candidaturas rechazadas que no deben recontactarse durante la vigencia indicada."
+        )
+        exclusion_c1, exclusion_c2 = st.columns(2)
+        with exclusion_c1:
+            exclusion_source = st.selectbox(
+                "Fuente de proveedor",
+                ["Todas", *sorted({row.get("source", "") for row in sources if row.get("source")})],
+            )
+        with exclusion_c2:
+            active_exclusions = st.toggle("Solo exclusiones vigentes", value=True)
+        selected_exclusion_source = (
+            None if exclusion_source == "Todas" else exclusion_source
+        )
+        try:
+            exclusions = session.client().vendor_exclusions(
+                job_id=job_id,
+                source=selected_exclusion_source,
+                active_only=active_exclusions,
+            )
+        except ApiError as exc:
+            design.api_error(exc, "No se pudo cargar la lista de exclusión")
+            exclusions = {}
+        if exclusions.get("rows"):
+            st.dataframe(
+                [
+                    {
+                        "Candidato": row.get("candidate"),
+                        "Vacante": row.get("job_code"),
+                        "Fuente": row.get("source"),
+                        "Motivo": row.get("reason"),
+                        "Válido hasta": row.get("valid_until"),
+                        "Puede recontactarse": "Sí" if row.get("recontact_allowed") else "No",
+                    }
+                    for row in exclusions["rows"]
+                ],
+                width="stretch",
+                hide_index=True,
+            )
+            try:
+                exclusions_csv = session.client().vendor_exclusions_csv(
+                    job_id=job_id, source=selected_exclusion_source
+                )
+                st.download_button(
+                    "Descargar exclusiones CSV",
+                    data=exclusions_csv.encode("utf-8"),
+                    file_name="exclusiones-proveedor.csv",
+                    mime="text/csv",
+                )
+            except ApiError as exc:
+                design.api_error(exc, "No se pudo exportar la lista de exclusión")
+        else:
+            st.info("No hay exclusiones en el alcance seleccionado.")
+
+        st.subheader("Indicadores del piloto TCS")
+        metric_c1, metric_c2 = st.columns(2)
+        with metric_c1:
+            impact_source = st.selectbox(
+                "Fuente para métricas",
+                ["Todas", *sorted({row.get("source", "") for row in sources if row.get("source")})],
+            )
+            minutes_per_cv = st.number_input(
+                "Minutos manuales estimados por CV", min_value=0.0, max_value=120.0, value=5.0
+            )
+        with metric_c2:
+            date_range = st.date_input("Periodo", value=[])
+            minutes_per_duplicate = st.number_input(
+                "Minutos estimados por duplicado", min_value=0.0, max_value=120.0, value=3.0
+            )
+        dates = list(date_range) if isinstance(date_range, (list, tuple)) else [date_range]
+        try:
+            impact = session.client().operational_impact(
+                job_id=job_id,
+                source=None if impact_source == "Todas" else impact_source,
+                date_from=dates[0].isoformat() if dates else None,
+                date_to=dates[1].isoformat() if len(dates) > 1 else None,
+                minutes_per_cv=minutes_per_cv,
+                minutes_per_duplicate=minutes_per_duplicate,
+            )
+        except ApiError as exc:
+            design.api_error(exc, "No se pudieron cargar los indicadores")
+            impact = {}
+        if impact:
+            design.metric_grid(
+                [
+                    (
+                        "CV útiles",
+                        str(impact.get("useful_cvs", 0)),
+                        percent(impact.get("useful_cv_rate")),
+                    ),
+                    (
+                        "Evaluaciones tempranas",
+                        str(impact.get("early_evaluations", 0)),
+                        percent(impact.get("early_evaluation_rate")),
+                    ),
+                    (
+                        "Duplicados advertidos",
+                        str(impact.get("possible_duplicates_detected", 0)),
+                        "No fusionados automáticamente",
+                    ),
+                    (
+                        "Horas potenciales",
+                        str(impact.get("estimated_hours_avoided", 0)),
+                        "Estimación, no ahorro validado",
+                    ),
+                ]
+            )
+            st.caption(str(impact.get("useful_cv_formula", "")))
+            st.json(impact.get("estimation_parameters", {}), expanded=False)
+            st.caption(str(impact.get("claim", "")))
 
     with equity_tab:
         if not session.has_permission("audit:read"):

@@ -40,23 +40,17 @@ class MlflowLLMTracker:
         METRICS.increment("talentia.llm.calls", status=status, **labels)
         METRICS.increment("talentia.llm.prompt_tokens", prompt_tokens, **labels)
         METRICS.increment("talentia.llm.completion_tokens", completion_tokens, **labels)
-        METRICS.increment(
-            "talentia.llm.total_tokens", prompt_tokens + completion_tokens, **labels
-        )
+        METRICS.increment("talentia.llm.total_tokens", prompt_tokens + completion_tokens, **labels)
         METRICS.observe("talentia.llm.latency_seconds", elapsed_seconds, **labels)
 
-        # Calculate estimated cost
-        cost = 0.0
+        # Solo se informa costo cuando existe una tarifa explícitamente configurada.
+        cost: float | None = None
         if model == "gpt-5.6-luna":
             cost = (prompt_tokens / 1_000_000) * 1.0 + (completion_tokens / 1_000_000) * 2.0
         elif model == "gpt-5.6-terra":
             cost = (prompt_tokens / 1_000_000) * 10.0 + (completion_tokens / 1_000_000) * 30.0
         elif model == "gemini-3.6-flash":
             cost = (prompt_tokens / 1_000_000) * 0.075 + (completion_tokens / 1_000_000) * 0.30
-        else:
-            # Free tier models (gpt-5.4, o1, etc) from benefit
-            cost = 0.0
-
         with self._lock:
             usage = self._usage.setdefault(
                 (provider, model),
@@ -86,18 +80,16 @@ class MlflowLLMTracker:
                 mlflow.set_tracking_uri(settings.resolved_mlflow_tracking_uri)
                 mlflow.set_experiment(settings.mlflow_experiment_name)
                 with mlflow.start_run(run_name=f"{provider}:{model}"):
-                    mlflow.log_params(
-                        {"provider": provider, "model": model, "status": status}
-                    )
-                    mlflow.log_metrics(
-                        {
-                            "prompt_tokens": prompt_tokens,
-                            "completion_tokens": completion_tokens,
-                            "total_tokens": prompt_tokens + completion_tokens,
-                            "latency_seconds": elapsed_seconds,
-                            "estimated_cost_usd": cost,
-                        }
-                    )
+                    mlflow.log_params({"provider": provider, "model": model, "status": status})
+                    metrics = {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": prompt_tokens + completion_tokens,
+                        "latency_seconds": elapsed_seconds,
+                    }
+                    if cost is not None:
+                        metrics["estimated_cost_usd"] = cost
+                    mlflow.log_metrics(metrics)
                     mlflow.set_tags(
                         {
                             "component": "llm",
@@ -105,11 +97,7 @@ class MlflowLLMTracker:
                             "privacy": "metadata-only",
                         }
                     )
-                    
-                    # Log to the current trace span if one is active (LangGraph autolog)
-                    active_span = mlflow.get_current_active_span()
-                    if active_span:
-                        active_span.set_attribute("estimated_cost_usd", cost)
+
         except Exception as exc:  # pragma: no cover - observabilidad no bloquea negocio
             if not self._warned:
                 logger.warning("MLflow no disponible", error=type(exc).__name__)
@@ -130,9 +118,7 @@ class MlflowLLMTracker:
                 from mlflow import MlflowClient
 
                 client = MlflowClient(tracking_uri=settings.resolved_mlflow_tracking_uri)
-                experiment = client.get_experiment_by_name(
-                    settings.mlflow_experiment_name
-                )
+                experiment = client.get_experiment_by_name(settings.mlflow_experiment_name)
                 if experiment is not None:
                     usage_map = {}
                     for run in client.search_runs([experiment.experiment_id]):
@@ -150,9 +136,7 @@ class MlflowLLMTracker:
                             },
                         )
                         row["calls"] += 1
-                        row["errors"] += int(
-                            run.data.params.get("status") != "ok"
-                        )
+                        row["errors"] += int(run.data.params.get("status") != "ok")
                         for metric in (
                             "prompt_tokens",
                             "completion_tokens",
@@ -160,9 +144,7 @@ class MlflowLLMTracker:
                             "latency_seconds",
                         ):
                             target = (
-                                "total_latency_seconds"
-                                if metric == "latency_seconds"
-                                else metric
+                                "total_latency_seconds" if metric == "latency_seconds" else metric
                             )
                             row[target] += run.data.metrics.get(metric, 0)
             except Exception as exc:  # pragma: no cover - conserva resumen en memoria
@@ -176,8 +158,7 @@ class MlflowLLMTracker:
                 "model": model,
                 **values,
                 "avg_latency_seconds": round(
-                    float(values["total_latency_seconds"])
-                    / max(1, int(values["calls"])),
+                    float(values["total_latency_seconds"]) / max(1, int(values["calls"])),
                     4,
                 ),
             }
@@ -206,7 +187,12 @@ class MlflowLLMTracker:
                 mlflow.set_experiment("TalentIA-Benchmark")
                 with mlflow.start_run(run_name=str(summary["model"])):
                     mlflow.log_params(
-                        {"model": summary["model"], "provider": summary["provider"]}
+                        {
+                            "model": summary["model"],
+                            "provider": summary["provider"],
+                            "suite_version": summary.get("suite_version", "unknown"),
+                            "suite_hash": summary.get("suite_hash", "unknown"),
+                        }
                     )
                     mlflow.log_metrics(
                         {

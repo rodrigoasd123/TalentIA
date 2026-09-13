@@ -16,9 +16,9 @@ from app.domain.ports import LLMPort
 from app.infrastructure.llm.gemini_adapter import DEFAULT_MODEL, GeminiAdapter
 from app.infrastructure.llm.mock_adapter import MockLLMAdapter
 from app.infrastructure.llm.model_catalog import provider_for_model
+from app.infrastructure.llm.openai_adapter import OpenAIAdapter
 from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
 from app.infrastructure.observability.mlflow_tracker import ObservedLLMAdapter
-from app.infrastructure.llm.openai_adapter import OpenAIAdapter
 
 logger = get_logger(__name__)
 
@@ -37,7 +37,10 @@ def build_llm(
     normalized = (provider or "mock").strip().lower()
 
     if normalized == "openai":
-        return ObservedLLMAdapter(OpenAIAdapter())
+        if not api_key:
+            logger.warning("Se solicitó OpenAI sin API key; se usa el simulador.")
+            return MockLLMAdapter()
+        return ObservedLLMAdapter(OpenAIAdapter(api_key=api_key, model=model))
 
     if normalized == "gemini":
         if not api_key:
@@ -52,9 +55,7 @@ def build_llm(
 
     if normalized == "genai_lab":
         if not api_key or not base_url:
-            logger.warning(
-                "Se solicitó GenAI Lab sin URL base o API key; se usa el simulador."
-            )
+            logger.warning("Se solicitó GenAI Lab sin URL base o API key; se usa el simulador.")
             return MockLLMAdapter()
         return ObservedLLMAdapter(
             OpenAICompatibleAdapter(
@@ -89,6 +90,8 @@ def build_llm_for_model(store, model: str) -> LLMPort:
     legacy_key = store.get("llm.api_key", "")
     if provider == "gemini":
         api_key = store.get("llm.gemini_api_key", "")
+    elif provider == "openai":
+        api_key = store.get("llm.openai_api_key", "")
     else:
         api_key = store.get("llm.genai_lab_api_key", "") or legacy_key
     return build_llm(

@@ -169,7 +169,11 @@ class TalentIAApiClient:
         )
 
     def test_credentials(
-        self, *, provider: str, api_key: str = "", model: str = "gemini-2.5-flash",
+        self,
+        *,
+        provider: str,
+        api_key: str = "",
+        model: str = "gemini-2.5-flash",
         base_url: str = "",
     ) -> dict[str, Any]:
         return self._request(
@@ -189,6 +193,19 @@ class TalentIAApiClient:
     def llm_observability(self) -> dict[str, Any]:
         return self._request("GET", f"{API_PREFIX}/observability/llm")
 
+    def benchmark_models(
+        self, *, models: list[str], baseline_model: str, confirmed: bool
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{API_PREFIX}/benchmarks/models",
+            json={
+                "models": models,
+                "baseline_model": baseline_model,
+                "confirmed": confirmed,
+            },
+        )
+
     # ── Análisis documental integrado ──────────────────────────────────────
 
     def screen_documents(
@@ -197,16 +214,23 @@ class TalentIAApiClient:
         files = [("profile", (profile[0], profile[1], "application/pdf"))]
         files.extend(("cvs", (name, content, "application/pdf")) for name, content in cvs)
         return self._request(
-            "POST", f"{API_PREFIX}/document-analysis/screen",
-            data={"mode": mode}, files=files,
+            "POST",
+            f"{API_PREFIX}/document-analysis/screen",
+            data={"mode": mode},
+            files=files,
         )
 
     def query_documents(
-        self, *, profile: tuple[str, bytes], cv: tuple[str, bytes],
-        question: str, mode: str,
+        self,
+        *,
+        profile: tuple[str, bytes],
+        cv: tuple[str, bytes],
+        question: str,
+        mode: str,
     ) -> dict[str, Any]:
         return self._request(
-            "POST", f"{API_PREFIX}/document-analysis/query",
+            "POST",
+            f"{API_PREFIX}/document-analysis/query",
             data={"mode": mode, "question": question},
             files={
                 "profile": (profile[0], profile[1], "application/pdf"),
@@ -285,6 +309,7 @@ class TalentIAApiClient:
         filename: str,
         content: bytes,
         phone: str = "",
+        national_id: str = "",
         source: str = "manual",
         content_type: str = "application/octet-stream",
     ) -> dict[str, Any]:
@@ -297,6 +322,7 @@ class TalentIAApiClient:
                 "job_id": job_id,
                 "consent_granted": str(consent_granted).lower(),
                 "phone": phone,
+                "national_id": national_id,
                 "source": source,
             },
             files={"resume": (filename, content, content_type)},
@@ -304,6 +330,33 @@ class TalentIAApiClient:
 
     def candidate_360(self, application_id: str) -> dict[str, Any]:
         return self._request("GET", f"{API_PREFIX}/applications/{application_id}/360")
+
+    def apply_resume_prefill(
+        self, application_id: str, *, expected_version: int,
+        technical_knowledge: str | None = None, availability: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"expected_version": expected_version}
+        if technical_knowledge is not None:
+            payload["technical_knowledge"] = technical_knowledge
+        if availability is not None:
+            payload["availability"] = availability
+        return self._request(
+            "POST", f"{API_PREFIX}/applications/{application_id}/resume-prefill", json=payload
+        )
+
+    def candidate_identity_preflight(
+        self, *, full_name: str, email: str = "", phone: str = "", national_id: str = ""
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{API_PREFIX}/candidates/preflight",
+            json={
+                "full_name": full_name,
+                "email": email,
+                "phone": phone,
+                "national_id": national_id,
+            },
+        )
 
     def attach_resume(
         self,
@@ -447,6 +500,58 @@ class TalentIAApiClient:
 
     def candidate_disposition_csv(self) -> str:
         return self._request_text("GET", f"{API_PREFIX}/reports/candidate-disposition.csv")
+
+    def vendor_exclusions(
+        self,
+        *,
+        job_id: str | None = None,
+        source: str | None = None,
+        active_only: bool = False,
+    ) -> dict[str, Any]:
+        params = {
+            key: value
+            for key, value in {
+                "job_id": job_id,
+                "source": source,
+                "active_only": str(active_only).lower(),
+            }.items()
+            if value is not None
+        }
+        return self._request("GET", f"{API_PREFIX}/reports/vendor-exclusions", params=params)
+
+    def vendor_exclusions_csv(
+        self, *, job_id: str | None = None, source: str | None = None
+    ) -> str:
+        params = {
+            key: value for key, value in {"job_id": job_id, "source": source}.items() if value
+        }
+        return self._request_text(
+            "GET", f"{API_PREFIX}/reports/vendor-exclusions.csv", params=params
+        )
+
+    def operational_impact(
+        self,
+        *,
+        job_id: str | None = None,
+        source: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        minutes_per_cv: float = 5.0,
+        minutes_per_duplicate: float = 3.0,
+    ) -> dict[str, Any]:
+        params = {
+            key: value
+            for key, value in {
+                "job_id": job_id,
+                "source": source,
+                "date_from": date_from,
+                "date_to": date_to,
+                "minutes_per_cv": minutes_per_cv,
+                "minutes_per_duplicate": minutes_per_duplicate,
+            }.items()
+            if value is not None and value != ""
+        }
+        return self._request("GET", f"{API_PREFIX}/reports/operational-impact", params=params)
 
     # ── Auditoría ────────────────────────────────────────────────────────────
 

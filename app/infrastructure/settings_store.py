@@ -49,26 +49,47 @@ class SettingSpec:
 SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
     # ── Proveedor de IA ──────────────────────────────────────────────────────
     SettingSpec(
-        "llm.provider", "Proveedor de IA", default="genai_lab", group="ia",
+        "llm.provider",
+        "Proveedor de IA",
+        default="genai_lab",
+        group="ia",
         help_text=(
             "«genai_lab» usa el gateway OpenAI-compatible del laboratorio; "
             "«gemini» usa Google directamente; «mock» es el simulador local."
         ),
     ),
     SettingSpec(
-        "llm.api_key", "API key", is_secret=True, group="ia",
+        "llm.api_key",
+        "API key",
+        is_secret=True,
+        group="ia",
         help_text="Clave heredada. Se conserva para compatibilidad con instalaciones previas.",
     ),
     SettingSpec(
-        "llm.genai_lab_api_key", "API key de GenAI Lab", is_secret=True, group="ia",
+        "llm.genai_lab_api_key",
+        "API key de GenAI Lab",
+        is_secret=True,
+        group="ia",
         help_text="Se guarda cifrada y solo se usa con el gateway de GenAI Lab.",
     ),
     SettingSpec(
-        "llm.gemini_api_key", "API key de Google Gemini", is_secret=True, group="ia",
+        "llm.gemini_api_key",
+        "API key de Google Gemini",
+        is_secret=True,
+        group="ia",
         help_text="Se guarda cifrada y solo se usa con Google AI Studio.",
     ),
     SettingSpec(
-        "llm.base_url", "URL base de GenAI Lab", default=DEFAULT_GENAI_LAB_BASE_URL,
+        "llm.openai_api_key",
+        "API key de OpenAI",
+        is_secret=True,
+        group="ia",
+        help_text="Se guarda cifrada y solo se usa con la API directa de OpenAI.",
+    ),
+    SettingSpec(
+        "llm.base_url",
+        "URL base de GenAI Lab",
+        default=DEFAULT_GENAI_LAB_BASE_URL,
         group="ia",
         help_text=(
             "URL del gateway, con o sin /v1. No incluyas la API key en la URL. "
@@ -76,58 +97,94 @@ SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
         ),
     ),
     SettingSpec(
-        "llm.model", "Modelo", default="gemini-2.5-flash", group="ia",
+        "llm.model",
+        "Modelo",
+        default="gemini-2.5-flash",
+        group="ia",
         help_text="Fija una versión concreta. Evita alias móviles del proveedor.",
     ),
     SettingSpec(
-        "llm.temperature", "Temperatura", default="0.1", group="ia",
+        "llm.temperature",
+        "Temperatura",
+        default="0.1",
+        group="ia",
         help_text="Valores bajos dan resultados más reproducibles. Recomendado: 0.0-0.2.",
     ),
     SettingSpec(
-        "llm.budget_usd_per_job", "Presupuesto por vacante (USD)", default="5.0", group="ia",
+        "llm.budget_usd_per_job",
+        "Presupuesto por vacante (USD)",
+        default="5.0",
+        group="ia",
         help_text="Al agotarse, las evaluaciones pendientes pasan a revisión humana.",
     ),
     SettingSpec(
-        "llm.enable_bias_audit", "Auditoría de sesgo con modelo", default="true", group="ia",
+        "llm.enable_bias_audit",
+        "Auditoría de sesgo con modelo",
+        default="true",
+        group="ia",
         help_text="La capa léxica determinística se aplica siempre, active o no esta opción.",
     ),
     # ── Google OAuth / Gmail ─────────────────────────────────────────────────
     SettingSpec(
-        "google.client_id", "Google OAuth Client ID", group="google",
+        "google.client_id",
+        "Google OAuth Client ID",
+        group="google",
         help_text="Del proyecto de Google Cloud, en Credenciales → ID de cliente OAuth 2.0.",
     ),
     SettingSpec(
-        "google.client_secret", "Google OAuth Client Secret", is_secret=True, group="google",
+        "google.client_secret",
+        "Google OAuth Client Secret",
+        is_secret=True,
+        group="google",
         help_text="Se guarda cifrado. No lo compartas ni lo subas al repositorio.",
     ),
     SettingSpec(
-        "google.redirect_uri", "URI de redirección",
-        default="http://localhost:8000/api/v1/auth/google/callback", group="google",
+        "google.redirect_uri",
+        "URI de redirección",
+        default="http://localhost:8000/api/v1/auth/google/callback",
+        group="google",
         help_text="Debe coincidir exactamente con la registrada en Google Cloud.",
     ),
     SettingSpec(
-        "google.sender_email", "Correo remitente", group="google",
+        "google.sender_email",
+        "Correo remitente",
+        group="google",
         help_text="Cuenta desde la que se enviarán las comunicaciones.",
     ),
     SettingSpec(
-        "google.refresh_token", "Refresh token de Gmail", is_secret=True, group="google",
+        "google.refresh_token",
+        "Refresh token de Gmail",
+        is_secret=True,
+        group="google",
         help_text="Se obtiene al autorizar la aplicación. Cifrado en reposo.",
     ),
     # ── Comportamiento del sistema ───────────────────────────────────────────
     SettingSpec(
-        "ff.ai_auto_shortlist", "Preselección automática", default="false", group="flags",
+        "ff.ai_auto_shortlist",
+        "Preselección automática",
+        default="false",
+        group="flags",
         help_text="Permite preselección automática sin intervención humana.",
     ),
     SettingSpec(
-        "ff.ai_auto_rejection", "Rechazo automático", default="false", group="flags",
+        "ff.ai_auto_rejection",
+        "Rechazo automático",
+        default="false",
+        group="flags",
         help_text="Desactivado por defecto: un rechazo es irreversible y afecta a una persona.",
     ),
     SettingSpec(
-        "ff.auto_email", "Envío automático de correos", default="false", group="flags",
+        "ff.auto_email",
+        "Envío automático de correos",
+        default="false",
+        group="flags",
         help_text="Las categorías sensibles seguirán exigiendo aprobación humana.",
     ),
     SettingSpec(
-        "ff.dry_run", "Modo simulación", default="true", group="flags",
+        "ff.dry_run",
+        "Modo simulación",
+        default="true",
+        group="flags",
         help_text="Ejecuta el pipeline completo sin persistir decisiones ni enviar nada.",
     ),
 )
@@ -174,9 +231,7 @@ class SettingsStore:
         for row in self._session.scalars(select(RuntimeSettingModel)):
             if row.key not in CATALOG_BY_KEY:
                 continue
-            values[row.key] = (
-                self._cipher.decrypt(row.value) if row.is_secret else row.value
-            )
+            values[row.key] = self._cipher.decrypt(row.value) if row.is_secret else row.value
         return values
 
     def get_public_view(self) -> list[dict[str, Any]]:
@@ -186,9 +241,7 @@ class SettingsStore:
         «no configurado» y «configurado pero oculto», que es una distinción que
         el usuario necesita ver.
         """
-        stored = {
-            row.key: row for row in self._session.scalars(select(RuntimeSettingModel))
-        }
+        stored = {row.key: row for row in self._session.scalars(select(RuntimeSettingModel))}
         view: list[dict[str, Any]] = []
         for spec in SETTINGS_CATALOG:
             row = stored.get(spec.key)
@@ -272,6 +325,10 @@ class SettingsStore:
         elif provider == "gemini":
             api_key = self.get("llm.gemini_api_key", "")
             if not api_key and legacy_key and not legacy_key.startswith("sk-"):
+                api_key = legacy_key
+        elif provider == "openai":
+            api_key = self.get("llm.openai_api_key", "")
+            if not api_key and legacy_key.startswith("sk-"):
                 api_key = legacy_key
         else:
             api_key = ""

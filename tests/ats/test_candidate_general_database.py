@@ -12,8 +12,8 @@ from app.api.schemas import CandidateCreateRequest
 from app.application.services.analytics_service import AnalyticsService
 from app.application.unit_of_work import UnitOfWork
 from app.core.config import reset_settings_cache
-from app.domain.entities import Application, Candidate, Job
-from app.domain.enums import ApplicationStatus, CandidateStatus
+from app.domain.entities import Application, Candidate, Job, ResumeDocument
+from app.domain.enums import ApplicationStatus, CandidateStatus, DocumentType
 from app.infrastructure.database.models import Base
 from app.infrastructure.database.session import reset_engine
 
@@ -133,6 +133,43 @@ def test_disposition_report_combines_adecco_interview_and_discard(uow: UnitOfWor
     assert "equifax_debt" not in by_name["Ana Entrevistada"]
 
 
+def test_vendor_exclusions_and_operational_metrics_are_deterministic(
+    uow: UnitOfWork,
+) -> None:
+    job = uow.jobs.add(Job(code="OPS-001", title="Operaciones"))
+    candidate = uow.candidates.add(Candidate(full_name="Persona Excluida", source="Adecco"))
+    resume = uow.resumes.add(
+        ResumeDocument(
+            candidate_id=candidate.id,
+            filename="cv.pdf",
+            document_type=DocumentType.PDF,
+            content_hash="useful-cv",
+            raw_text="Experiencia verificable",
+            char_count=24,
+        )
+    )
+    application = uow.applications.add(
+        Application(
+            candidate_id=candidate.id,
+            job_id=job.id,
+            resume_id=resume.id,
+            status=ApplicationStatus.REJECTED,
+            source="Adecco",
+            idempotency_key="excluded-test",
+        )
+    )
+
+    service = AnalyticsService(uow)
+    exclusions = service.vendor_exclusion_report(job_id=job.id, source="Adecco")
+    impact = service.operational_impact(job_id=job.id, source="Adecco")
+
+    assert exclusions[0]["application_id"] == application.id
+    assert exclusions[0]["recontact_allowed"] is False
+    assert impact["applications"] == 1
+    assert impact["useful_cvs"] == 1
+    assert impact["useful_cv_rate"] == 1.0
+
+
 def test_candidate_api_create_update_and_csv_report(api_client: TestClient) -> None:
     created = api_client.post(
         "/api/v1/candidates",
@@ -157,6 +194,17 @@ def test_candidate_api_create_update_and_csv_report(api_client: TestClient) -> N
     candidate = created.json()
     assert candidate["candidate_status"] == "pendiente_contacto"
     assert candidate["age"] == _age_for(date(1995, 2, 10))
+
+    preflight = api_client.post(
+        "/api/v1/candidates/preflight",
+        json={
+            "full_name": "Persona API",
+            "national_id": "87654321",
+        },
+    )
+    assert preflight.status_code == 200, preflight.text
+    assert preflight.json()["possible_duplicate"] is True
+    assert preflight.json()["matches"][0]["candidate_id"] == candidate["id"]
 
     updated = api_client.patch(
         f"/api/v1/candidates/{candidate['id']}",

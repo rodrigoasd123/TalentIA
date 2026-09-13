@@ -76,6 +76,7 @@ def _render_intake(jobs: list[dict]) -> None:  # noqa: C901 - Formulario guiado.
             email = st.text_input("Correo", key="intake_email", placeholder="persona@example.test")
         with c2:
             phone = st.text_input("Teléfono opcional", key="intake_phone")
+            national_id = st.text_input("DNI o documento opcional", key="intake_national_id")
             source = st.selectbox(
                 "Origen",
                 ["Manual", "Adecco", "LinkedIn", "Referido", "Importación histórica"],
@@ -99,7 +100,33 @@ def _render_intake(jobs: list[dict]) -> None:  # noqa: C901 - Formulario guiado.
         st.write(f"Candidato: {full_name or '-'}")
         st.write(f"Archivo: {uploaded.name if uploaded else '-'}")
         confirmed = st.checkbox("He revisado los datos y deseo crear la postulación")
+        validate_identity = st.form_submit_button("Validar identidad")
         submit = st.form_submit_button("Crear postulación", type="primary")
+
+    if validate_identity:
+        if len(full_name.strip()) < 2:
+            st.warning("Completa el nombre antes de validar la identidad.")
+        else:
+            try:
+                identity = session.client().candidate_identity_preflight(
+                    full_name=full_name,
+                    email=email,
+                    phone=phone,
+                    national_id=national_id,
+                )
+                if identity.get("possible_duplicate"):
+                    st.warning(
+                        "Se encontraron posibles identidades existentes. "
+                        "Revísalas antes de procesar el CV."
+                    )
+                    for match in identity.get("matches", []):
+                        st.write(f"**{match.get('name')}** · {match.get('email') or 'sin correo'}")
+                        if match.get("history"):
+                            st.dataframe(match["history"], width="stretch", hide_index=True)
+                else:
+                    st.success("No se encontraron coincidencias en la base histórica.")
+            except ApiError as exc:
+                design.api_error(exc, "No se pudo validar la identidad")
 
     if submit:
         errors = []
@@ -124,6 +151,7 @@ def _render_intake(jobs: list[dict]) -> None:  # noqa: C901 - Formulario guiado.
                     full_name=full_name,
                     email=email,
                     phone=phone,
+                    national_id=national_id,
                     job_id=job_id,
                     consent_granted=consent,
                     source=source,
@@ -131,12 +159,10 @@ def _render_intake(jobs: list[dict]) -> None:  # noqa: C901 - Formulario guiado.
                     content=uploaded.getvalue(),
                     content_type=uploaded.type or "application/octet-stream",
                 )
-            st.session_state["application_notice"] = (
-                "Postulación creada correctamente."
-                + (
-                    " TalentIA reutilizó la ficha de una persona ya registrada."
-                    if result.get("was_existing_candidate") else ""
-                )
+            st.session_state["application_notice"] = "Postulación creada correctamente." + (
+                " TalentIA reutilizó la ficha de una persona ya registrada."
+                if result.get("was_existing_candidate")
+                else ""
             )
             st.session_state["applications_default_tab"] = "Listado"
             if result.get("was_existing_candidate"):
@@ -217,7 +243,8 @@ def _render_list(applications: list[dict]) -> None:
             options=[item["id"] for item in missing],
             format_func=lambda value: next(
                 f"{item['candidate_name']} · {item['job_code']} · {app_status(item['status'])}"
-                for item in missing if item["id"] == value
+                for item in missing
+                if item["id"] == value
             ),
             key="missing_resume_application",
         )

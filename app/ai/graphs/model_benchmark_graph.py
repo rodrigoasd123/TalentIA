@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from typing import Any
@@ -14,6 +15,7 @@ from app.infrastructure.observability.mlflow_tracker import MLFLOW_TRACKER
 
 GRAPH_NAME = "model_benchmark"
 GRAPH_VERSION = "1.0.0"
+SUITE_VERSION = "tcs-synthetic-v1"
 
 DEFAULT_CASES = (
     {"id": "arithmetic", "prompt": "Calcula 17 * 6.", "expected": {"answer": 102}},
@@ -77,8 +79,11 @@ def _invoke(state: dict[str, Any]) -> dict[str, Any]:
         }
     except Exception as exc:
         state["observation"] = {
-            "text": "", "prompt_tokens": 0, "completion_tokens": 0,
-            "total_tokens": 0, "latency_seconds": time.perf_counter() - started,
+            "text": "",
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "latency_seconds": time.perf_counter() - started,
             "error": type(exc).__name__,
         }
     return state
@@ -114,9 +119,9 @@ def _aggregate(state: dict[str, Any]) -> dict[str, Any]:
         "quality": round(sum(r["quality"] for r in rows) / len(rows), 4),
         "success_rate": round(sum(not r["error"] for r in rows) / len(rows), 4),
         "total_tokens": sum(r["total_tokens"] for r in rows),
-        "avg_latency_seconds": round(
-            sum(r["latency_seconds"] for r in rows) / len(rows), 4
-        ),
+        "avg_latency_seconds": round(sum(r["latency_seconds"] for r in rows) / len(rows), 4),
+        "suite_version": SUITE_VERSION,
+        "suite_hash": state["suite_hash"],
     }
     state.setdefault("summaries", []).append(summary)
     MLFLOW_TRACKER.record_benchmark_summary(summary)
@@ -129,6 +134,15 @@ def _rank(state: dict[str, Any]) -> dict[str, Any]:
         key=lambda row: (row["quality"], row["success_rate"], -row["total_tokens"]),
         reverse=True,
     )
+    baseline = next(row for row in state["summaries"] if row["model"] == state["baseline_model"])
+    for row in state["ranking"]:
+        reasons: list[str] = []
+        if row["quality"] < baseline["quality"] - 0.05:
+            reasons.append("quality_below_baseline")
+        if row["success_rate"] < baseline["success_rate"]:
+            reasons.append("success_rate_below_baseline")
+        row["gate_passed"] = not reasons
+        row["gate_reasons"] = reasons
     return state
 
 
@@ -169,16 +183,40 @@ def build_model_benchmark_graph(*, prefer_langgraph: bool = True) -> GraphEngine
     return build_engine(graph, prefer_langgraph=prefer_langgraph)
 
 
-def run_model_benchmark(store: Any, models: list[str]) -> dict[str, Any]:
+def run_model_benchmark(
+    store: Any, models: list[str], *, baseline_model: str | None = None
+) -> dict[str, Any]:
+    suite_payload = json.dumps(DEFAULT_CASES, sort_keys=True, ensure_ascii=True)
+    suite_hash = hashlib.sha256(suite_payload.encode()).hexdigest()[:16]
     engine = build_model_benchmark_graph()
-    result = engine.invoke({"store": store, "models": models, "cases": list(DEFAULT_CASES)})
-    return {"graph": GRAPH_NAME, "version": GRAPH_VERSION, "ranking": result["ranking"]}
+    result = engine.invoke(
+        {
+            "store": store,
+            "models": models,
+            "cases": list(DEFAULT_CASES),
+            "baseline_model": baseline_model or models[0],
+            "suite_hash": suite_hash,
+        }
+    )
+    details = [
+        {key: value for key, value in row.items() if key != "text"} for row in result["results"]
+    ]
+    return {
+        "graph": GRAPH_NAME,
+        "version": GRAPH_VERSION,
+        "suite_version": SUITE_VERSION,
+        "suite_hash": suite_hash,
+        "baseline_model": baseline_model or models[0],
+        "ranking": result["ranking"],
+        "results": details,
+    }
 
 
 __all__ = [
     "DEFAULT_CASES",
     "GRAPH_NAME",
     "GRAPH_VERSION",
+    "SUITE_VERSION",
     "build_model_benchmark_graph",
     "run_model_benchmark",
 ]

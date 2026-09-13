@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from typing import Any
-
-from app.core.exceptions import LLMError, LLMNotConfigured, LLMTimeout
+from app.core.exceptions import LLMError, LLMNotConfigured
 from app.infrastructure.llm.base import LLMResponse
 from app.services.openai_service import OpenAIService, OpenAIServiceError
 
@@ -15,12 +12,12 @@ class OpenAIAdapter:
 
     provider = "openai"
 
-    def __init__(self) -> None:
-        self.service = OpenAIService()
+    def __init__(self, *, api_key: str = "", model: str = "") -> None:
+        self.service = OpenAIService(api_key=api_key, model=model)
 
     @property
     def model_name(self) -> str:
-        return self.service.settings.openai_model
+        return self.service.model
 
     @property
     def is_configured(self) -> bool:
@@ -41,41 +38,45 @@ class OpenAIAdapter:
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "Return only one valid json object. "
-                    f"{system_instruction}"
-                ),
+                "content": (f"Return only one valid json object. {system_instruction}"),
             },
             {
                 "role": "user",
-                "content": (
-                    "Return the result as a valid json object. "
-                    f"{user_content}"
-                ),
+                "content": (f"Return the result as a valid json object. {user_content}"),
             },
         ]
-        
+
         try:
             result = self.service.call_model(
                 messages=messages,
+                model=self.model_name,
                 feature="evaluation_llm_port",
                 temperature=temperature,
                 max_tokens=max_output_tokens,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             if not result.get("success"):
                 raise LLMError(result.get("error_message", "Error desconocido"))
-                
+
             return LLMResponse(
                 text=result["response"],
                 prompt_tokens=result["input_tokens"],
                 completion_tokens=result["output_tokens"],
                 model=result["model"],
-                finish_reason="stop"
+                finish_reason="stop",
             )
         except OpenAIServiceError as e:
             raise LLMError(str(e)) from e
 
     def list_models(self) -> list[str]:
         return ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-4o", "gpt-4o-mini"]
+
+    def verify_credentials(self) -> tuple[bool, str]:
+        if not self.is_configured or self.service.client is None:
+            return False, "La API key de OpenAI no está configurada."
+        try:
+            self.service.client.models.list()
+        except Exception as exc:
+            return False, f"OpenAI rechazó la credencial: {type(exc).__name__}"
+        return True, "La credencial de OpenAI es válida."
