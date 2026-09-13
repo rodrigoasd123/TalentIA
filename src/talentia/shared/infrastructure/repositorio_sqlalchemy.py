@@ -26,8 +26,11 @@ from talentia.shared.infrastructure.modelos_orm import (
     AsignacionUsuarioClienteModelo,
     CandidatoModelo,
     ClienteModelo,
+    CorreccionCampoModelo,
     DocumentoCandidatoModelo,
     EntradaExclusionModelo,
+    EvaluacionModelo,
+    EvaluacionRequisitoModelo,
     EventoAuditoriaModelo,
     EventoCandidatoModelo,
     ExcolaboradorModelo,
@@ -37,6 +40,7 @@ from talentia.shared.infrastructure.modelos_orm import (
     PerfilPuestoModelo,
     PostulacionModelo,
     ReporteExclusionModelo,
+    RevisionHumanaModelo,
     RolModelo,
     TrabajoAgenteModelo,
     UsuarioModelo,
@@ -70,6 +74,10 @@ def _candidato_desde_modelo(modelo: CandidatoModelo) -> Candidato:
         estado=EstadoCandidato(modelo.estado),
         etiquetas=list(modelo.etiquetas or []),
     )
+
+
+def _filtro_clientes(columna: Any, clientes: frozenset[str]) -> Any:
+    return columna.in_(clientes) if clientes else true()
 
 
 def _candidato_a_modelo(candidato: Candidato) -> CandidatoModelo:
@@ -413,6 +421,26 @@ class RepositorioSqlalchemy:
             raise ConflictoError("El documento ya fue adjuntado") from exc
         return {"id": modelo.id, "hash_sha256": modelo.hash_sha256}
 
+    def validar_solicitud_evaluacion(
+        self,
+        cliente_id: str,
+        postulacion_id: str,
+        documento_id: str,
+        version_perfil_id: str,
+    ) -> bool:
+        postulacion = self.sesion.get(PostulacionModelo, postulacion_id)
+        documento = self.sesion.get(DocumentoCandidatoModelo, documento_id)
+        version = self.sesion.get(VersionPerfilPuestoModelo, version_perfil_id)
+        return bool(
+            postulacion
+            and documento
+            and version
+            and postulacion.cliente_id == cliente_id
+            and documento.cliente_id == cliente_id
+            and postulacion.candidato_id == documento.candidato_id
+            and postulacion.version_perfil_id == version_perfil_id
+        )
+
     def crear_trabajo(self, datos: dict[str, object]) -> dict[str, object]:
         existente = self.sesion.scalar(
             select(TrabajoAgenteModelo).where(
@@ -438,6 +466,97 @@ class RepositorioSqlalchemy:
             "resultado": modelo.resultado,
             "error": modelo.error,
             "intentos": modelo.intentos,
+        }
+
+    def obtener_evaluacion(self, evaluacion_id: str) -> dict[str, object] | None:
+        modelo = self.sesion.get(EvaluacionModelo, evaluacion_id)
+        if modelo is None:
+            return None
+        requisitos = self.sesion.scalars(
+            select(EvaluacionRequisitoModelo)
+            .where(EvaluacionRequisitoModelo.evaluacion_id == evaluacion_id)
+            .order_by(EvaluacionRequisitoModelo.codigo_requisito)
+        ).all()
+        revisiones = self.sesion.scalars(
+            select(RevisionHumanaModelo)
+            .where(RevisionHumanaModelo.evaluacion_id == evaluacion_id)
+            .order_by(RevisionHumanaModelo.creado_en)
+        ).all()
+        return {
+            "id": modelo.id,
+            "cliente_id": modelo.cliente_id,
+            "postulacion_id": modelo.postulacion_id,
+            "documento_id": modelo.documento_id,
+            "version_perfil_id": modelo.version_perfil_id,
+            "puntaje_documental": modelo.puntaje_documental,
+            "requiere_revision": modelo.requiere_revision,
+            "modelo": modelo.modelo,
+            "version_prompt": modelo.version_prompt,
+            "simulada": modelo.simulada,
+            "requisitos": [
+                {
+                    "codigo_requisito": requisito.codigo_requisito,
+                    "veredicto": requisito.veredicto,
+                    "puntaje": requisito.puntaje,
+                    "evidencia": requisito.evidencia,
+                    "explicacion": requisito.explicacion,
+                }
+                for requisito in requisitos
+            ],
+            "revisiones": [
+                {
+                    "id": revision.id,
+                    "estado": revision.estado,
+                    "revisor_id": revision.revisor_id,
+                    "comentario": revision.comentario,
+                    "version": revision.version,
+                }
+                for revision in revisiones
+            ],
+        }
+
+    def registrar_revision(
+        self,
+        evaluacion_id: str,
+        revisor_id: str,
+        decision: str,
+        comentario: str,
+        correcciones: list[dict[str, object]],
+    ) -> dict[str, object]:
+        evaluacion = self.sesion.get(EvaluacionModelo, evaluacion_id)
+        if evaluacion is None:
+            raise EntradaInvalidaError("Evaluacion no encontrada")
+        revision = self.sesion.scalar(
+            select(RevisionHumanaModelo).where(
+                RevisionHumanaModelo.evaluacion_id == evaluacion_id,
+                RevisionHumanaModelo.estado == "pendiente",
+            )
+        )
+        if revision is None:
+            raise ConflictoError("La evaluacion no tiene una revision pendiente")
+        revision.estado = decision
+        revision.revisor_id = revisor_id
+        revision.comentario = comentario
+        revision.version += 1
+        for correccion in correcciones:
+            self.sesion.add(
+                CorreccionCampoModelo(
+                    id=nuevo_id(),
+                    revision_id=revision.id,
+                    campo=str(correccion["campo"]),
+                    valor_anterior=correccion.get("valor_anterior"),
+                    valor_nuevo=correccion["valor_nuevo"],
+                )
+            )
+        self.sesion.flush()
+        return {
+            "id": revision.id,
+            "evaluacion_id": evaluacion_id,
+            "estado": revision.estado,
+            "revisor_id": revision.revisor_id,
+            "comentario": revision.comentario,
+            "correcciones": len(correcciones),
+            "version": revision.version,
         }
 
     def metricas(self, clientes: frozenset[str]) -> dict[str, object]:
@@ -471,6 +590,84 @@ class RepositorioSqlalchemy:
             "muestra_suficiente": postulaciones >= 20,
             "ahorro_validado": False,
         }
+
+    def listar_panel_operativo(
+        self, modulo: str, clientes: frozenset[str], limite: int
+    ) -> list[dict[str, object]]:
+        consultas: dict[str, Any] = {
+            "clientes": select(
+                ClienteModelo.codigo.label("codigo"),
+                ClienteModelo.nombre.label("nombre"),
+                ClienteModelo.activo.label("activo"),
+            ).where(_filtro_clientes(ClienteModelo.id, clientes)),
+            "perfiles": select(
+                PerfilPuestoModelo.codigo.label("codigo"),
+                PerfilPuestoModelo.titulo.label("titulo"),
+                PerfilPuestoModelo.activo.label("activo"),
+                PerfilPuestoModelo.creado_en.label("creado_en"),
+            ).where(_filtro_clientes(PerfilPuestoModelo.cliente_id, clientes)),
+            "postulaciones": select(
+                (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                PostulacionModelo.fuente.label("fuente"),
+                PostulacionModelo.estado.label("estado"),
+                PostulacionModelo.creado_en.label("creado_en"),
+            )
+            .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .where(_filtro_clientes(PostulacionModelo.cliente_id, clientes)),
+            "documentos": select(
+                (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                DocumentoCandidatoModelo.nombre_original.label("archivo"),
+                DocumentoCandidatoModelo.tipo_mime.label("tipo"),
+                DocumentoCandidatoModelo.tamano_bytes.label("bytes"),
+            )
+            .join(CandidatoModelo, CandidatoModelo.id == DocumentoCandidatoModelo.candidato_id)
+            .where(_filtro_clientes(DocumentoCandidatoModelo.cliente_id, clientes)),
+            "evaluaciones": select(
+                EvaluacionModelo.id.label("id"),
+                (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                EvaluacionModelo.puntaje_documental.label("puntaje"),
+                EvaluacionModelo.requiere_revision.label("requiere_revision"),
+            )
+            .join(PostulacionModelo, PostulacionModelo.id == EvaluacionModelo.postulacion_id)
+            .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .where(_filtro_clientes(EvaluacionModelo.cliente_id, clientes)),
+            "revisiones": select(
+                RevisionHumanaModelo.id.label("id"),
+                (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                RevisionHumanaModelo.estado.label("estado"),
+                RevisionHumanaModelo.creado_en.label("creado_en"),
+            )
+            .join(EvaluacionModelo, EvaluacionModelo.id == RevisionHumanaModelo.evaluacion_id)
+            .join(PostulacionModelo, PostulacionModelo.id == EvaluacionModelo.postulacion_id)
+            .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .where(_filtro_clientes(EvaluacionModelo.cliente_id, clientes)),
+            "lotes": select(
+                LoteImportacionModelo.tipo.label("tipo"),
+                LoteImportacionModelo.estado.label("estado"),
+                LoteImportacionModelo.creado_en.label("creado_en"),
+            ).where(_filtro_clientes(LoteImportacionModelo.cliente_id, clientes)),
+            "excolaboradores": select(
+                func.substr(ExcolaboradorModelo.documento_hash, 1, 10).label("referencia"),
+                ExcolaboradorModelo.elegible_reingreso.label("elegible"),
+                ExcolaboradorModelo.creado_en.label("creado_en"),
+            ).where(_filtro_clientes(ExcolaboradorModelo.cliente_id, clientes)),
+            "exclusiones": select(
+                ReporteExclusionModelo.id.label("id"),
+                ReporteExclusionModelo.estado.label("estado"),
+                ReporteExclusionModelo.creado_en.label("creado_en"),
+            ).where(_filtro_clientes(ReporteExclusionModelo.cliente_id, clientes)),
+            "trabajos": select(
+                TrabajoAgenteModelo.tipo.label("tipo"),
+                TrabajoAgenteModelo.estado.label("estado"),
+                TrabajoAgenteModelo.intentos.label("intentos"),
+                TrabajoAgenteModelo.error.label("error"),
+            ).where(_filtro_clientes(TrabajoAgenteModelo.cliente_id, clientes)),
+        }
+        consulta = consultas.get(modulo)
+        if consulta is None:
+            return []
+        filas = self.sesion.execute(consulta.limit(min(limite, 200))).mappings().all()
+        return [dict(fila) for fila in filas]
 
     def crear_lote(
         self, datos: dict[str, object], filas: list[dict[str, object]]

@@ -13,8 +13,8 @@ from sqlalchemy import func, select
 from talentia.config import Ambiente, Configuracion, cargar_configuracion
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL, Rol
 from talentia.modules.providers.infrastructure.lector_lotes import leer_filas
+from talentia.platform.document_store.local import AlmacenLocal
 from talentia.platform.security.contrasenas import hash_contrasena
-from talentia.platform.storage.local import AlmacenLocal
 from talentia.shared.application.puertos import FabricaUnidadTrabajo
 from talentia.shared.application.servicio_principal import ServicioTalentIA
 from talentia.shared.domain.modelos import nuevo_id

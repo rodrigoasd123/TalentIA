@@ -527,6 +527,15 @@ class ServicioTalentIA:
         _exigir_cliente(usuario, cliente_id)
         clave = str(datos.get("clave_idempotencia") or nuevo_id())
         with self._fabrica() as unidad:
+            if not unidad.datos.validar_solicitud_evaluacion(
+                cliente_id,
+                str(datos["postulacion_id"]),
+                str(datos["documento_id"]),
+                str(datos["version_perfil_id"]),
+            ):
+                raise EntradaInvalidaError(
+                    "La postulacion, el CV y la version del perfil no forman un contexto valido"
+                )
             return unidad.datos.crear_trabajo(
                 {
                     "cliente_id": cliente_id,
@@ -549,12 +558,135 @@ class ServicioTalentIA:
             _exigir_cliente(usuario, str(trabajo["cliente_id"]))
             return trabajo
 
+    def obtener_evaluacion(self, usuario: UsuarioActual, evaluacion_id: str) -> dict[str, object]:
+        _exigir_permiso(usuario, "candidatos:leer")
+        with self._fabrica() as unidad:
+            evaluacion = unidad.datos.obtener_evaluacion(evaluacion_id)
+            if evaluacion is None:
+                raise NoEncontradoError("Evaluacion no encontrada")
+            _exigir_cliente(usuario, str(evaluacion["cliente_id"]))
+            return evaluacion
+
+    def registrar_revision(
+        self,
+        usuario: UsuarioActual,
+        evaluacion_id: str,
+        datos: dict[str, object],
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        _exigir_permiso(usuario, "revisiones:resolver")
+        with self._fabrica() as unidad:
+            evaluacion = unidad.datos.obtener_evaluacion(evaluacion_id)
+            if evaluacion is None:
+                raise NoEncontradoError("Evaluacion no encontrada")
+            cliente_id = str(evaluacion["cliente_id"])
+            _exigir_cliente(usuario, cliente_id)
+            correcciones = cast(list[dict[str, object]], datos.get("correcciones", []))
+            revision = unidad.datos.registrar_revision(
+                evaluacion_id,
+                usuario.id,
+                str(datos["decision"]),
+                str(datos["comentario"]),
+                correcciones,
+            )
+            unidad.datos.registrar_evento(
+                cliente_id=cliente_id,
+                actor_id=usuario.id,
+                accion="evaluacion.revision_resuelta",
+                recurso_tipo="evaluacion",
+                recurso_id=evaluacion_id,
+                detalle={
+                    "decision": datos["decision"],
+                    "correcciones": len(correcciones),
+                },
+                correlacion_id=correlacion_id,
+            )
+            return revision
+
     def obtener_metricas(self, usuario: UsuarioActual) -> dict[str, object]:
         _exigir_permiso(usuario, "reportes:leer")
         with self._fabrica() as unidad:
             return unidad.datos.metricas(
                 usuario.clientes if "administrador" not in usuario.roles else frozenset()
             )
+
+    def obtener_panel_operativo(self, usuario: UsuarioActual, modulo: str) -> dict[str, object]:
+        permisos = {
+            "clientes": "usuarios:administrar",
+            "perfiles": "perfiles:escribir",
+            "postulaciones": "candidatos:leer",
+            "documentos": "candidatos:leer",
+            "evaluaciones": "candidatos:leer",
+            "revisiones": "revisiones:resolver",
+            "lotes": "lotes:escribir",
+            "excolaboradores": "lotes:escribir",
+            "exclusiones": "reportes:leer",
+            "trabajos": "candidatos:leer",
+        }
+        columnas = {
+            "clientes": (("codigo", "Codigo"), ("nombre", "Cliente"), ("activo", "Activo")),
+            "perfiles": (
+                ("codigo", "Codigo"),
+                ("titulo", "Perfil"),
+                ("activo", "Activo"),
+                ("creado_en", "Creado"),
+            ),
+            "postulaciones": (
+                ("candidato", "Candidato"),
+                ("fuente", "Fuente"),
+                ("estado", "Estado"),
+                ("creado_en", "Creada"),
+            ),
+            "documentos": (
+                ("candidato", "Candidato"),
+                ("archivo", "Archivo"),
+                ("tipo", "Tipo"),
+                ("bytes", "Bytes"),
+            ),
+            "evaluaciones": (
+                ("id", "Evaluacion"),
+                ("candidato", "Candidato"),
+                ("puntaje", "Puntaje"),
+                ("requiere_revision", "Revision"),
+            ),
+            "revisiones": (
+                ("id", "Revision"),
+                ("candidato", "Candidato"),
+                ("estado", "Estado"),
+                ("creado_en", "Creada"),
+            ),
+            "lotes": (("tipo", "Tipo"), ("estado", "Estado"), ("creado_en", "Creado")),
+            "excolaboradores": (
+                ("referencia", "Referencia hash"),
+                ("elegible", "Elegible"),
+                ("creado_en", "Creado"),
+            ),
+            "exclusiones": (
+                ("id", "Reporte"),
+                ("estado", "Estado"),
+                ("creado_en", "Creado"),
+            ),
+            "trabajos": (
+                ("tipo", "Tipo"),
+                ("estado", "Estado"),
+                ("intentos", "Intentos"),
+                ("error", "Error"),
+            ),
+        }
+        if modulo == "metricas":
+            metricas = self.obtener_metricas(usuario)
+            return {
+                "columnas": (("metrica", "Metrica"), ("valor", "Valor")),
+                "filas": [{"metrica": clave, "valor": valor} for clave, valor in metricas.items()],
+            }
+        permiso = permisos.get(modulo)
+        if permiso is None:
+            raise NoEncontradoError("Modulo no encontrado")
+        _exigir_permiso(usuario, permiso)
+        alcance = usuario.clientes if "administrador" not in usuario.roles else frozenset()
+        with self._fabrica() as unidad:
+            filas = unidad.datos.listar_panel_operativo(modulo, alcance, 100)
+        return {"columnas": columnas[modulo], "filas": filas}
 
     def preparar_lote(
         self,

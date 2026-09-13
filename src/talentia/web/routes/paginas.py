@@ -303,8 +303,16 @@ def modulo(request: Request, modulo: str) -> HTMLResponse:
         "usuarios": "Usuarios y acceso",
     }
     titulo = modulos.get(modulo, "Modulo")
+    panel = request.app.state.servicio.obtener_panel_operativo(usuario, modulo)
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="modulo.html",
-        context=_contexto(request, usuario, titulo=titulo, modulo=modulo),
+        context=_contexto(
+            request,
+            usuario,
+            titulo=titulo,
+            modulo=modulo,
+            columnas=panel["columnas"],
+            filas=panel["filas"],
+        ),
     )

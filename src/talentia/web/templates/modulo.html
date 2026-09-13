@@ -3,8 +3,22 @@
 {% block heading %}{{ titulo }}{% endblock %}
 {% block content %}
 <section class="seccion modulo-operativo">
-  <div class="titulo-seccion"><h2>{{ titulo }}</h2><span class="estado">Sin actividad</span></div>
-  <div class="vacio-grande">No hay registros disponibles para el alcance actual.</div>
+  <div class="titulo-seccion">
+    <h2>Registros actuales</h2>
+    <span class="estado">{{ filas | length }} visibles</span>
+  </div>
+  <div class="tabla-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr>{% for clave, etiqueta in columnas %}<th>{{ etiqueta }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for fila in filas %}
+        <tr>{% for clave, etiqueta in columnas %}<td>{{ fila[clave] if fila[clave] is not none else 'Pendiente' }}</td>{% endfor %}</tr>
+      {% else %}
+        <tr><td colspan="{{ columnas | length }}" class="vacio">No hay registros para el alcance actual.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}
 

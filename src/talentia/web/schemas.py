@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -92,6 +93,18 @@ class SolicitudEvaluacion(Estricto):
     documento_id: str
     version_perfil_id: str
     clave_idempotencia: str | None = None
+
+
+class CorreccionRevision(Estricto):
+    campo: str = Field(min_length=1, max_length=80)
+    valor_anterior: object | None = None
+    valor_nuevo: object
+
+
+class RevisionEvaluacion(Estricto):
+    decision: Literal["aceptada", "corregida", "rechazada"]
+    comentario: str = Field(min_length=3, max_length=2000)
+    correcciones: list[CorreccionRevision] = Field(default_factory=list, max_length=50)
 
 
 class SolicitudReporteExclusion(Estricto):

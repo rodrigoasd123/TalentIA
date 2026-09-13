@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -116,6 +117,14 @@ def test_candidate_csv_exports_visible_rows_and_neutralizes_formulas() -> None:
 def test_candidate_page_shows_registry_and_create_form(monkeypatch) -> None:
     frontend = Path(__file__).parents[2] / "ats_frontend"
     monkeypatch.syspath_prepend(str(frontend))
+    modulos_greenfield = {
+        nombre: modulo
+        for nombre, modulo in sys.modules.items()
+        if nombre == "talentia" or nombre.startswith("talentia.")
+    }
+    for nombre in modulos_greenfield:
+        sys.modules.pop(nombre, None)
+
     from talentia import session as ui_session
 
     class FakeClient:
@@ -150,30 +159,36 @@ def test_candidate_page_shows_registry_and_create_form(monkeypatch) -> None:
             del hours
             return []
 
-    monkeypatch.setattr(ui_session, "client", lambda: FakeClient())
+    try:
+        monkeypatch.setattr(ui_session, "client", lambda: FakeClient())
 
-    app = AppTest.from_file(frontend / "streamlit_app.py", default_timeout=10)
-    app.session_state["auth_mode"] = "lab"
-    app.session_state["auth_user"] = {
-        "role": "recruiter",
-        "permissions": [
-            "candidate:read",
-            "candidate:write",
-            "candidate:pii:read",
-            "application:read",
-        ],
-    }
-    app.run()
-    app.switch_page("views/candidates.py").run()
+        app = AppTest.from_file(frontend / "streamlit_app.py", default_timeout=10)
+        app.session_state["auth_mode"] = "lab"
+        app.session_state["auth_user"] = {
+            "role": "recruiter",
+            "permissions": [
+                "candidate:read",
+                "candidate:write",
+                "candidate:pii:read",
+                "application:read",
+            ],
+        }
+        app.run()
+        app.switch_page("views/candidates.py").run()
 
-    assert not app.exception
-    assert len(app.dataframe) == 1
-    assert app.dataframe[0].value.iloc[0]["Candidato"] == "Ana Ejemplo"
-    assert app.dataframe[0].value.iloc[0]["Estados por postulación"] == (
-        "DEV-001: Entrevistado"
-    )
+        assert not app.exception
+        assert len(app.dataframe) == 1
+        assert app.dataframe[0].value.iloc[0]["Candidato"] == "Ana Ejemplo"
+        assert app.dataframe[0].value.iloc[0]["Estados por postulación"] == (
+            "DEV-001: Entrevistado"
+        )
 
-    next(button for button in app.button if button.label == "Nuevo candidato").click().run()
+        next(button for button in app.button if button.label == "Nuevo candidato").click().run()
 
-    assert not app.exception
-    assert any(title.value == "Nuevo candidato" for title in app.subheader)
+        assert not app.exception
+        assert any(title.value == "Nuevo candidato" for title in app.subheader)
+    finally:
+        for nombre in list(sys.modules):
+            if nombre == "talentia" or nombre.startswith("talentia."):
+                sys.modules.pop(nombre, None)
+        sys.modules.update(modulos_greenfield)

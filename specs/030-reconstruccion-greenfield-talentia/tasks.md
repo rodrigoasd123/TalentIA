@@ -8,10 +8,14 @@
 - [ ] **T-030-004** Casos de uso, seguridad y API. `[IMP-014..019]` Parcial: contratos P0,
   RBAC y scope implementados; cierres de lotes/exclusiones dependen de `BIZ-001/008`.
 - [ ] **T-030-005** Agentes, jobs y workflow. `[IMP-020..026]` Parcial: agentes
-  deterministicos, guardrails, jobs, checkpoints y grafo implementados; veredicto final bloqueado por
-  `BIZ-005`.
+  deterministicos, guardrails, jobs, checkpoints y grafo implementados. El worker persiste de forma
+  idempotente evaluacion, requisitos y revision humana, recupera reservas vencidas y expone lectura y
+  resolucion auditada; falta conectar los nodos del grafo al procesador real. El veredicto final sigue
+  bloqueado por `BIZ-005`.
 - [ ] **T-030-006** Web Jinja2/HTMX y flujos operativos. `[IMP-027..029]` Parcial: shell,
-  sesion, navegacion, alta, ficha y traza de candidatos implementados; pantallas restantes abiertas.
+  sesion, navegacion, alta, ficha y traza de candidatos implementados. Los modulos restantes ya
+  muestran proyecciones persistidas, filtradas por cliente y permisos; faltan formularios y acciones
+  completas para perfiles, postulaciones, documentos, evaluaciones, revisiones y lotes.
 - [ ] **T-030-007** Privacidad, auditoria y corpus de pruebas. `[IMP-030..032]` Parcial:
   guardrails, auditoria encadenada y corpus golden implementados; retencion depende de `BIZ-007/010`.
 - [ ] **T-030-008** Observabilidad, metricas y operacion. `[IMP-033..035]` Parcial: correlacion,

@@ -63,9 +63,28 @@ class DatosTalentIA(Protocol):
 
     def guardar_documento(self, datos: dict[str, object]) -> dict[str, object]: ...
 
+    def validar_solicitud_evaluacion(
+        self,
+        cliente_id: str,
+        postulacion_id: str,
+        documento_id: str,
+        version_perfil_id: str,
+    ) -> bool: ...
+
     def crear_trabajo(self, datos: dict[str, object]) -> dict[str, object]: ...
 
     def obtener_trabajo(self, trabajo_id: str) -> dict[str, object] | None: ...
+
+    def obtener_evaluacion(self, evaluacion_id: str) -> dict[str, object] | None: ...
+
+    def registrar_revision(
+        self,
+        evaluacion_id: str,
+        revisor_id: str,
+        decision: str,
+        comentario: str,
+        correcciones: list[dict[str, object]],
+    ) -> dict[str, object]: ...
 
     def metricas(self, clientes: frozenset[str]) -> dict[str, object]: ...
 
@@ -88,6 +107,10 @@ class DatosTalentIA(Protocol):
     ) -> dict[str, object]: ...
 
     def obtener_reporte_exclusion(self, reporte_id: str) -> dict[str, object] | None: ...
+
+    def listar_panel_operativo(
+        self, modulo: str, clientes: frozenset[str], limite: int
+    ) -> list[dict[str, object]]: ...
 
 
 class UnidadTrabajo(Protocol, AbstractContextManager["UnidadTrabajo"]):

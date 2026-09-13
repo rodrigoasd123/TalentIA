@@ -23,6 +23,7 @@ from talentia.web.schemas import (
     AsignacionRol,
     ComprobacionIdentidad,
     Credenciales,
+    RevisionEvaluacion,
     SolicitudEvaluacion,
     SolicitudReporteExclusion,
     TransicionCandidato,
@@ -289,6 +290,26 @@ def obtener_trabajo(
     trabajo_id: str, usuario: UsuarioDep, servicio_actual: ServicioDep
 ) -> dict[str, object]:
     return servicio_actual.obtener_trabajo(usuario, trabajo_id)
+
+
+@router.get("/evaluations/{evaluacion_id}")
+def obtener_evaluacion(
+    evaluacion_id: str, usuario: UsuarioDep, servicio_actual: ServicioDep
+) -> dict[str, object]:
+    return servicio_actual.obtener_evaluacion(usuario, evaluacion_id)
+
+
+@router.post("/evaluations/{evaluacion_id}/reviews")
+def registrar_revision(
+    evaluacion_id: str,
+    entrada: RevisionEvaluacion,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.registrar_revision(
+        usuario, evaluacion_id, entrada.model_dump(), correlacion_id
+    )
 
 
 @router.get("/metrics/pilot")
