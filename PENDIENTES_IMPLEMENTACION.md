@@ -8,8 +8,8 @@ La fuente funcional completa es `IMPLEMENTATION_SPEC.md` y el flujo SDD vive en
 
 ## Estado Git
 
-- Rama: `codex/implementacion-greenfield-talentia`.
-- Base sincronizada originalmente con `origin/main` en `97b7c7c`.
+- Rama: `codex/rubrica-greenfield-talentia`.
+- Punto de partida de fase 2: `a18c67c`.
 - Runtime nuevo: `src/talentia/`.
 - Runtime anterior: se conserva solamente como rollback; no ampliar Streamlit.
 - Base nueva: `talentia_greenfield.db`, administrada con `alembic_greenfield.ini`.
@@ -27,6 +27,8 @@ La fuente funcional completa es `IMPLEMENTATION_SPEC.md` y el flujo SDD vive en
 9. Scripts Windows de migracion, arranque, worker, backup, restore y verificacion.
 10. Administracion de acceso mediante API y web: asignacion idempotente de roles/clientes,
     auditoria y bloqueo de autoampliacion de privilegios.
+11. AG-02 y AG-03 conectados al worker mediante diez nodos LangGraph reales, estado serializable,
+    checkpoint por nodo, correlacion, lease, timeout y reinicio idempotente.
 
 ## Pendientes implementables sin decisiones nuevas
 
@@ -36,12 +38,11 @@ Reemplazar `src/talentia/web/templates/modulo.html` por vistas y formularios rea
 postulaciones, documentos, trabajos, lotes, excolaboradores y metricas. Mantener reglas en la capa
 de aplicacion, filtros del servidor, CSRF y alcance por cliente. Agregar pruebas E2E de cada flujo.
 
-### 2. Evaluacion y revision humana completas
+### 2. Interfaz de evaluacion y revision humana
 
-Persistir resultados de `evaluations`, `requirement_assessments`, `human_reviews` y
-`field_corrections`; crear casos de uso y endpoints para aceptar/corregir sugerencias y resolver
-revisiones. El worker debe guardar el checkpoint antes de interrumpir y reanudarse sin duplicar.
-La ausencia de evidencia debe quedar como `requiere_revision`, nunca como incumplimiento.
+Mostrar resultados de `evaluations`, `requirement_assessments` y `human_reviews` con evidencia
+navegable. Permitir aceptar, corregir o rechazar con justificacion, CSRF, RBAC y alcance por cliente.
+El backend durable y el fallback `requiere_revision` ya estan implementados en la fase 2.
 
 ### 3. Observabilidad y rendimiento
 
@@ -50,10 +51,9 @@ Crear benchmark reproducible con volumen representativo y documentar resultados 
 
 ### 4. Suite historica
 
-La suite greenfield pasa, pero la suite completa historica no recolecto en el entorno local porque
-faltaba la dependencia declarada `langchain_openai`. Instalar el proyecto con `pip install -e
-".[dev]"` en un entorno limpio y ejecutar `pytest -q`; no acoplar el runtime nuevo al anterior para
-forzar el resultado.
+La dependencia declarada `langchain_openai` debe estar instalada. Una primera corrida tuvo un timeout
+intermitente de Streamlit tras 364 pruebas aprobadas; la prueba afectada paso aislada y la repeticion
+completa aprobo 366 pruebas. Conservar la advertencia sin acoplar el runtime nuevo al anterior.
 
 ## Decisiones bloqueadas: no inventar
 

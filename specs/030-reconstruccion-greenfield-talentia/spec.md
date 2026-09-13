@@ -1,7 +1,7 @@
 # SPEC-030 - Reconstruccion greenfield de TalentIA
 
 - **Estado:** VERIFICANDO
-- **Fase activa:** Fase 1 - Lectura documental real y AG-02
+- **Fase activa:** Fase 2 - AG-03 y workflow LangGraph durable
 - **Inicio de fase:** 2026-09-13
 - **Implementacion de fase concluida:** 2026-09-13
 - **Fuente ejecutable:** `IMPLEMENTATION_SPEC.md`
@@ -58,4 +58,3 @@ requieren revision humana. No se inventan reglas de negocio.
 - Decisiones autonomas de contratacion.
 - Contacto automatico, scraping o simulaciones presentadas como resultados reales.
 - Resolucion implicita de cualquier `BIZ-XXX`.
-

@@ -32,21 +32,24 @@
 
 ## Fase 2 - AG-03 y LangGraph durable
 
-- [ ] **T-030-F2-001 - Implementar nodos reales y estado serializable**
+- [x] **T-030-F2-001 - Implementar nodos reales y estado serializable**
   - Cubre: FR-030-004, NFR-030-001, AC-030-004, AC-030-006
   - Archivos: `src/talentia/ai/workflows/nodos_evaluacion.py` (nuevo),
     `evaluation_graph.py`, `estado.py`
-  - Verificacion: pruebas unitarias de cada nodo y arquitectura
+  - Verificacion: diez checkpoints por nodo real, estado con lista blanca serializable y prueba de
+    rechazo temprano sin texto ni sugerencias
   - Dependencias: fase 1
-- [ ] **T-030-F2-002 - Conectar procesador real al worker**
+- [x] **T-030-F2-002 - Conectar procesador real al worker**
   - Cubre: FR-030-004, FR-030-005, AC-030-004, AC-030-005
   - Archivos: `src/talentia/ai/workflows/procesador_evaluacion.py` (nuevo), `worker.py`
-  - Verificacion: evaluacion persistida con evidencia original
+  - Verificacion: AG-02 procesa el documento y AG-03 persiste evaluacion, requisitos, evidencia
+    minima verificable y revision humana en una unidad de trabajo
   - Dependencias: T-030-F2-001
-- [ ] **T-030-F2-003 - Checkpoint, lease, timeout, retry y reinicio**
+- [x] **T-030-F2-003 - Checkpoint, lease, timeout, retry y reinicio**
   - Cubre: FR-030-005, AC-030-005
   - Archivos: worker, repositorio y posible migracion Alembic nueva si el lease exige esquema
-  - Verificacion: `tests/greenfield/test_workflow_restart.py` (nuevo), fallo inyectado y concurrencia
+  - Verificacion: `tests/greenfield/test_workflow_restart.py` cubre fallo inyectado, reanudacion,
+    concurrencia, lease vencido, timeout e idempotencia sin duplicados
   - Dependencias: T-030-F2-002
 
 ## Fase 3 - Interfaz de evaluacion y HITL

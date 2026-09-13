@@ -2,7 +2,39 @@
 
 Fecha de verificacion: 2026-09-13.
 
-Estado SDD: fase 1 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 2.
+Estado SDD: fase 2 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 3.
+
+## Evidencia de fase 2 - AG-03 y workflow LangGraph durable
+
+- El worker ejecuta los diez nodos reales de LangGraph y conecta la extraccion documental de AG-02
+  con la evaluacion de AG-03.
+- El estado persistible usa una lista blanca de identificadores, resultados estructurados y codigos
+  seguros; no guarda texto original del CV.
+- Cada nodo completado deja un checkpoint unico por trabajo y nodo. Al reiniciar, el grafo parte del
+  primer nodo incompleto.
+- El trabajo conserva identificador de correlacion, lease con token y vencimiento, timeout, contador
+  de intentos y reintento con backoff.
+- Un fallo inyectado y una reanudacion producen exactamente una extraccion, cuatro sugerencias, una
+  evaluacion, dos valoraciones de requisito, una revision y un evento de auditoria de evaluacion.
+- Dos workers concurrentes no reservan el mismo trabajo. Un lease vencido se recupera y libera.
+- La evidencia guardada por AG-03 es el termino minimo encontrado en el original. La ausencia o
+  ambiguedad conserva la candidatura y crea revision humana; nunca genera rechazo automatico.
+- Un documento con prompt injection se bloquea en sanitizacion: no ejecuta extraccion ni evaluacion
+  remota, no crea sugerencias y persiste un resultado seguro para revision humana.
+- `pytest -q tests/greenfield/test_workflow_restart.py tests/greenfield/test_evaluation_flow.py
+  tests/greenfield/test_document_extraction.py`: 14 pruebas aprobadas.
+- `pytest -q tests/greenfield`: 56 pruebas aprobadas; 2 advertencias de dependencias.
+- Alembic sobre SQLite desechable: `upgrade head`, `downgrade 0002_esquema`, `upgrade head`; revision
+  final `0003_workflow (head)`.
+- La primera suite completa no recolecto por faltar `langchain_openai`, dependencia ya declarada en
+  `pyproject.toml`; se instalo en el entorno virtual. El primer reintento completo termino con 364
+  pruebas aprobadas y un timeout intermitente de Streamlit. La prueba afectada paso aislada en
+  4,12 segundos. La repeticion completa final aprobo 366 pruebas en 346,86 segundos, con dos
+  advertencias de deprecacion de dependencias.
+- `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
+- `ruff format --check src/talentia migrations_greenfield tests/greenfield`: 78 archivos conformes.
+- `mypy src/talentia`: 60 archivos sin observaciones.
+- `python scripts/check_repository.py`: 512 archivos revisados, repositorio seguro.
 
 ## Evidencia de fase 1 - lectura documental y AG-02
 
@@ -49,8 +81,10 @@ Estado SDD: fase 1 implementada y en verificacion; no se declara `VERIFIED` ni s
 
 - La suite completa se recolecta y pasa. Permanecen dos advertencias de deprecacion de dependencias
   (`Starlette/AnyIO` y serializador de checkpoint de LangGraph), sin fallos funcionales actuales.
-- AG-02 ya puede procesar PDF/DOCX por API y persistir sugerencias, pero el worker todavia no invoca
-  ese recorrido. Esa conexion pertenece a la fase 2.
+- AG-02 y AG-03 ya se ejecutan desde el worker. En esta fase ambos adaptadores son locales y
+  deterministas; la seleccion o evaluacion de un proveedor LLM permanece fuera del recorrido.
+- La interfaz de evaluacion y resolucion humana sigue pendiente para la fase 3; la API conserva el
+  recorrido existente.
 - No se incluyo un motor OCR concreto: el adaptador es opcional y la ausencia de texto deriva a
   revision humana, segun el alcance aprobado de la fase 1.
 - `BIZ-001..010` continuan en estado `BLOCKED`; las capacidades afectadas fallan cerrado o exigen

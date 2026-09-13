@@ -4,7 +4,7 @@ Fecha: 2026-09-13
 
 Rama de trabajo: `codex/rubrica-greenfield-talentia`
 
-Base revisada: `talentia/codex/implementacion-greenfield-talentia` (`979b575`)
+Base revisada: `origin/codex/rubrica-greenfield-talentia` (`a18c67c`)
 
 ## Regla de lectura
 
@@ -20,25 +20,24 @@ Base revisada: `talentia/codex/implementacion-greenfield-talentia` (`979b575`)
 | Persistencia y migraciones | Cumple | Alembic greenfield, FK activas, SQLite WAL, rollback probado | Definir motor productivo fuera del piloto |
 | Autenticacion, RBAC y alcance | Cumple | JWT/cookie firmada, CSRF web, roles, clientes y autoampliacion denegada | Aceptacion de usuarios del piloto |
 | Base general de candidatos | Cumple | Preflight, 18 campos, busqueda, versionado optimista, traza | Definir `BIZ-004`, `BIZ-008..010` |
-| CV y almacenamiento privado | Parcial | Firma/tamano, hash, ruta privada, escritura atomica, PDF/DOCX local, PII sanitizada, sugerencias con fuente y fallback OCR manual | Conectar la extraccion al worker, elegir motor OCR si TCS lo requiere y definir `BIZ-007` |
-| Cinco agentes definidos | Parcial | AG-01/04/05 deterministas; AG-02 ya extrae PDF/DOCX local con fuentes; AG-03 mantiene contrato | El worker no ejecuta todavia los nodos reales AG-02/03 |
-| LangGraph y recuperacion | Parcial | Grafo de diez nodos, checkpoints, reintentos y recuperacion de reserva vencida | Ejecutar cada nodo real y probar reinicio entre nodos sin duplicados |
-| Evaluacion con evidencia | Parcial | Extraccion y sugerencias idempotentes con pagina/fragmento; evaluaciones/requisitos persistibles | Integrar la extraccion aprobada y el evaluador en el procesador |
+| CV y almacenamiento privado | Parcial | Firma/tamano, hash, ruta privada, escritura atomica, PDF/DOCX local, PII sanitizada, sugerencias con fuente y fallback OCR manual; worker conectado | Elegir motor OCR si TCS lo requiere y definir `BIZ-007` |
+| Cinco agentes definidos | Cumple en backend | AG-01/04/05 deterministas; AG-02 y AG-03 separados y conectados al worker con evidencia | Completar UAT y benchmark gobernado |
+| LangGraph y recuperacion | Cumple en backend | Diez nodos reales, estado seguro, checkpoint unico por nodo, correlacion, lease, timeout, reintento y reinicio probado sin duplicados | Telemetria persistente de fase 6 y aceptacion operativa |
+| Evaluacion con evidencia | Cumple en backend | AG-03 persiste valoracion por requisito con evidencia minima verificada y fallback humano | Interfaz navegable y correccion de fase 3 |
 | Revision humana | Cumple en API | Fallback fail-closed, revision pendiente, resolucion unica, correcciones y auditoria atomica | Pantalla de decision y prueba E2E en navegador |
 | Interfaz Jinja2/HTMX | Parcial | Login, navegacion, candidatos y proyecciones reales de todos los modulos | Formularios operativos y estados loading/error para los modulos restantes |
 | Importaciones y ex-TCS | Parcial | Staging, confirmacion, idempotencia y proyeccion web | Mapeo/correccion web completo y decisiones `BIZ-001/008` |
-| Privacidad y prompt injection | Parcial | API documental bloquea instrucciones incrustadas, retira PII y no dispone de proveedor remoto en AG-02 | Repetir garantia dentro del worker al conectarlo en fase 2 |
-| Auditoria | Cumple en flujos implementados | Cadena hash y evento en operaciones criticas; revision en misma UoW | Correlacion completa dentro del worker y politica `BIZ-007` |
+| Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
+| Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas y correlacion conservada en trabajo/checkpoints | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
 | Metricas y observabilidad | Parcial | Metricas basicas, scripts de laboratorio y MLflow historico | Persistir eventos de piloto, panel de baseline y benchmark greenfield |
-| Calidad y regresion | Cumple actualmente | 44 greenfield y 354 totales; Ruff, formato, mypy y escaner aprobados | Resolver advertencias de dependencias antes de actualizar versiones |
+| Calidad y regresion | Cumple fase 2 | 56 greenfield y 366 totales; reinicio, concurrencia, timeout y lease cubiertos; Ruff, formato, mypy y escaner aprobados | Resolver advertencias de dependencias antes de actualizar versiones |
 
 ## Orden de cierre recomendado
 
-1. Conectar AG-02/AG-03 al worker con checkpoints por nodo y evidencia del CV original.
-2. Crear pantalla de evaluacion y revision humana con aceptacion/correccion visible.
-3. Completar formularios operativos de perfiles, postulaciones, CV y lotes.
-4. Persistir metricas de piloto y ejecutar benchmark greenfield con MLflow.
-5. Ejecutar E2E de navegador, prueba de reinicio y aceptacion de usuarios.
+1. Crear pantalla de evaluacion y revision humana con aceptacion/correccion visible.
+2. Completar formularios operativos de perfiles, postulaciones, CV y lotes.
+3. Persistir metricas de piloto y ejecutar benchmark greenfield con MLflow.
+4. Ejecutar E2E de navegador y aceptacion de usuarios.
 
 ## Decisiones que permanecen cerradas
 

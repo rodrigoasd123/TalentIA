@@ -621,7 +621,10 @@ class ServicioTalentIA:
             return extraccion
 
     def solicitar_evaluacion(
-        self, usuario: UsuarioActual, datos: dict[str, object]
+        self,
+        usuario: UsuarioActual,
+        datos: dict[str, object],
+        correlacion_id: str,
     ) -> dict[str, object]:
         _exigir_permiso(usuario, "evaluaciones:solicitar")
         cliente_id = str(datos["cliente_id"])
@@ -647,6 +650,8 @@ class ServicioTalentIA:
                     "error": None,
                     "intentos": 0,
                     "max_intentos": 3,
+                    "correlacion_id": correlacion_id,
+                    "timeout_segundos": 60,
                     "clave_idempotencia": clave,
                 }
             )

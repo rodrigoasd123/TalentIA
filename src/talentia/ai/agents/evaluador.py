@@ -45,8 +45,9 @@ def evaluar(
         ]
         presentes = [termino for termino in terminos if termino in normalizado]
         if presentes:
-            inicio = min(normalizado.index(termino) for termino in presentes)
-            fin = min(len(texto_original), inicio + 180)
+            termino_evidencia = min(presentes, key=normalizado.index)
+            inicio = normalizado.index(termino_evidencia)
+            fin = inicio + len(termino_evidencia)
             evidencia = ReferenciaFuente(
                 documento_id, None, inicio, fin, texto_original[inicio:fin]
             )

@@ -298,10 +298,11 @@ def solicitar_evaluacion(
     entrada: SolicitudEvaluacion,
     usuario: UsuarioDep,
     servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
 ) -> dict[str, object]:
     datos = entrada.model_dump()
     datos["postulacion_id"] = postulacion_id
-    return servicio_actual.solicitar_evaluacion(usuario, datos)
+    return servicio_actual.solicitar_evaluacion(usuario, datos, correlacion_id)
 
 
 @router.get("/jobs/{trabajo_id}")

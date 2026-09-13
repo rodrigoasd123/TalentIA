@@ -316,6 +316,10 @@ class TrabajoAgenteModelo(Base, MarcasTiempo):
     max_intentos: Mapped[int] = mapped_column(Integer, default=3)
     disponible_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
     reservado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_token: Mapped[str | None] = mapped_column(String(64))
+    lease_expira_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    correlacion_id: Mapped[str] = mapped_column(String(40), index=True, default="")
+    timeout_segundos: Mapped[int] = mapped_column(Integer, default=60)
     clave_idempotencia: Mapped[str] = mapped_column(String(80), unique=True)
 
 
@@ -326,7 +330,10 @@ class CheckpointWorkflowModelo(Base, MarcasTiempo):
     nodo: Mapped[str] = mapped_column(String(80))
     estado: Mapped[dict[str, object]] = mapped_column(JSON)
     secuencia: Mapped[int] = mapped_column(Integer)
-    __table_args__ = (UniqueConstraint("trabajo_id", "secuencia", name="uq_checkpoint_seq"),)
+    __table_args__ = (
+        UniqueConstraint("trabajo_id", "secuencia", name="uq_checkpoint_seq"),
+        UniqueConstraint("trabajo_id", "nodo", name="uq_checkpoint_job_node"),
+    )
 
 
 class EventoAuditoriaModelo(Base):
