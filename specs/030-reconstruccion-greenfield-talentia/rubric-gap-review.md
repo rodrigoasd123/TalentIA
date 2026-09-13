@@ -32,7 +32,7 @@ correcciones de cierre tecnico del commit actual.
 | Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
 | Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas, lotes y descargas sensibles auditados; correlacion y telemetria por nodo conservadas | Politica `BIZ-007` fuera del alcance del piloto |
 | Metricas y observabilidad | Cumple piloto | Telemetria sanitizada correlacionada, tasas y percentiles reales, filtros protegidos y benchmark AG-02/03 reproducible en MLflow | `BIZ-006/007` fuera de alcance |
-| Calidad y regresion | Cumple tecnicamente | 81 greenfield y 391 totales; instalacion limpia, Ruff, formato, mypy, migraciones y escaner aprobados; correcciones de CI reproducidas localmente | Confirmacion del nuevo commit por GitHub Actions y dos deprecaciones aceptadas |
+| Calidad y regresion | Cumple tecnicamente | 81 greenfield y 391 totales; instalacion limpia, Ruff, formato, mypy, migraciones y escaner aprobados; cuatro checks de GitHub Actions verdes para `54e7f81` | Dos deprecaciones aceptadas hasta una actualizacion controlada |
 
 ## Orden de cierre recomendado
 

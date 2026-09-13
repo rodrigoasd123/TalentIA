@@ -11,7 +11,7 @@ Fecha: 2026-09-13
 - Verificacion final: 81 pruebas greenfield y 391 pruebas totales aprobadas.
 - Ruff, formato, mypy, instalacion limpia, migraciones, backup, restauracion y escaner aprobados.
 - Los fallos de CI detectados en el PR 2 (orden de imports y aislamiento de la base de migraciones)
-  fueron corregidos y reproducidos localmente; GitHub Actions debe confirmar el commit de cierre.
+  fueron corregidos; los cuatro checks de GitHub Actions aprobaron el commit `54e7f81`.
 - No se realizo merge ni modificacion directa de `main`.
 
 ## Pendientes externos

@@ -15,7 +15,8 @@ conformidad de RR. HH. y autorizacion de promocion.
 - La prueba de migraciones aprobo incluso iniciando el proceso con la misma variable usada por CI.
 - La regresion local final aprobo 391 pruebas y 2 advertencias conocidas.
 - Ruff, formato, mypy, migraciones de ambos esquemas, identidad y escaner aprobaron localmente.
-- GitHub Actions debe confirmar estas correcciones sobre el commit publicado antes del merge.
+- GitHub Actions confirmo las correcciones del commit `54e7f81`: los dos checks `test` y los dos
+  checks `verificar` del PR 2 finalizaron correctamente.
 
 ## Matriz final por criterio de aceptacion
 
@@ -285,5 +286,4 @@ conformidad de RR. HH. y autorizacion de promocion.
 - `BIZ-001..010` continuan en estado `BLOCKED`; las capacidades afectadas fallan cerrado o exigen
   revision humana. No se asignaron umbrales, vigencias, retenciones ni alcances ficticios.
 - Las tareas tecnicas de `tasks.md` estan completas. La Definition of Done global permanece abierta
-  solo hasta la conformidad humana de RR. HH., los checks remotos verdes y la autorizacion de
-  promocion.
+  solo hasta la conformidad humana de RR. HH. y la autorizacion de promocion.
