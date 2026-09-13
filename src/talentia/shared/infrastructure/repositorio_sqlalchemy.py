@@ -16,9 +16,11 @@ from sqlalchemy.orm import Session
 from talentia.modules.candidates.domain.modelos import (
     Candidato,
     EstadoCandidato,
+    normalizar_correo,
+    normalizar_documento,
     tokens_nombre,
 )
-from talentia.shared.application.errores import ConflictoError
+from talentia.shared.application.errores import ConflictoError, EntradaInvalidaError
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.modelos_orm import (
     AsignacionUsuarioClienteModelo,
@@ -27,7 +29,9 @@ from talentia.shared.infrastructure.modelos_orm import (
     EntradaExclusionModelo,
     EventoAuditoriaModelo,
     EventoCandidatoModelo,
+    ExcolaboradorModelo,
     FilaImportacionModelo,
+    LoteExcolaboradoresModelo,
     LoteImportacionModelo,
     PerfilPuestoModelo,
     PostulacionModelo,
@@ -193,18 +197,41 @@ class RepositorioSqlalchemy:
     def actualizar_candidato(
         self, candidato: Candidato, version_esperada: int, campos: set[str]
     ) -> Candidato:
+        modelo_actual = self.sesion.get(CandidatoModelo, candidato.id)
+        if modelo_actual is None:
+            raise ConflictoError("Candidato no encontrado")
+        version_base = modelo_actual.version
+        if version_base != version_esperada:
+            eventos = self.sesion.scalars(
+                select(EventoAuditoriaModelo).where(
+                    EventoAuditoriaModelo.recurso_tipo == "candidato",
+                    EventoAuditoriaModelo.recurso_id == candidato.id,
+                    EventoAuditoriaModelo.accion == "candidato.actualizado",
+                )
+            )
+            modificados: set[str] = set()
+            for evento in eventos:
+                detalle = evento.detalle or {}
+                anterior = detalle.get("version_anterior")
+                if isinstance(anterior, int) and anterior >= version_esperada:
+                    campos_evento = detalle.get("campos", [])
+                    if isinstance(campos_evento, list):
+                        modificados.update(str(campo) for campo in campos_evento)
+            solapados = campos & modificados
+            if solapados:
+                raise ConflictoError("Conflicto en campos: " + ", ".join(sorted(solapados)))
         valores = {campo: getattr(candidato, campo) for campo in campos}
         if "estado" in valores:
             valores["estado"] = candidato.estado.value
         valores.update(
-            version=version_esperada + 1,
+            version=version_base + 1,
             actualizado_en=datetime.now(UTC),
         )
         resultado = self.sesion.execute(
             update(CandidatoModelo)
             .where(
                 CandidatoModelo.id == candidato.id,
-                CandidatoModelo.version == version_esperada,
+                CandidatoModelo.version == version_base,
             )
             .values(**valores)
         )
@@ -420,15 +447,43 @@ class RepositorioSqlalchemy:
         lote = LoteImportacionModelo(id=nuevo_id(), **datos)
         self.sesion.add(lote)
         self.sesion.flush()
+        tipo = str(datos["tipo"])
+        requeridas = {"documento"} if tipo == "excolaboradores" else {"nombres", "apellidos"}
+        encabezados = {str(clave).strip().casefold() for clave in filas[0] if clave}
+        if not requeridas.issubset(encabezados):
+            raise EntradaInvalidaError(
+                "Faltan columnas obligatorias: " + ", ".join(sorted(requeridas - encabezados))
+            )
+        documentos_lote: set[str] = set()
         for numero, fila in enumerate(filas, start=1):
-            errores = ["fila_vacia"] if not any(valor for valor in fila.values()) else []
+            normalizada = {str(clave).strip().casefold(): valor for clave, valor in fila.items()}
+            errores = ["fila_vacia"] if not any(valor for valor in normalizada.values()) else []
+            if any(not str(normalizada.get(campo, "") or "").strip() for campo in requeridas):
+                errores.append("campo_obligatorio_vacio")
+            clasificacion = "invalida" if errores else "lista"
+            if tipo == "candidatos" and not errores:
+                documento = normalizar_documento(str(normalizada.get("documento", "") or ""))
+                existente_documento = bool(
+                    documento
+                    and self.sesion.scalar(
+                        select(CandidatoModelo.id).where(
+                            CandidatoModelo.cliente_id == datos["cliente_id"],
+                            CandidatoModelo.documento_normalizado == documento,
+                        )
+                    )
+                )
+                if documento and documento in documentos_lote:
+                    existente_documento = True
+                if documento:
+                    documentos_lote.add(documento)
+                clasificacion = "exacta" if existente_documento else "nueva"
             self.sesion.add(
                 FilaImportacionModelo(
                     id=nuevo_id(),
                     lote_id=lote.id,
                     numero=numero,
-                    datos=fila,
-                    clasificacion="invalida" if errores else "lista",
+                    datos=normalizada,
+                    clasificacion=clasificacion,
                     errores=errores,
                 )
             )
@@ -479,9 +534,99 @@ class RepositorioSqlalchemy:
         )
         if invalidas:
             raise ConflictoError("El lote contiene filas invalidas")
+        filas = list(
+            self.sesion.scalars(
+                select(FilaImportacionModelo)
+                .where(FilaImportacionModelo.lote_id == lote_id)
+                .order_by(FilaImportacionModelo.numero)
+            )
+        )
+        if lote.tipo == "candidatos":
+            importadas, omitidas = self._importar_candidatos(lote, filas)
+        elif lote.tipo == "excolaboradores":
+            importadas, omitidas = self._importar_excolaboradores(lote, filas)
+        else:
+            raise EntradaInvalidaError("Tipo de lote no soportado")
         lote.estado = "confirmado"
         self.sesion.flush()
-        return {"id": lote.id, "estado": lote.estado, "reutilizado": False}
+        return {
+            "id": lote.id,
+            "estado": lote.estado,
+            "reutilizado": False,
+            "importadas": importadas,
+            "omitidas": omitidas,
+        }
+
+    def _importar_candidatos(
+        self, lote: LoteImportacionModelo, filas: list[FilaImportacionModelo]
+    ) -> tuple[int, int]:
+        importadas = 0
+        for fila in filas:
+            if fila.clasificacion != "nueva":
+                continue
+            datos = fila.datos
+            candidato = Candidato(
+                cliente_id=lote.cliente_id,
+                nombres=str(datos.get("nombres", "")).strip(),
+                apellidos=str(datos.get("apellidos", "")).strip(),
+                tipo_documento=str(datos.get("tipo_documento") or "") or None,
+                documento_normalizado=normalizar_documento(str(datos.get("documento") or "")),
+                correo=normalizar_correo(str(datos.get("correo") or "")),
+                telefono=str(datos.get("telefono") or "").strip() or None,
+                fuente="importacion",
+            )
+            self.sesion.add(_candidato_a_modelo(candidato))
+            fila.clasificacion = "importada"
+            importadas += 1
+        return importadas, len(filas) - importadas
+
+    def _importar_excolaboradores(
+        self, lote: LoteImportacionModelo, filas: list[FilaImportacionModelo]
+    ) -> tuple[int, int]:
+        lote_ex = self.sesion.scalar(
+            select(LoteExcolaboradoresModelo).where(
+                LoteExcolaboradoresModelo.hash_archivo == lote.hash_archivo
+            )
+        )
+        if lote_ex is None:
+            lote_ex = LoteExcolaboradoresModelo(
+                id=nuevo_id(),
+                cliente_id=lote.cliente_id,
+                hash_archivo=lote.hash_archivo,
+                estado="confirmado",
+            )
+            self.sesion.add(lote_ex)
+            self.sesion.flush()
+        importadas = 0
+        for fila in filas:
+            documento = normalizar_documento(str(fila.datos.get("documento") or ""))
+            hash_documento = hashlib.sha256((documento or "").encode()).hexdigest()
+            existe = self.sesion.scalar(
+                select(ExcolaboradorModelo.id).where(
+                    ExcolaboradorModelo.lote_id == lote_ex.id,
+                    ExcolaboradorModelo.documento_hash == hash_documento,
+                )
+            )
+            if not documento or existe:
+                continue
+            elegible_texto = str(fila.datos.get("elegible_reingreso") or "").casefold()
+            elegible = (
+                True
+                if elegible_texto in {"si", "sí", "true", "1"}
+                else (False if elegible_texto in {"no", "false", "0"} else None)
+            )
+            self.sesion.add(
+                ExcolaboradorModelo(
+                    id=nuevo_id(),
+                    lote_id=lote_ex.id,
+                    cliente_id=lote.cliente_id,
+                    documento_hash=hash_documento,
+                    elegible_reingreso=elegible,
+                )
+            )
+            fila.clasificacion = "importada"
+            importadas += 1
+        return importadas, len(filas) - importadas
 
     def candidatos_para_exclusion(self, cliente_id: str) -> list[dict[str, object]]:
         candidatos = self.sesion.scalars(

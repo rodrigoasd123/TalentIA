@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ candidato.nombres }} {{ candidato.apellidos }} | TalentIA{% endblock %}
+{% block heading %}{{ candidato.nombres }} {{ candidato.apellidos }}{% endblock %}
+{% block content %}
+<section class="banda-metricas"><div><span>Estado</span><strong>{{ candidato.estado }}</strong></div><div><span>Edad</span><strong>{{ candidato.edad or '-' }}</strong></div><div><span>Variacion CTC</span><strong>{{ candidato.variacion_ctc_porcentaje or '-' }}</strong></div></section>
+<section class="seccion"><div class="titulo-seccion"><h2>Ficha general</h2><span class="estado">Version {{ candidato.version }}</span></div><dl class="ficha">{% for campo, valor in candidato.items() %}{% if campo not in ['id', 'creado_en', 'actualizado_en', 'version'] %}<div><dt>{{ campo | replace('_', ' ') | title }}</dt><dd>{{ valor if valor is not none else '-' }}</dd></div>{% endif %}{% endfor %}</dl></section>
+<section class="seccion"><div class="titulo-seccion"><h2>Trazabilidad</h2><span class="estado">{{ eventos | length }} eventos</span></div><div class="tabla-responsive"><table class="table"><thead><tr><th>Evento</th><th>Actor</th><th>Fecha</th></tr></thead><tbody>{% for evento in eventos %}<tr><td>{{ evento.tipo }}</td><td>{{ evento.actor_id }}</td><td>{{ evento.ocurrido_en }}</td></tr>{% else %}<tr><td colspan="3" class="vacio">Sin eventos.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

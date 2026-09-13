@@ -66,6 +66,28 @@ def test_control_optimista_detecta_conflicto(cliente_api) -> None:
     assert segunda.status_code == 409
 
 
+def test_control_optimista_fusiona_campos_disjuntos(cliente_api) -> None:
+    candidato = _alta(cliente_api)
+    cliente = cliente_api["cliente"]
+    cabeceras = cliente_api["cabeceras"]
+    ruta = f"/api/v1/candidates/{candidato['id']}"
+    assert (
+        cliente.patch(
+            ruta, headers=cabeceras, json={"version": 1, "cambios": {"ubicacion": "Lima"}}
+        ).status_code
+        == 200
+    )
+    fusion = cliente.patch(
+        ruta,
+        headers=cabeceras,
+        json={"version": 1, "cambios": {"disponibilidad": "Inmediata"}},
+    )
+    assert fusion.status_code == 200
+    assert fusion.json()["ubicacion"] == "Lima"
+    assert fusion.json()["disponibilidad"] == "Inmediata"
+    assert fusion.json()["version"] == 3
+
+
 def test_identidad_normaliza_tildes_en_todas_las_capas(cliente_api) -> None:
     _alta(cliente_api)
     respuesta = cliente_api["cliente"].post(

@@ -305,7 +305,11 @@ class ServicioTalentIA:
                 accion="candidato.actualizado",
                 recurso_tipo="candidato",
                 recurso_id=candidato.id,
-                detalle={"campos": sorted(cambios), "version_anterior": version},
+                detalle={
+                    "campos": sorted(cambios),
+                    "version_anterior": actualizado.version - 1,
+                    "version_solicitada": version,
+                },
                 correlacion_id=correlacion_id,
             )
             return actualizado

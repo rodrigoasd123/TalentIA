@@ -1,17 +1,20 @@
 # Verificacion - SPEC-030
 
-Fecha de verificacion: 2026-09-12.
+Fecha de verificacion: 2026-09-13.
 
 ## Evidencia aprobada
 
-- `pytest -q tests/greenfield`: 19 pruebas aprobadas.
+- `pytest -q tests/greenfield`: 22 pruebas aprobadas.
 - `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
 - `ruff format --check src/talentia migrations_greenfield tests/greenfield`: aprobado.
 - `mypy src/talentia`: 56 archivos sin observaciones.
 - Alembic en SQLite desechable: `upgrade head`, `downgrade base`, `upgrade head`; revision final
   persistida `0002_esquema`.
-- `python scripts/check_repository.py`: 493 archivos revisados, repositorio seguro.
+- `python scripts/check_repository.py`: 496 archivos revisados, repositorio seguro.
 - FastAPI TestClient: login, cabeceras de seguridad, salud y flujos API aprobados.
+- Concurrencia: fusion de campos disjuntos y conflicto de campos solapados aprobados.
+- Importaciones: persistencia e idempotencia de candidatos y excolaboradores aprobadas.
+- Web: alta con preflight, ficha de 18 campos, derivados y trazabilidad aprobadas.
 - Corpus golden: 20 CV sinteticos y anonimizados.
 
 ## Limitaciones verificadas

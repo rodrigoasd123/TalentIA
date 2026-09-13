@@ -8,10 +8,9 @@
     <input class="form-control" id="q" name="q" value="{{ consulta }}" placeholder="Nombre, correo o documento">
     <button class="btn btn-primary" type="submit">Buscar</button>
   </form>
-  <button class="btn btn-outline-primary" type="button" disabled>Nuevo candidato</button>
+  <a class="btn btn-primary" href="/candidatos/nuevo">Nuevo candidato</a>
 </section>
 <section class="seccion" id="tabla-candidatos">
   {% include "fragmentos/tabla_candidatos.html" %}
 </section>
 {% endblock %}
-

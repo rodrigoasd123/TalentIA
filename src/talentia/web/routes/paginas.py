@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
@@ -142,6 +144,88 @@ def candidatos(request: Request, q: str = "") -> Response:
             candidatos=[asdict(item) for item in encontrados],
             consulta=q,
         ),
+    )
+
+
+@router.get("/candidatos/nuevo", response_class=HTMLResponse)
+def nuevo_candidato(request: Request) -> Response:
+    usuario = _usuario(request)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="nuevo_candidato.html",
+        context=_contexto(request, usuario, error=None, datos={}),
+    )
+
+
+@router.post("/candidatos/nuevo", response_class=HTMLResponse)
+async def crear_candidato_web(request: Request) -> Response:
+    usuario = _usuario(request)
+    formulario = await request.form()
+    entrada = {clave: str(valor) for clave, valor in formulario.items()}
+    if entrada.get("csrf") != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    cliente_id = entrada.get("cliente_id", "")
+    datos: dict[str, object] = {
+        "cliente_id": cliente_id,
+        "nombres": entrada.get("nombres", ""),
+        "apellidos": entrada.get("apellidos", ""),
+        "tipo_documento": entrada.get("tipo_documento") or None,
+        "documento": entrada.get("documento") or None,
+        "correo": entrada.get("correo") or None,
+        "telefono": entrada.get("telefono") or None,
+        "fecha_nacimiento": date.fromisoformat(entrada["fecha_nacimiento"])
+        if entrada.get("fecha_nacimiento")
+        else None,
+        "ubicacion": entrada.get("ubicacion") or None,
+        "fuente": entrada.get("fuente") or None,
+        "reclutador": entrada.get("reclutador") or None,
+        "perfil_solicitado": entrada.get("perfil_solicitado") or None,
+        "conocimiento_tecnico": entrada.get("conocimiento_tecnico") or None,
+        "disponibilidad": entrada.get("disponibilidad") or None,
+        "expectativa_salarial": Decimal(entrada["expectativa_salarial"])
+        if entrada.get("expectativa_salarial")
+        else None,
+        "ctc_rol": Decimal(entrada["ctc_rol"]) if entrada.get("ctc_rol") else None,
+        "etiquetas": [
+            item.strip() for item in entrada.get("etiquetas", "").split(",") if item.strip()
+        ],
+    }
+    identidad = {
+        "cliente_id": cliente_id,
+        "documento": datos["documento"],
+        "correo": datos["correo"],
+        "telefono": datos["telefono"],
+        "nombre_completo": f"{datos['nombres']} {datos['apellidos']}",
+    }
+    try:
+        preflight = request.app.state.servicio.comprobar_identidad(usuario, identidad, nuevo_id())
+        if preflight["resultado"] != "ninguna":
+            raise TalentIAError("Existe una coincidencia; revise la identidad antes de continuar")
+        candidato = request.app.state.servicio.registrar_candidato(
+            usuario, datos, str(preflight["preflight_id"]), nuevo_id()
+        )
+    except (TalentIAError, ValueError) as error:
+        return PLANTILLAS.TemplateResponse(
+            request=request,
+            name="nuevo_candidato.html",
+            context=_contexto(request, usuario, error=str(error), datos=entrada),
+            status_code=422,
+        )
+    return RedirectResponse(f"/candidatos/{candidato.id}", status_code=303)
+
+
+@router.get("/candidatos/{candidato_id}", response_class=HTMLResponse)
+def detalle_candidato(request: Request, candidato_id: str) -> Response:
+    usuario = _usuario(request)
+    candidato = request.app.state.servicio.obtener_candidato(usuario, candidato_id, nuevo_id())
+    traza = request.app.state.servicio.traza_candidato(usuario, candidato_id)
+    ficha = asdict(candidato)
+    ficha["edad"] = candidato.edad
+    ficha["variacion_ctc_porcentaje"] = candidato.variacion_ctc_porcentaje
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_candidato.html",
+        context=_contexto(request, usuario, candidato=ficha, eventos=traza["eventos"]),
     )
 
 

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Nuevo candidato | TalentIA{% endblock %}
+{% block heading %}Nuevo candidato{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<form method="post" class="formulario-operativo">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="titulo-seccion"><h2>Datos generales</h2><span class="estado">Identidad verificada al guardar</span></div>
+  <div class="rejilla-formulario">
+    <label>Cliente<select class="form-select" name="cliente_id" required>{% for cliente in usuario.clientes %}<option value="{{ cliente }}">{{ cliente }}</option>{% endfor %}</select></label>
+    <label>Nombres<input class="form-control" name="nombres" value="{{ datos.get('nombres', '') }}" required></label>
+    <label>Apellidos<input class="form-control" name="apellidos" value="{{ datos.get('apellidos', '') }}" required></label>
+    <label>Tipo de documento<input class="form-control" name="tipo_documento" value="{{ datos.get('tipo_documento', '') }}"></label>
+    <label>Documento<input class="form-control" name="documento" value="{{ datos.get('documento', '') }}"></label>
+    <label>Correo<input class="form-control" type="email" name="correo" value="{{ datos.get('correo', '') }}"></label>
+    <label>Telefono<input class="form-control" name="telefono" value="{{ datos.get('telefono', '') }}"></label>
+    <label>Fecha de nacimiento<input class="form-control" type="date" name="fecha_nacimiento" value="{{ datos.get('fecha_nacimiento', '') }}"></label>
+    <label>Ubicacion<input class="form-control" name="ubicacion" value="{{ datos.get('ubicacion', '') }}"></label>
+    <label>Fuente<input class="form-control" name="fuente" value="{{ datos.get('fuente', '') }}"></label>
+    <label>Reclutador<input class="form-control" name="reclutador" value="{{ datos.get('reclutador', '') }}"></label>
+    <label>Perfil solicitado<input class="form-control" name="perfil_solicitado" value="{{ datos.get('perfil_solicitado', '') }}"></label>
+    <label>Disponibilidad<input class="form-control" name="disponibilidad" value="{{ datos.get('disponibilidad', '') }}"></label>
+    <label>Expectativa salarial<input class="form-control" type="number" step="0.01" name="expectativa_salarial" value="{{ datos.get('expectativa_salarial', '') }}"></label>
+    <label>CTC del rol<input class="form-control" type="number" step="0.01" name="ctc_rol" value="{{ datos.get('ctc_rol', '') }}"></label>
+    <label>Etiquetas<input class="form-control" name="etiquetas" value="{{ datos.get('etiquetas', '') }}" placeholder="Python, Lima"></label>
+    <label class="ancho-completo">Conocimiento tecnico<textarea class="form-control" name="conocimiento_tecnico" rows="3">{{ datos.get('conocimiento_tecnico', '') }}</textarea></label>
+  </div>
+  <div class="acciones-formulario"><a class="btn btn-outline-secondary" href="/candidatos">Cancelar</a><button class="btn btn-primary" type="submit">Registrar candidato</button></div>
+</form>
+{% endblock %}
