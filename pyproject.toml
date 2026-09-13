@@ -23,7 +23,12 @@ dependencies = [
     "openai>=1.0.0,<3.0.0",
     "langchain-openai>=0.1.0,<0.4.0",
     "langgraph>=0.2.0,<0.3.0",
+    "jinja2>=3.1.4,<4.0.0",
 ]
+
+[project.scripts]
+talentia-web = "talentia.main:ejecutar"
+talentia-worker = "talentia.platform.jobs.worker:ejecutar"
 
 [project.optional-dependencies]
 # Orquestación de grafo. TalentIA funciona sin esto: cae al motor nativo incluido.
@@ -41,7 +46,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+where = ["src", "."]
+include = ["talentia*", "app*"]
 
 [tool.ruff]
 line-length = 100
@@ -57,12 +63,12 @@ max-complexity = 10
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["app/domain", "app/ai"]
+files = ["src/talentia", "app/domain", "app/ai"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "src"]
 markers = [
     "security: pruebas de seguridad que bloquean el merge",
     "integration: pruebas de integración",

@@ -1,0 +1,2 @@
+Relaciona requisitos con fragmentos candidatos. La salida es una propuesta estructurada.
+No decidas contratacion, no completes evidencia ausente y no uses tu salida como fuente.

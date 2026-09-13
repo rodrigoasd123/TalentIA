@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acceso | TalentIA</title>
+  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/css/aplicacion.css">
+</head>
+<body class="pagina-acceso">
+  <main class="acceso">
+    <img src="/static/img/talentia-logo.png" alt="TalentIA" class="logo-acceso">
+    <h1>Acceso al piloto</h1>
+    {% if modo_manual %}<p class="estado estado-manual">Modo manual</p>{% endif %}
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" class="formulario-acceso">
+      <label class="form-label" for="correo">Correo</label>
+      <input class="form-control" id="correo" name="correo" type="email" autocomplete="username" required>
+      <label class="form-label" for="contrasena">Contrasena</label>
+      <input class="form-control" id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
+      <button class="btn btn-primary w-100" type="submit">Ingresar</button>
+    </form>
+  </main>
+</body>
+</html>
+

@@ -4,6 +4,8 @@ Consulta primero el [mapa funcional](./MAPA_FUNCIONAL.md), que define la spec pr
 
 ## Funcionalidades ATS
 
+- [`SPEC-030`](./030-reconstruccion-greenfield-talentia/spec.md): Reconstruccion greenfield
+  aprobada mediante `IMPLEMENTATION_SPEC.md` (en implementacion).
 - [`SPEC-005`](./005-importacion-historica-csv-xlsx/spec.md): Importación histórica gobernada CSV/XLSX (verificada).
 - [`SPEC-006`](./006-identidad-acceso-rbac/spec.md): Identidad, sesión y RBAC (verificada por la evidencia de SPEC-004).
 - [`SPEC-007`](./007-vacantes-criterios-sourcing/spec.md): Vacantes, criterios y sourcing manual (verificada por la evidencia de SPEC-004).

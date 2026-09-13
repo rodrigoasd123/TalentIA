@@ -4,6 +4,7 @@ Este mapa distribuye la línea base consolidada por capacidad sin modificar el a
 
 | Dominio | Spec propietaria | Origen histórico |
 |---|---|---|
+| Reconstruccion greenfield y nuevo runtime | SPEC-030 | `IMPLEMENTATION_SPEC.md` aprobado |
 | Identidad, sesión y RBAC | SPEC-006 | SPEC-004 SEC-002, SEC-003, SEC-009 |
 | Vacantes, criterios y sourcing manual | SPEC-007 | SPEC-004 FR-001, FR-002, FR-013 |
 | Candidatos, documentos y postulaciones | SPEC-008 | SPEC-004 FR-003–FR-005 |

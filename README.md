@@ -1,5 +1,26 @@
 # TalentIA — selección y análisis documental gobernados
 
+> **Nuevo runtime greenfield (SPEC-030):** el entrypoint principal es
+> `talentia.main:app`, con FastAPI, Jinja2, HTMX y SQLite. La aplicacion anterior
+> permanece temporalmente como rollback y referencia, pero no define los contratos nuevos.
+
+## Inicio greenfield en Windows
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+$env:TALENTIA_SESSION_SECRET="genere-un-secreto-aleatorio-de-32-caracteres"
+$env:TALENTIA_ADMIN_EMAIL="admin@ejemplo.local"
+$env:TALENTIA_ADMIN_PASSWORD="una-contrasena-segura-de-14-caracteres"
+.\scripts\migrate.ps1
+.\scripts\start_api.ps1
+```
+
+Abra `http://127.0.0.1:8000/login`. Sin `TALENTIA_LLM_PROVIDER`, TalentIA funciona en
+modo manual y nunca presenta una simulacion como evaluacion real. Para procesar trabajos
+durables, ejecute `.\scripts\start_worker.ps1` en otra terminal.
+
+
 TalentIA es una sola aplicación para administrar vacantes, candidatos, CV,
 postulaciones, evaluaciones, revisión humana, pipeline, Candidate 360,
 comunicaciones, importaciones, reportes, auditoría y análisis documental con OCR,

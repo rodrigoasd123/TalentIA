@@ -22,11 +22,13 @@ data/*.db
 data/cache/
 vera.db*
 talentia.db*
+talentia_greenfield.db*
 .talentia-backups/
 *.db-shm
 *.db-wal
 *.sqlite3
 storage/
+backups/
 
 # Environment credentials
 .env*
