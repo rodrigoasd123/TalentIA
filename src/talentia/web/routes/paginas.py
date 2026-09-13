@@ -240,6 +240,51 @@ def tabla_candidatos(request: Request, q: str = "") -> HTMLResponse:
     )
 
 
+@router.get("/modulo/usuarios", response_class=HTMLResponse)
+def usuarios(request: Request) -> Response:
+    usuario = _usuario(request)
+    accesos = request.app.state.servicio.listar_accesos(usuario)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="usuarios.html",
+        context=_contexto(request, usuario, accesos=accesos),
+    )
+
+
+@router.post("/modulo/usuarios/rol")
+def cambiar_rol_web(
+    request: Request,
+    csrf: str = Form(),
+    usuario_id: str = Form(),
+    rol: str = Form(),
+    accion: str = Form(),
+) -> RedirectResponse:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    request.app.state.servicio.asignar_rol(
+        usuario, usuario_id, rol, accion == "asignar", nuevo_id()
+    )
+    return RedirectResponse("/modulo/usuarios", status_code=303)
+
+
+@router.post("/modulo/usuarios/cliente")
+def cambiar_cliente_web(
+    request: Request,
+    csrf: str = Form(),
+    usuario_id: str = Form(),
+    cliente_id: str = Form(),
+    accion: str = Form(),
+) -> RedirectResponse:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    request.app.state.servicio.asignar_cliente(
+        usuario, usuario_id, cliente_id, accion == "asignar", nuevo_id()
+    )
+    return RedirectResponse("/modulo/usuarios", status_code=303)
+
+
 @router.get("/modulo/{modulo}", response_class=HTMLResponse)
 def modulo(request: Request, modulo: str) -> HTMLResponse:
     usuario = _usuario(request)

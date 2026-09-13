@@ -110,6 +110,56 @@ class ServicioTalentIA:
                 ),
             )
 
+    def listar_accesos(self, usuario: UsuarioActual) -> dict[str, object]:
+        _exigir_permiso(usuario, "usuarios:administrar")
+        with self._fabrica() as unidad:
+            return unidad.datos.listar_accesos()
+
+    def asignar_rol(
+        self, actor: UsuarioActual, usuario_id: str, rol: str, asignar: bool, correlacion_id: str
+    ) -> dict[str, object]:
+        _exigir_permiso(actor, "usuarios:administrar")
+        if actor.id == usuario_id and asignar and rol not in actor.roles:
+            raise ProhibidoError("No puede ampliar sus propios roles")
+        with self._fabrica() as unidad:
+            resultado = unidad.datos.asignar_rol(usuario_id, rol, asignar)
+            unidad.datos.registrar_evento(
+                cliente_id=None,
+                actor_id=actor.id,
+                accion="acceso.rol_asignado",
+                recurso_tipo="usuario",
+                recurso_id=usuario_id,
+                detalle={"rol": rol, "asignado": asignar},
+                correlacion_id=correlacion_id,
+            )
+            return resultado
+
+    def asignar_cliente(
+        self,
+        actor: UsuarioActual,
+        usuario_id: str,
+        cliente_id: str,
+        asignar: bool,
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        _exigir_permiso(actor, "usuarios:administrar")
+        if actor.id == usuario_id and asignar and cliente_id not in actor.clientes:
+            raise ProhibidoError("No puede ampliar su propio alcance de clientes")
+        if "administrador" not in actor.roles:
+            _exigir_cliente(actor, cliente_id)
+        with self._fabrica() as unidad:
+            resultado = unidad.datos.asignar_cliente(usuario_id, cliente_id, asignar)
+            unidad.datos.registrar_evento(
+                cliente_id=cliente_id,
+                actor_id=actor.id,
+                accion="acceso.cliente_asignado",
+                recurso_tipo="usuario",
+                recurso_id=usuario_id,
+                detalle={"cliente_id": cliente_id, "asignado": asignar},
+                correlacion_id=correlacion_id,
+            )
+            return resultado
+
     def comprobar_identidad(
         self, usuario: UsuarioActual, datos: dict[str, object], correlacion_id: str
     ) -> dict[str, object]:

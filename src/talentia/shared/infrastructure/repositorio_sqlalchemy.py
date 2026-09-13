@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any
 
-from sqlalchemy import func, or_, select, true, update
+from sqlalchemy import delete, func, or_, select, true, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -25,6 +25,7 @@ from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.modelos_orm import (
     AsignacionUsuarioClienteModelo,
     CandidatoModelo,
+    ClienteModelo,
     DocumentoCandidatoModelo,
     EntradaExclusionModelo,
     EventoAuditoriaModelo,
@@ -127,6 +128,56 @@ class RepositorioSqlalchemy:
             "roles": list(roles),
             "clientes": list(clientes),
         }
+
+    def listar_accesos(self) -> dict[str, object]:
+        usuarios = []
+        for usuario in self.sesion.scalars(select(UsuarioModelo).order_by(UsuarioModelo.correo)):
+            datos = self.buscar_usuario(usuario.correo)
+            if datos:
+                datos.pop("hash_contrasena", None)
+                usuarios.append(datos)
+        return {
+            "usuarios": usuarios,
+            "roles": [
+                rol.codigo
+                for rol in self.sesion.scalars(select(RolModelo).order_by(RolModelo.codigo))
+            ],
+            "clientes": [
+                {"id": cliente.id, "codigo": cliente.codigo, "nombre": cliente.nombre}
+                for cliente in self.sesion.scalars(
+                    select(ClienteModelo).order_by(ClienteModelo.nombre)
+                )
+            ],
+        }
+
+    def asignar_rol(self, usuario_id: str, rol: str, asignar: bool) -> dict[str, object]:
+        usuario = self.sesion.get(UsuarioModelo, usuario_id)
+        rol_modelo = self.sesion.scalar(select(RolModelo).where(RolModelo.codigo == rol))
+        if usuario is None or rol_modelo is None:
+            raise EntradaInvalidaError("Usuario o rol inexistente")
+        clave = {"usuario_id": usuario_id, "rol_id": rol_modelo.id}
+        existente = self.sesion.get(UsuarioRolModelo, (usuario_id, rol_modelo.id))
+        if asignar and existente is None:
+            self.sesion.add(UsuarioRolModelo(**clave))
+        elif not asignar and existente is not None:
+            self.sesion.execute(delete(UsuarioRolModelo).filter_by(**clave))
+        self.sesion.flush()
+        return {"usuario_id": usuario_id, "rol": rol, "asignado": asignar}
+
+    def asignar_cliente(self, usuario_id: str, cliente_id: str, asignar: bool) -> dict[str, object]:
+        if (
+            self.sesion.get(UsuarioModelo, usuario_id) is None
+            or self.sesion.get(ClienteModelo, cliente_id) is None
+        ):
+            raise EntradaInvalidaError("Usuario o cliente inexistente")
+        clave = {"usuario_id": usuario_id, "cliente_id": cliente_id}
+        existente = self.sesion.get(AsignacionUsuarioClienteModelo, (usuario_id, cliente_id))
+        if asignar and existente is None:
+            self.sesion.add(AsignacionUsuarioClienteModelo(**clave))
+        elif not asignar and existente is not None:
+            self.sesion.execute(delete(AsignacionUsuarioClienteModelo).filter_by(**clave))
+        self.sesion.flush()
+        return {"usuario_id": usuario_id, "cliente_id": cliente_id, "asignado": asignar}
 
     def buscar_identidad(
         self,

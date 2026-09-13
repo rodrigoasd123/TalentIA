@@ -57,6 +57,10 @@ body { margin: 0; color: var(--texto); background: var(--fondo); font-family: Ar
 .ficha div { min-width: 0; padding: 14px; border-bottom: 1px solid var(--borde); }
 .ficha dt { color: var(--muted); font-size: .72rem; text-transform: uppercase; }
 .ficha dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.rejilla-acceso { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 28px; }
+.rejilla-acceso form { display: grid; gap: 12px; }
+.rejilla-acceso h2 { font-size: 1.08rem; }
+.rejilla-acceso label { display: grid; gap: 6px; font-size: .82rem; font-weight: 700; }
 @media (max-width: 820px) {
   .estructura { grid-template-columns: 1fr; }
   .barra-lateral { position: static; border-right: 0; border-bottom: 1px solid var(--borde); }
@@ -65,5 +69,5 @@ body { margin: 0; color: var(--texto); background: var(--fondo); font-family: Ar
   .banda-metricas { grid-template-columns: 1fr; }
   .banda-metricas div + div { border-left: 0; border-top: 1px solid var(--borde); padding-left: 0; }
   .barra-herramientas { align-items: stretch; flex-direction: column; }
-  .rejilla-formulario, .ficha { grid-template-columns: 1fr; }
+  .rejilla-formulario, .ficha, .rejilla-acceso { grid-template-columns: 1fr; }
 }

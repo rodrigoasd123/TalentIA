@@ -19,6 +19,8 @@ from talentia.web.schemas import (
     AltaPerfil,
     AltaPostulacion,
     AltaVersionPerfil,
+    AsignacionCliente,
+    AsignacionRol,
     ComprobacionIdentidad,
     Credenciales,
     SolicitudEvaluacion,
@@ -65,6 +67,37 @@ def usuario_actual(
 UsuarioDep = Annotated[UsuarioActual, Depends(usuario_actual)]
 ServicioDep = Annotated[ServicioTalentIA, Depends(servicio)]
 CorrelacionDep = Annotated[str, Depends(correlacion)]
+
+
+@router.get("/access-management")
+def listar_accesos(usuario: UsuarioDep, servicio_actual: ServicioDep) -> dict[str, object]:
+    return servicio_actual.listar_accesos(usuario)
+
+
+@router.post("/users/{usuario_id}/role-assignments")
+def asignar_rol(
+    usuario_id: str,
+    entrada: AsignacionRol,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.asignar_rol(
+        usuario, usuario_id, entrada.rol, entrada.asignar, correlacion_id
+    )
+
+
+@router.post("/users/{usuario_id}/client-assignments")
+def asignar_cliente(
+    usuario_id: str,
+    entrada: AsignacionCliente,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.asignar_cliente(
+        usuario, usuario_id, entrada.cliente_id, entrada.asignar, correlacion_id
+    )
 
 
 @router.post("/auth/login")

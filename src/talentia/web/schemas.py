@@ -17,6 +17,16 @@ class Credenciales(Estricto):
     contrasena: str
 
 
+class AsignacionRol(Estricto):
+    rol: str
+    asignar: bool = True
+
+
+class AsignacionCliente(Estricto):
+    cliente_id: str
+    asignar: bool = True
+
+
 class ComprobacionIdentidad(Estricto):
     cliente_id: str
     documento: str | None = None

@@ -25,6 +25,8 @@ La fuente funcional completa es `IMPLEMENTATION_SPEC.md` y el flujo SDD vive en
 7. Perfiles versionados, postulaciones, uploads seguros, jobs, checkpoints y modo manual.
 8. Agentes deterministicos, guardrails de PII/inyeccion, LangGraph y corpus golden sintetico.
 9. Scripts Windows de migracion, arranque, worker, backup, restore y verificacion.
+10. Administracion de acceso mediante API y web: asignacion idempotente de roles/clientes,
+    auditoria y bloqueo de autoampliacion de privilegios.
 
 ## Pendientes implementables sin decisiones nuevas
 
@@ -41,17 +43,12 @@ Persistir resultados de `evaluations`, `requirement_assessments`, `human_reviews
 revisiones. El worker debe guardar el checkpoint antes de interrumpir y reanudarse sin duplicar.
 La ausencia de evidencia debe quedar como `requiere_revision`, nunca como incumplimiento.
 
-### 3. Administracion de acceso
-
-Implementar `AssignRole` y `AssignClientAccess`, endpoints y pantalla administrativa. Probar que un
-usuario no pueda ampliar su propio alcance y que todo cambio quede auditado.
-
-### 4. Observabilidad y rendimiento
+### 3. Observabilidad y rendimiento
 
 Persistir eventos de metricas del piloto, tiempos de request/job/agente y errores sanitizados.
 Crear benchmark reproducible con volumen representativo y documentar resultados reales.
 
-### 5. Suite historica
+### 4. Suite historica
 
 La suite greenfield pasa, pero la suite completa historica no recolecto en el entorno local porque
 faltaba la dependencia declarada `langchain_openai`. Instalar el proyecto con `pip install -e

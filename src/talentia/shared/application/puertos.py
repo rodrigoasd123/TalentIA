@@ -12,6 +12,14 @@ from talentia.modules.candidates.domain.modelos import Candidato
 class DatosTalentIA(Protocol):
     def buscar_usuario(self, correo: str) -> dict[str, object] | None: ...
 
+    def listar_accesos(self) -> dict[str, object]: ...
+
+    def asignar_rol(self, usuario_id: str, rol: str, asignar: bool) -> dict[str, object]: ...
+
+    def asignar_cliente(
+        self, usuario_id: str, cliente_id: str, asignar: bool
+    ) -> dict[str, object]: ...
+
     def buscar_identidad(
         self,
         cliente_id: str,
