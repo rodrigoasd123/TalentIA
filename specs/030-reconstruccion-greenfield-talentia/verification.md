@@ -2,7 +2,37 @@
 
 Fecha de verificacion: 2026-09-13.
 
-Estado SDD: fase 2 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 3.
+Estado SDD: fase 3 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 4.
+
+## Evidencia de fase 3 - interfaz de evaluacion y revision humana
+
+- `/evaluaciones/{id}` muestra candidatura, perfil, documento, puntaje, naturaleza de sugerencia,
+  requisitos, veredictos, explicaciones y evidencia con fragmento, pagina y posiciones originales.
+- La ausencia de evidencia se presenta como motivo de revision y nunca como rechazo automatico.
+- El formulario web permite aceptar, corregir o rechazar la sugerencia; exige justificacion y, para
+  `corregida`, al menos un campo con valor verificado. Se verifico `nivel_ingles = B2 verificado`.
+- Las correcciones se muestran en el historial de revision y la forma deja de estar disponible una
+  vez resuelta.
+- La toma de revision usa una actualizacion condicional por estado/version. Dos resoluciones
+  concurrentes producen una decision, un conflicto controlado y un solo evento de auditoria.
+- GET y POST aplican permiso y alcance por cliente en la capa de aplicacion; el formulario esta
+  protegido con CSRF. Se probaron lectura sin permiso de resolucion, POST prohibido e IDOR.
+- `/trabajos/{id}` y `/fragmentos/trabajos/{id}` ofrecen polling HTMX y estados pendiente,
+  procesando, completado/revision y error con codigo seguro.
+- `pytest -q tests/greenfield/test_evaluation_flow.py`: 7 pruebas aprobadas, 2 advertencias.
+- `pytest -q tests/greenfield`: 61 pruebas aprobadas, 2 advertencias.
+- `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
+- `ruff format --check src/talentia migrations_greenfield tests/greenfield`: 78 archivos conformes.
+- `mypy src/talentia`: 60 archivos sin observaciones.
+- `python scripts/check_repository.py`: 516 archivos revisados, repositorio seguro.
+- La regresion completa fue detenida por solicitud expresa del propietario antes de producir un
+  resultado final. Debe repetirse para cerrar la fase; consulte `continuacion-fase-3.md`.
+- `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
+- `ruff format --check src/talentia migrations_greenfield tests/greenfield`: 78 archivos conformes.
+- `mypy src/talentia`: 60 archivos sin observaciones.
+- `python scripts/check_repository.py`: 515 archivos revisados, repositorio seguro.
+- La regresion completa de fase 3 fue iniciada y detenida por solicitud expresa del propietario
+  antes de producir un resultado final; debe repetirse segun `continuacion-fase-3.md`.
 
 ## Evidencia de fase 2 - AG-03 y workflow LangGraph durable
 
@@ -83,8 +113,8 @@ Estado SDD: fase 2 implementada y en verificacion; no se declara `VERIFIED` ni s
   (`Starlette/AnyIO` y serializador de checkpoint de LangGraph), sin fallos funcionales actuales.
 - AG-02 y AG-03 ya se ejecutan desde el worker. En esta fase ambos adaptadores son locales y
   deterministas; la seleccion o evaluacion de un proveedor LLM permanece fuera del recorrido.
-- La interfaz de evaluacion y resolucion humana sigue pendiente para la fase 3; la API conserva el
-  recorrido existente.
+- Los formularios operativos de perfiles, postulaciones y carga/seguimiento de CV permanecen para
+  la fase 4; no se adelantaron en este commit.
 - No se incluyo un motor OCR concreto: el adaptador es opcional y la ausencia de texto deriva a
   revision humana, segun el alcance aprobado de la fase 1.
 - `BIZ-001..010` continuan en estado `BLOCKED`; las capacidades afectadas fallan cerrado o exigen

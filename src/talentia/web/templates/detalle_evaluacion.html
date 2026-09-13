@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Evaluacion {{ evaluacion.id }} | TalentIA{% endblock %}
+{% block heading %}Evaluacion de candidatura{% endblock %}
+{% block content %}
+<section class="seccion resumen-evaluacion" aria-labelledby="resumen-evaluacion">
+  <div class="titulo-seccion">
+    <h2 id="resumen-evaluacion">{{ evaluacion.candidato }}</h2>
+    {% if evaluacion.revisiones and evaluacion.revisiones[-1].estado == 'pendiente' %}
+      <span class="estado estado-revision">Revision requerida</span>
+    {% else %}
+      <span class="estado estado-completado">Revision completada</span>
+    {% endif %}
+  </div>
+  <dl class="ficha ficha-evaluacion">
+    <div><dt>Perfil</dt><dd>{{ evaluacion.perfil_codigo }} · {{ evaluacion.perfil_titulo }}</dd></div>
+    <div><dt>Documento</dt><dd>{{ evaluacion.documento_nombre }}</dd></div>
+    <div><dt>Puntaje documental</dt><dd>{{ evaluacion.puntaje_documental if evaluacion.puntaje_documental is not none else 'No concluyente' }}</dd></div>
+    <div><dt>Motor</dt><dd>{{ evaluacion.modelo or 'No informado' }}</dd></div>
+    <div><dt>Version</dt><dd>{{ evaluacion.version_prompt or 'No informada' }}</dd></div>
+    <div><dt>Naturaleza</dt><dd>Sugerencia asistida; requiere decision humana</dd></div>
+  </dl>
+</section>
+
+{% if error %}<div class="alert alert-danger seccion" role="alert">{{ error }}</div>{% endif %}
+
+<section class="seccion" aria-labelledby="requisitos-evaluacion">
+  <div class="titulo-seccion">
+    <h2 id="requisitos-evaluacion">Requisitos y evidencia</h2>
+    <span class="estado">{{ evaluacion.requisitos | length }} requisitos</span>
+  </div>
+  <p class="ayuda">Cada afirmacion muestra el fragmento minimo y su ubicacion verificable. La ausencia de evidencia no equivale a rechazo.</p>
+  <div class="lista-requisitos">
+    {% for requisito in evaluacion.requisitos %}
+    {% set requisito_indice = loop.index %}
+    <article class="tarjeta-requisito" id="requisito-{{ requisito_indice }}">
+      <header>
+        <h3>{{ requisito.codigo_requisito }}</h3>
+        <span class="estado estado-{{ requisito.veredicto }}">{{ requisito.veredicto | replace('_', ' ') }}</span>
+      </header>
+      <p>{{ requisito.explicacion }}</p>
+      {% for fuente in requisito.evidencia %}
+      <a class="evidencia" id="evidencia-{{ requisito_indice }}-{{ loop.index }}" href="#requisito-{{ requisito_indice }}">
+        <span>Pagina {{ fuente.pagina if fuente.pagina is not none else 'sin pagina' }} · posiciones {{ fuente.inicio }}–{{ fuente.fin }}</span>
+        <mark>{{ fuente.fragmento }}</mark>
+      </a>
+      {% else %}
+      <p class="sin-evidencia">Sin evidencia suficiente; conservar para revision humana.</p>
+      {% endfor %}
+    </article>
+    {% else %}
+    <div class="vacio-grande">No se produjo evidencia automatica. La candidatura permanece en revision.</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="seccion" aria-labelledby="historial-revision">
+  <div class="titulo-seccion"><h2 id="historial-revision">Historial de revision</h2></div>
+  {% for revision in evaluacion.revisiones %}
+  <article class="revision-historial">
+    <strong>{{ revision.estado | replace('_', ' ') }}</strong>
+    <span>Version {{ revision.version }}</span>
+    {% if revision.comentario %}<p>{{ revision.comentario }}</p>{% endif %}
+    {% for correccion in revision.correcciones %}
+      <dl class="correccion">
+        <div><dt>Campo corregido</dt><dd>{{ correccion.campo }}</dd></div>
+        <div><dt>Valor anterior</dt><dd>{{ correccion.valor_anterior if correccion.valor_anterior is not none else 'Sin valor' }}</dd></div>
+        <div><dt>Valor verificado</dt><dd>{{ correccion.valor_nuevo }}</dd></div>
+      </dl>
+    {% endfor %}
+  </article>
+  {% endfor %}
+</section>
+
+{% set pendientes = evaluacion.revisiones | selectattr('estado', 'equalto', 'pendiente') | list %}
+{% if pendientes and puede_revisar %}
+<section class="seccion formulario-operativo" aria-labelledby="resolver-revision">
+  <h2 id="resolver-revision">Registrar decision humana</h2>
+  <p class="ayuda">La justificacion es obligatoria. Una correccion debe indicar el campo y el valor verificado.</p>
+  <form method="post" action="/evaluaciones/{{ evaluacion.id }}/revision" class="rejilla-formulario">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Decision
+      <select name="decision" required>
+        {% for valor, etiqueta in [('aceptada', 'Aceptar sugerencia'), ('corregida', 'Corregir evaluacion'), ('rechazada', 'Rechazar sugerencia')] %}
+        <option value="{{ valor }}" {% if datos_formulario.decision == valor %}selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="ancho-completo">Justificacion
+      <textarea name="comentario" minlength="3" maxlength="2000" required>{{ datos_formulario.comentario or '' }}</textarea>
+    </label>
+    <label>Campo a corregir
+      <input name="campo_correccion" maxlength="80" placeholder="nivel_ingles" value="{{ datos_formulario.campo_correccion or '' }}">
+    </label>
+    <label>Valor anterior
+      <input name="valor_anterior" value="{{ datos_formulario.valor_anterior or '' }}">
+    </label>
+    <label>Valor verificado
+      <input name="valor_nuevo" placeholder="B2 verificado" value="{{ datos_formulario.valor_nuevo or '' }}">
+    </label>
+    <div class="acciones-formulario ancho-completo">
+      <button class="btn btn-primary" type="submit">Guardar decision auditada</button>
+    </div>
+  </form>
+</section>
+{% elif pendientes %}
+<div class="alert alert-info seccion" role="status">La revision esta pendiente de una persona con permiso para resolverla.</div>
+{% endif %}
+{% endblock %}

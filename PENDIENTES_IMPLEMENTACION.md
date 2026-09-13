@@ -29,27 +29,23 @@ La fuente funcional completa es `IMPLEMENTATION_SPEC.md` y el flujo SDD vive en
     auditoria y bloqueo de autoampliacion de privilegios.
 11. AG-02 y AG-03 conectados al worker mediante diez nodos LangGraph reales, estado serializable,
     checkpoint por nodo, correlacion, lease, timeout y reinicio idempotente.
+12. Interfaz de evaluacion/HITL con evidencia navegable, correcciones verificadas, polling HTMX,
+    CSRF, RBAC, alcance por cliente y resolucion concurrente atomica.
 
 ## Pendientes implementables sin decisiones nuevas
 
-### 1. Pantallas operativas restantes
+### 1. Formularios operativos restantes
 
-Reemplazar `src/talentia/web/templates/modulo.html` por vistas y formularios reales para perfiles,
-postulaciones, documentos, trabajos, lotes, excolaboradores y metricas. Mantener reglas en la capa
-de aplicacion, filtros del servidor, CSRF y alcance por cliente. Agregar pruebas E2E de cada flujo.
+Crear vistas y formularios reales para perfiles, postulaciones, documentos, lotes, excolaboradores
+y metricas. Trabajos y evaluaciones ya disponen de pantallas especializadas. Mantener reglas en la
+capa de aplicacion, filtros del servidor, CSRF y alcance por cliente. Agregar pruebas E2E.
 
-### 2. Interfaz de evaluacion y revision humana
-
-Mostrar resultados de `evaluations`, `requirement_assessments` y `human_reviews` con evidencia
-navegable. Permitir aceptar, corregir o rechazar con justificacion, CSRF, RBAC y alcance por cliente.
-El backend durable y el fallback `requiere_revision` ya estan implementados en la fase 2.
-
-### 3. Observabilidad y rendimiento
+### 2. Observabilidad y rendimiento
 
 Persistir eventos de metricas del piloto, tiempos de request/job/agente y errores sanitizados.
 Crear benchmark reproducible con volumen representativo y documentar resultados reales.
 
-### 4. Suite historica
+### 3. Suite historica
 
 La dependencia declarada `langchain_openai` debe estar instalada. Una primera corrida tuvo un timeout
 intermitente de Streamlit tras 364 pruebas aprobadas; la prueba afectada paso aislada y la repeticion

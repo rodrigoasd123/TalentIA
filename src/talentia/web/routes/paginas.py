@@ -11,6 +11,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
 from talentia.platform.security.contrasenas import FirmadorSesion, nuevo_csrf
 from talentia.shared.application.errores import NoAutorizadoError, TalentIAError
 from talentia.shared.domain.modelos import UsuarioActual, nuevo_id
@@ -47,6 +48,35 @@ def _contexto(request: Request, usuario: UsuarioActual, **extra: object) -> dict
         "modo_manual": request.app.state.configuracion.modo_manual,
         **extra,
     }
+
+
+def _puede(usuario: UsuarioActual, permiso: str) -> bool:
+    return usuario.tiene_permiso(permiso, PERMISOS_POR_ROL)
+
+
+def _respuesta_evaluacion(
+    request: Request,
+    usuario: UsuarioActual,
+    evaluacion_id: str,
+    *,
+    error: str | None = None,
+    datos_formulario: dict[str, str] | None = None,
+    status_code: int = 200,
+) -> Response:
+    evaluacion = request.app.state.servicio.obtener_evaluacion(usuario, evaluacion_id)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_evaluacion.html",
+        context=_contexto(
+            request,
+            usuario,
+            evaluacion=evaluacion,
+            puede_revisar=_puede(usuario, "revisiones:resolver"),
+            error=error,
+            datos_formulario=datos_formulario or {},
+        ),
+        status_code=status_code,
+    )
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -283,6 +313,87 @@ def cambiar_cliente_web(
         usuario, usuario_id, cliente_id, accion == "asignar", nuevo_id()
     )
     return RedirectResponse("/modulo/usuarios", status_code=303)
+
+
+@router.get("/evaluaciones/{evaluacion_id}", response_class=HTMLResponse)
+def detalle_evaluacion(request: Request, evaluacion_id: str) -> Response:
+    usuario = _usuario(request)
+    return _respuesta_evaluacion(request, usuario, evaluacion_id)
+
+
+@router.post("/evaluaciones/{evaluacion_id}/revision", response_class=HTMLResponse)
+def resolver_evaluacion_web(
+    request: Request,
+    evaluacion_id: str,
+    csrf: str = Form(),
+    decision: str = Form(),
+    comentario: str = Form(),
+    campo_correccion: str = Form(""),
+    valor_anterior: str = Form(""),
+    valor_nuevo: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    formulario = {
+        "decision": decision,
+        "comentario": comentario,
+        "campo_correccion": campo_correccion,
+        "valor_anterior": valor_anterior,
+        "valor_nuevo": valor_nuevo,
+    }
+    correcciones: list[dict[str, object]] = []
+    if campo_correccion.strip() or valor_nuevo.strip():
+        correcciones.append(
+            {
+                "campo": campo_correccion.strip(),
+                "valor_anterior": valor_anterior.strip() or None,
+                "valor_nuevo": valor_nuevo.strip(),
+            }
+        )
+    try:
+        request.app.state.servicio.registrar_revision(
+            usuario,
+            evaluacion_id,
+            {
+                "decision": decision,
+                "comentario": comentario,
+                "correcciones": correcciones,
+            },
+            request.state.correlacion_id,
+        )
+    except TalentIAError as error:
+        return _respuesta_evaluacion(
+            request,
+            usuario,
+            evaluacion_id,
+            error=str(error),
+            datos_formulario=formulario,
+            status_code=error.estado_http,
+        )
+    return RedirectResponse(f"/evaluaciones/{evaluacion_id}?resuelta=1", status_code=303)
+
+
+@router.get("/trabajos/{trabajo_id}", response_class=HTMLResponse)
+def detalle_trabajo(request: Request, trabajo_id: str) -> Response:
+    usuario = _usuario(request)
+    trabajo = request.app.state.servicio.obtener_trabajo(usuario, trabajo_id)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_trabajo.html",
+        context=_contexto(request, usuario, trabajo=trabajo),
+    )
+
+
+@router.get("/fragmentos/trabajos/{trabajo_id}", response_class=HTMLResponse)
+def estado_trabajo(request: Request, trabajo_id: str) -> Response:
+    usuario = _usuario(request)
+    trabajo = request.app.state.servicio.obtener_trabajo(usuario, trabajo_id)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="fragmentos/estado_trabajo.html",
+        context={"trabajo": trabajo},
+    )
 
 
 @router.get("/modulo/{modulo}", response_class=HTMLResponse)

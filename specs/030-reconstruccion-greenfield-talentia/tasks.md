@@ -54,20 +54,22 @@
 
 ## Fase 3 - Interfaz de evaluacion y HITL
 
-- [ ] **T-030-F3-001 - Mostrar evaluacion y evidencia navegable**
+- [x] **T-030-F3-001 - Mostrar evaluacion y evidencia navegable**
   - Cubre: FR-030-003, FR-030-004, AC-030-003, AC-030-004
   - Archivos: rutas web y plantillas nuevas de evaluacion
-  - Verificacion: prueba web y E2E
+  - Verificacion: recorrido API -> worker -> pagina con perfil, requisitos, veredicto, explicacion,
+    fragmento minimo, pagina y posiciones de la fuente
   - Dependencias: fase 2
-- [ ] **T-030-F3-002 - Resolver revision con correcciones auditadas**
+- [x] **T-030-F3-002 - Resolver revision con correcciones auditadas**
   - Cubre: FR-030-003, SEC-030-001, AC-030-002, AC-030-003
   - Archivos: rutas, plantillas y servicio existentes; plantilla nueva de revision
-  - Verificacion: aceptar/corregir/rechazar, comentario, CSRF, RBAC, IDOR y repeticion 409
+  - Verificacion: aceptar/corregir/rechazar, justificacion, nivel de ingles verificado, CSRF, RBAC,
+    IDOR y dos revisores concurrentes con una sola decision/evento
   - Dependencias: T-030-F3-001
-- [ ] **T-030-F3-003 - Polling HTMX y estados de interfaz**
+- [x] **T-030-F3-003 - Polling HTMX y estados de interfaz**
   - Cubre: FR-030-005, NFR-030-002, AC-030-001, AC-030-005
   - Archivos: fragmentos y plantillas Jinja2/HTMX nuevas
-  - Verificacion: pendiente, reservado, completado, revision y error
+  - Verificacion: fragmento HTMX con estados pendiente, procesando, completado, revision y error
   - Dependencias: T-030-F3-001
 
 ## Fase 4 - Formularios operativos

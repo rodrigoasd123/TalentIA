@@ -657,6 +657,7 @@ class ServicioTalentIA:
             )
 
     def obtener_trabajo(self, usuario: UsuarioActual, trabajo_id: str) -> dict[str, object]:
+        _exigir_permiso(usuario, "candidatos:leer")
         with self._fabrica() as unidad:
             trabajo = unidad.datos.obtener_trabajo(trabajo_id)
             if not trabajo:
@@ -681,18 +682,31 @@ class ServicioTalentIA:
         correlacion_id: str,
     ) -> dict[str, object]:
         _exigir_permiso(usuario, "revisiones:resolver")
+        decision = str(datos.get("decision", ""))
+        comentario = str(datos.get("comentario", "")).strip()
+        if decision not in {"aceptada", "corregida", "rechazada"}:
+            raise EntradaInvalidaError("Decision de revision invalida")
+        if len(comentario) < 3:
+            raise EntradaInvalidaError("La justificacion es obligatoria")
+        correcciones = cast(list[dict[str, object]], datos.get("correcciones", []))
+        if decision == "corregida" and not correcciones:
+            raise EntradaInvalidaError("Una decision corregida requiere al menos una correccion")
+        for correccion in correcciones:
+            campo = str(correccion.get("campo", "")).strip()
+            valor_nuevo = correccion.get("valor_nuevo")
+            if not campo or len(campo) > 80 or valor_nuevo is None or valor_nuevo == "":
+                raise EntradaInvalidaError("Correccion de campo invalida")
         with self._fabrica() as unidad:
             evaluacion = unidad.datos.obtener_evaluacion(evaluacion_id)
             if evaluacion is None:
                 raise NoEncontradoError("Evaluacion no encontrada")
             cliente_id = str(evaluacion["cliente_id"])
             _exigir_cliente(usuario, cliente_id)
-            correcciones = cast(list[dict[str, object]], datos.get("correcciones", []))
             revision = unidad.datos.registrar_revision(
                 evaluacion_id,
                 usuario.id,
-                str(datos["decision"]),
-                str(datos["comentario"]),
+                decision,
+                comentario,
                 correcciones,
             )
             unidad.datos.registrar_evento(
@@ -702,7 +716,7 @@ class ServicioTalentIA:
                 recurso_tipo="evaluacion",
                 recurso_id=evaluacion_id,
                 detalle={
-                    "decision": datos["decision"],
+                    "decision": decision,
                     "correcciones": len(correcciones),
                 },
                 correlacion_id=correlacion_id,
@@ -757,6 +771,7 @@ class ServicioTalentIA:
             ),
             "revisiones": (
                 ("id", "Revision"),
+                ("evaluacion_id", "Evaluacion"),
                 ("candidato", "Candidato"),
                 ("estado", "Estado"),
                 ("creado_en", "Creada"),
@@ -773,6 +788,7 @@ class ServicioTalentIA:
                 ("creado_en", "Creado"),
             ),
             "trabajos": (
+                ("id", "Trabajo"),
                 ("tipo", "Tipo"),
                 ("estado", "Estado"),
                 ("intentos", "Intentos"),

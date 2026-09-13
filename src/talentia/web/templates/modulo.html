@@ -12,7 +12,17 @@
       <thead><tr>{% for clave, etiqueta in columnas %}<th>{{ etiqueta }}</th>{% endfor %}</tr></thead>
       <tbody>
       {% for fila in filas %}
-        <tr>{% for clave, etiqueta in columnas %}<td>{{ fila[clave] if fila[clave] is not none else 'Pendiente' }}</td>{% endfor %}</tr>
+        <tr>{% for clave, etiqueta in columnas %}<td>
+          {% if modulo == 'evaluaciones' and clave == 'id' %}
+            <a href="/evaluaciones/{{ fila[clave] }}">{{ fila[clave] }}</a>
+          {% elif modulo == 'revisiones' and clave == 'evaluacion_id' %}
+            <a href="/evaluaciones/{{ fila[clave] }}">{{ fila[clave] }}</a>
+          {% elif modulo == 'trabajos' and clave == 'id' %}
+            <a href="/trabajos/{{ fila[clave] }}">{{ fila[clave] }}</a>
+          {% else %}
+            {{ fila[clave] if fila[clave] is not none else 'Pendiente' }}
+          {% endif %}
+        </td>{% endfor %}</tr>
       {% else %}
         <tr><td colspan="{{ columnas | length }}" class="vacio">No hay registros para el alcance actual.</td></tr>
       {% endfor %}
@@ -21,4 +31,3 @@
   </div>
 </section>
 {% endblock %}
-

@@ -554,6 +554,33 @@ class RepositorioSqlalchemy:
         modelo = self.sesion.get(EvaluacionModelo, evaluacion_id)
         if modelo is None:
             return None
+        contexto = (
+            self.sesion.execute(
+                select(
+                    (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                    PerfilPuestoModelo.codigo.label("perfil_codigo"),
+                    PerfilPuestoModelo.titulo.label("perfil_titulo"),
+                    DocumentoCandidatoModelo.nombre_original.label("documento_nombre"),
+                )
+                .select_from(EvaluacionModelo)
+                .join(PostulacionModelo, PostulacionModelo.id == EvaluacionModelo.postulacion_id)
+                .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+                .join(
+                    VersionPerfilPuestoModelo,
+                    VersionPerfilPuestoModelo.id == EvaluacionModelo.version_perfil_id,
+                )
+                .join(
+                    PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id
+                )
+                .join(
+                    DocumentoCandidatoModelo,
+                    DocumentoCandidatoModelo.id == EvaluacionModelo.documento_id,
+                )
+                .where(EvaluacionModelo.id == evaluacion_id)
+            )
+            .mappings()
+            .one()
+        )
         requisitos = self.sesion.scalars(
             select(EvaluacionRequisitoModelo)
             .where(EvaluacionRequisitoModelo.evaluacion_id == evaluacion_id)
@@ -564,6 +591,21 @@ class RepositorioSqlalchemy:
             .where(RevisionHumanaModelo.evaluacion_id == evaluacion_id)
             .order_by(RevisionHumanaModelo.creado_en)
         ).all()
+        correcciones_por_revision: dict[str, list[dict[str, object]]] = {}
+        if revisiones:
+            correcciones = self.sesion.scalars(
+                select(CorreccionCampoModelo)
+                .where(CorreccionCampoModelo.revision_id.in_([item.id for item in revisiones]))
+                .order_by(CorreccionCampoModelo.creado_en)
+            ).all()
+            for correccion in correcciones:
+                correcciones_por_revision.setdefault(correccion.revision_id, []).append(
+                    {
+                        "campo": correccion.campo,
+                        "valor_anterior": correccion.valor_anterior,
+                        "valor_nuevo": correccion.valor_nuevo,
+                    }
+                )
         return {
             "id": modelo.id,
             "cliente_id": modelo.cliente_id,
@@ -575,6 +617,10 @@ class RepositorioSqlalchemy:
             "modelo": modelo.modelo,
             "version_prompt": modelo.version_prompt,
             "simulada": modelo.simulada,
+            "candidato": contexto["candidato"],
+            "perfil_codigo": contexto["perfil_codigo"],
+            "perfil_titulo": contexto["perfil_titulo"],
+            "documento_nombre": contexto["documento_nombre"],
             "requisitos": [
                 {
                     "codigo_requisito": requisito.codigo_requisito,
@@ -592,6 +638,8 @@ class RepositorioSqlalchemy:
                     "revisor_id": revision.revisor_id,
                     "comentario": revision.comentario,
                     "version": revision.version,
+                    "creado_en": revision.creado_en,
+                    "correcciones": correcciones_por_revision.get(revision.id, []),
                 }
                 for revision in revisiones
             ],
@@ -608,23 +656,36 @@ class RepositorioSqlalchemy:
         evaluacion = self.sesion.get(EvaluacionModelo, evaluacion_id)
         if evaluacion is None:
             raise EntradaInvalidaError("Evaluacion no encontrada")
-        revision = self.sesion.scalar(
-            select(RevisionHumanaModelo).where(
+        revision = self.sesion.execute(
+            select(RevisionHumanaModelo.id, RevisionHumanaModelo.version).where(
                 RevisionHumanaModelo.evaluacion_id == evaluacion_id,
                 RevisionHumanaModelo.estado == "pendiente",
             )
-        )
+        ).one_or_none()
         if revision is None:
             raise ConflictoError("La evaluacion no tiene una revision pendiente")
-        revision.estado = decision
-        revision.revisor_id = revisor_id
-        revision.comentario = comentario
-        revision.version += 1
+        revision_id, version = revision
+        resuelta = self.sesion.execute(
+            update(RevisionHumanaModelo)
+            .where(
+                RevisionHumanaModelo.id == revision_id,
+                RevisionHumanaModelo.estado == "pendiente",
+                RevisionHumanaModelo.version == version,
+            )
+            .values(
+                estado=decision,
+                revisor_id=revisor_id,
+                comentario=comentario,
+                version=version + 1,
+            )
+        )
+        if not isinstance(resuelta, CursorResult) or resuelta.rowcount != 1:
+            raise ConflictoError("La revision ya fue resuelta por otra persona")
         for correccion in correcciones:
             self.sesion.add(
                 CorreccionCampoModelo(
                     id=nuevo_id(),
-                    revision_id=revision.id,
+                    revision_id=revision_id,
                     campo=str(correccion["campo"]),
                     valor_anterior=correccion.get("valor_anterior"),
                     valor_nuevo=correccion["valor_nuevo"],
@@ -632,13 +693,13 @@ class RepositorioSqlalchemy:
             )
         self.sesion.flush()
         return {
-            "id": revision.id,
+            "id": revision_id,
             "evaluacion_id": evaluacion_id,
-            "estado": revision.estado,
-            "revisor_id": revision.revisor_id,
-            "comentario": revision.comentario,
+            "estado": decision,
+            "revisor_id": revisor_id,
+            "comentario": comentario,
             "correcciones": len(correcciones),
-            "version": revision.version,
+            "version": version + 1,
         }
 
     def metricas(self, clientes: frozenset[str]) -> dict[str, object]:
@@ -715,6 +776,7 @@ class RepositorioSqlalchemy:
             .where(_filtro_clientes(EvaluacionModelo.cliente_id, clientes)),
             "revisiones": select(
                 RevisionHumanaModelo.id.label("id"),
+                EvaluacionModelo.id.label("evaluacion_id"),
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
                 RevisionHumanaModelo.estado.label("estado"),
                 RevisionHumanaModelo.creado_en.label("creado_en"),
@@ -739,6 +801,7 @@ class RepositorioSqlalchemy:
                 ReporteExclusionModelo.creado_en.label("creado_en"),
             ).where(_filtro_clientes(ReporteExclusionModelo.cliente_id, clientes)),
             "trabajos": select(
+                TrabajoAgenteModelo.id.label("id"),
                 TrabajoAgenteModelo.tipo.label("tipo"),
                 TrabajoAgenteModelo.estado.label("estado"),
                 TrabajoAgenteModelo.intentos.label("intentos"),
