@@ -25,19 +25,18 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`a18c67c`)
 | LangGraph y recuperacion | Cumple en backend | Diez nodos reales, estado seguro, checkpoint unico por nodo, correlacion, lease, timeout, reintento y reinicio probado sin duplicados | Telemetria persistente de fase 6 y aceptacion operativa |
 | Evaluacion con evidencia | Cumple | AG-03 persiste valoracion por requisito y la web muestra evidencia minima navegable, fuente y fallback humano | UAT con usuarios del piloto |
 | Revision humana | Cumple | Fallback fail-closed, evidencia navegable, formulario aceptar/corregir/rechazar, justificacion, correcciones, CSRF/RBAC/IDOR y decision/auditoria atomicas | UAT con usuarios del piloto |
-| Interfaz Jinja2/HTMX | Parcial | Login, candidatos, evaluacion/HITL y polling de trabajos con estados pendiente/procesando/completado/revision/error | Formularios operativos de perfiles, postulaciones, CV y lotes |
+| Interfaz Jinja2/HTMX | Parcial | Login, candidatos, perfiles/versiones, postulaciones, CV/evaluacion, HITL y polling de trabajos; errores conservan datos no sensibles | Formularios de lotes, ex-TCS y exclusiones de fase 5 |
 | Importaciones y ex-TCS | Parcial | Staging, confirmacion, idempotencia y proyeccion web | Mapeo/correccion web completo y decisiones `BIZ-001/008` |
 | Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
 | Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas y correlacion conservada en trabajo/checkpoints | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
 | Metricas y observabilidad | Parcial | Metricas basicas, scripts de laboratorio y MLflow historico | Persistir eventos de piloto, panel de baseline y benchmark greenfield |
-| Calidad y regresion | Cumple fase 3 | 61 greenfield y 371 totales; web E2E, CSRF, RBAC, IDOR y decision concurrente; Ruff, formato, mypy y escaner aprobados | Resolver advertencias de dependencias antes de actualizar versiones |
+| Calidad y regresion | Cumple fase 4 | 65 greenfield y 375 totales; formularios/E2E, validacion, RBAC, IDOR e idempotencia; Ruff, formato, mypy y escaner aprobados | Resolver advertencias de dependencias antes de actualizar versiones |
 
 ## Orden de cierre recomendado
 
-1. Completar formularios operativos de perfiles, postulaciones y CV.
-2. Completar lotes, ex-TCS y exclusiones sin resolver decisiones BIZ bloqueadas.
-3. Persistir metricas de piloto y ejecutar benchmark greenfield con MLflow.
-4. Ejecutar aceptacion de usuarios.
+1. Completar lotes, ex-TCS y exclusiones sin resolver decisiones BIZ bloqueadas.
+2. Persistir metricas de piloto y ejecutar benchmark greenfield con MLflow.
+3. Ejecutar aceptacion de usuarios.
 
 ## Decisiones que permanecen cerradas
 

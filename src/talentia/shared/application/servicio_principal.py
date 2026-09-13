@@ -411,12 +411,16 @@ class ServicioTalentIA:
         _exigir_permiso(usuario, "perfiles:escribir")
         cliente_id = str(datos["cliente_id"])
         _exigir_cliente(usuario, cliente_id)
+        codigo = _texto(datos.get("codigo")).upper()
+        titulo = _texto(datos.get("titulo"))
+        if not cliente_id or not codigo or len(codigo) > 50 or not titulo or len(titulo) > 200:
+            raise EntradaInvalidaError("Codigo o titulo de perfil invalido")
         with self._fabrica() as unidad:
             perfil = unidad.datos.crear_perfil(
                 {
                     "cliente_id": cliente_id,
-                    "codigo": str(datos["codigo"]),
-                    "titulo": str(datos["titulo"]),
+                    "codigo": codigo,
+                    "titulo": titulo,
                     "activo": True,
                 }
             )
@@ -431,19 +435,85 @@ class ServicioTalentIA:
             )
             return perfil
 
-    def crear_version_perfil(
-        self, usuario: UsuarioActual, perfil_id: str, datos: dict[str, object]
-    ) -> dict[str, object]:
+    def obtener_perfil(self, usuario: UsuarioActual, perfil_id: str) -> dict[str, object]:
         _exigir_permiso(usuario, "perfiles:escribir")
         with self._fabrica() as unidad:
-            return unidad.datos.crear_version_perfil(
+            perfil = unidad.datos.obtener_perfil(perfil_id)
+            if perfil is None:
+                raise NoEncontradoError("Perfil no encontrado")
+            _exigir_cliente(usuario, str(perfil["cliente_id"]))
+            return perfil
+
+    def crear_version_perfil(
+        self,
+        usuario: UsuarioActual,
+        perfil_id: str,
+        datos: dict[str, object],
+        correlacion_id: str = "",
+    ) -> dict[str, object]:
+        _exigir_permiso(usuario, "perfiles:escribir")
+        requisitos_entrada = cast(list[dict[str, object]], datos.get("requisitos", []))
+        requisitos: list[dict[str, object]] = []
+        codigos: set[str] = set()
+        for item in requisitos_entrada:
+            codigo = _texto(item.get("codigo")).upper()
+            descripcion = _texto(item.get("descripcion"))
+            try:
+                peso = Decimal(str(item.get("peso", "1")))
+            except (ValueError, ArithmeticError) as exc:
+                raise EntradaInvalidaError("Peso de requisito invalido") from exc
+            if (
+                not codigo
+                or len(codigo) > 80
+                or not descripcion
+                or not peso.is_finite()
+                or peso <= 0
+            ):
+                raise EntradaInvalidaError("Requisito de perfil invalido")
+            if codigo in codigos:
+                raise EntradaInvalidaError("Los codigos de requisito no pueden repetirse")
+            codigos.add(codigo)
+            requisitos.append(
                 {
-                    "perfil_id": perfil_id,
-                    "requisitos": list(cast(list[dict[str, object]], datos.get("requisitos", []))),
-                    "ctc": Decimal(str(datos["ctc"])) if datos.get("ctc") else None,
-                    "publicado": bool(datos.get("publicado", False)),
+                    "codigo": codigo,
+                    "descripcion": descripcion,
+                    "obligatorio": bool(item.get("obligatorio", True)),
+                    "peso": str(peso),
                 }
             )
+        publicado = bool(datos.get("publicado", False))
+        if publicado and not requisitos:
+            raise EntradaInvalidaError("Una version publicada requiere al menos un requisito")
+        try:
+            ctc = Decimal(str(datos["ctc"])) if datos.get("ctc") is not None else None
+        except (ValueError, ArithmeticError) as exc:
+            raise EntradaInvalidaError("CTC del perfil invalido") from exc
+        if ctc is not None and (not ctc.is_finite() or ctc < 0):
+            raise EntradaInvalidaError("CTC del perfil invalido")
+        with self._fabrica() as unidad:
+            perfil = unidad.datos.obtener_perfil(perfil_id)
+            if perfil is None:
+                raise NoEncontradoError("Perfil no encontrado")
+            cliente_id = str(perfil["cliente_id"])
+            _exigir_cliente(usuario, cliente_id)
+            version = unidad.datos.crear_version_perfil(
+                {
+                    "perfil_id": perfil_id,
+                    "requisitos": requisitos,
+                    "ctc": ctc,
+                    "publicado": publicado,
+                }
+            )
+            unidad.datos.registrar_evento(
+                cliente_id=cliente_id,
+                actor_id=usuario.id,
+                accion="perfil.version_creada",
+                recurso_tipo="perfil",
+                recurso_id=perfil_id,
+                detalle={"numero": version["numero"], "publicado": publicado},
+                correlacion_id=correlacion_id or nuevo_id(),
+            )
+            return version
 
     def crear_postulacion(
         self, usuario: UsuarioActual, datos: dict[str, object], correlacion_id: str
@@ -454,29 +524,49 @@ class ServicioTalentIA:
         candidato = self.obtener_candidato(usuario, str(datos["candidato_id"]), correlacion_id)
         if candidato.cliente_id != cliente_id:
             raise ProhibidoError("Candidato y postulacion pertenecen a clientes distintos")
+        fuente = _texto(datos.get("fuente", "directa"))
+        if not fuente or len(fuente) > 80:
+            raise EntradaInvalidaError("Fuente de postulacion invalida")
         clave = hashlib.sha256(
             f"{cliente_id}:{datos['candidato_id']}:{datos['version_perfil_id']}".encode()
         ).hexdigest()[:40]
         with self._fabrica() as unidad:
+            version = unidad.datos.obtener_version_perfil(str(datos["version_perfil_id"]))
+            if version is None:
+                raise NoEncontradoError("Version de perfil no encontrada")
+            if str(version["cliente_id"]) != cliente_id:
+                raise ProhibidoError("El perfil pertenece a otro cliente")
+            if not bool(version["publicado"]):
+                raise EntradaInvalidaError("La version del perfil debe estar publicada")
             postulacion = unidad.datos.crear_postulacion(
                 {
                     "cliente_id": cliente_id,
                     "candidato_id": str(datos["candidato_id"]),
                     "version_perfil_id": str(datos["version_perfil_id"]),
-                    "fuente": str(datos.get("fuente", "directa")),
+                    "fuente": fuente,
                     "estado": "nueva",
                     "clave_idempotencia": clave,
                 }
             )
-            unidad.datos.registrar_evento(
-                cliente_id=cliente_id,
-                actor_id=usuario.id,
-                accion="postulacion.creada",
-                recurso_tipo="postulacion",
-                recurso_id=str(postulacion["id"]),
-                detalle={"fuente": datos.get("fuente", "directa")},
-                correlacion_id=correlacion_id,
-            )
+            if not postulacion.get("reutilizado"):
+                unidad.datos.registrar_evento(
+                    cliente_id=cliente_id,
+                    actor_id=usuario.id,
+                    accion="postulacion.creada",
+                    recurso_tipo="postulacion",
+                    recurso_id=str(postulacion["id"]),
+                    detalle={"fuente": fuente},
+                    correlacion_id=correlacion_id,
+                )
+            return postulacion
+
+    def obtener_postulacion(self, usuario: UsuarioActual, postulacion_id: str) -> dict[str, object]:
+        _exigir_permiso(usuario, "candidatos:leer")
+        with self._fabrica() as unidad:
+            postulacion = unidad.datos.obtener_postulacion(postulacion_id)
+            if postulacion is None:
+                raise NoEncontradoError("Postulacion no encontrada")
+            _exigir_cliente(usuario, str(postulacion["cliente_id"]))
             return postulacion
 
     def adjuntar_documento(
@@ -503,6 +593,14 @@ class ServicioTalentIA:
         if self._almacen is None:
             raise EntradaInvalidaError("Almacen de documentos no configurado")
         huella = hashlib.sha256(contenido).hexdigest()
+        with self._fabrica() as unidad:
+            existente = unidad.datos.buscar_documento_por_hash(candidato.id, huella)
+            if existente is not None:
+                return {
+                    "id": existente["id"],
+                    "hash_sha256": existente["hash_sha256"],
+                    "reutilizado": True,
+                }
         nombre_seguro = re.sub(r"[^A-Za-z0-9._-]", "_", nombre)
         ruta = self._almacen.guardar(f"{nuevo_id()}-{nombre_seguro}", contenido)
         with self._fabrica() as unidad:
@@ -526,7 +624,7 @@ class ServicioTalentIA:
                 detalle={"tipo_mime": tipo_mime, "tamano": len(contenido)},
                 correlacion_id=correlacion_id,
             )
-            return documento
+            return {**documento, "reutilizado": False}
 
     def obtener_extraccion_documento(
         self, usuario: UsuarioActual, documento_id: str
@@ -746,12 +844,14 @@ class ServicioTalentIA:
         columnas = {
             "clientes": (("codigo", "Codigo"), ("nombre", "Cliente"), ("activo", "Activo")),
             "perfiles": (
+                ("id", "Perfil"),
                 ("codigo", "Codigo"),
                 ("titulo", "Perfil"),
                 ("activo", "Activo"),
                 ("creado_en", "Creado"),
             ),
             "postulaciones": (
+                ("id", "Postulacion"),
                 ("candidato", "Candidato"),
                 ("fuente", "Fuente"),
                 ("estado", "Estado"),
@@ -809,6 +909,23 @@ class ServicioTalentIA:
         with self._fabrica() as unidad:
             filas = unidad.datos.listar_panel_operativo(modulo, alcance, 100)
         return {"columnas": columnas[modulo], "filas": filas}
+
+    def obtener_opciones_formulario(
+        self, usuario: UsuarioActual, formulario: str
+    ) -> dict[str, list[dict[str, object]]]:
+        permisos = {
+            "perfiles": ("perfiles:escribir",),
+            "postulaciones": ("postulaciones:escribir",),
+            "evaluaciones": ("documentos:escribir", "evaluaciones:solicitar"),
+        }
+        requeridos = permisos.get(formulario)
+        if requeridos is None:
+            raise NoEncontradoError("Formulario no encontrado")
+        for permiso in requeridos:
+            _exigir_permiso(usuario, permiso)
+        alcance = usuario.clientes if "administrador" not in usuario.roles else frozenset()
+        with self._fabrica() as unidad:
+            return unidad.datos.listar_opciones_operativas(alcance)
 
     def preparar_lote(
         self,

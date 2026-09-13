@@ -388,8 +388,23 @@ class RepositorioSqlalchemy:
     def crear_perfil(self, datos: dict[str, object]) -> dict[str, object]:
         modelo = PerfilPuestoModelo(id=nuevo_id(), **datos)
         self.sesion.add(modelo)
-        self.sesion.flush()
+        try:
+            self.sesion.flush()
+        except IntegrityError as exc:
+            raise ConflictoError("Ya existe un perfil con ese codigo para el cliente") from exc
         return {"id": modelo.id, "cliente_id": modelo.cliente_id, "codigo": modelo.codigo}
+
+    def obtener_perfil(self, perfil_id: str) -> dict[str, object] | None:
+        modelo = self.sesion.get(PerfilPuestoModelo, perfil_id)
+        if modelo is None:
+            return None
+        return {
+            "id": modelo.id,
+            "cliente_id": modelo.cliente_id,
+            "codigo": modelo.codigo,
+            "titulo": modelo.titulo,
+            "activo": modelo.activo,
+        }
 
     def crear_version_perfil(self, datos: dict[str, object]) -> dict[str, object]:
         perfil_id = str(datos["perfil_id"])
@@ -406,14 +421,66 @@ class RepositorioSqlalchemy:
         self.sesion.flush()
         return {"id": modelo.id, "perfil_id": perfil_id, "numero": modelo.numero}
 
+    def obtener_version_perfil(self, version_id: str) -> dict[str, object] | None:
+        fila = (
+            self.sesion.execute(
+                select(
+                    VersionPerfilPuestoModelo.id,
+                    VersionPerfilPuestoModelo.perfil_id,
+                    VersionPerfilPuestoModelo.numero,
+                    VersionPerfilPuestoModelo.publicado,
+                    PerfilPuestoModelo.cliente_id,
+                    PerfilPuestoModelo.codigo,
+                    PerfilPuestoModelo.titulo,
+                )
+                .join(
+                    PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id
+                )
+                .where(VersionPerfilPuestoModelo.id == version_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return dict(fila) if fila is not None else None
+
     def crear_postulacion(self, datos: dict[str, object]) -> dict[str, object]:
+        existente = self.sesion.scalar(
+            select(PostulacionModelo).where(
+                PostulacionModelo.clave_idempotencia == datos["clave_idempotencia"]
+            )
+        )
+        if existente is not None:
+            return {
+                "id": existente.id,
+                "estado": existente.estado,
+                "cliente_id": existente.cliente_id,
+                "reutilizado": True,
+            }
         modelo = PostulacionModelo(id=nuevo_id(), **datos)
         self.sesion.add(modelo)
         try:
             self.sesion.flush()
         except IntegrityError as exc:
             raise ConflictoError("La postulacion ya existe") from exc
-        return {"id": modelo.id, "estado": modelo.estado, "cliente_id": modelo.cliente_id}
+        return {
+            "id": modelo.id,
+            "estado": modelo.estado,
+            "cliente_id": modelo.cliente_id,
+            "reutilizado": False,
+        }
+
+    def obtener_postulacion(self, postulacion_id: str) -> dict[str, object] | None:
+        modelo = self.sesion.get(PostulacionModelo, postulacion_id)
+        if modelo is None:
+            return None
+        return {
+            "id": modelo.id,
+            "cliente_id": modelo.cliente_id,
+            "candidato_id": modelo.candidato_id,
+            "version_perfil_id": modelo.version_perfil_id,
+            "fuente": modelo.fuente,
+            "estado": modelo.estado,
+        }
 
     def guardar_documento(self, datos: dict[str, object]) -> dict[str, object]:
         modelo = DocumentoCandidatoModelo(id=nuevo_id(), **datos)
@@ -438,6 +505,17 @@ class RepositorioSqlalchemy:
             "ruta_almacenamiento": modelo.ruta_almacenamiento,
             "tamano_bytes": modelo.tamano_bytes,
         }
+
+    def buscar_documento_por_hash(
+        self, candidato_id: str, hash_sha256: str
+    ) -> dict[str, object] | None:
+        modelo = self.sesion.scalar(
+            select(DocumentoCandidatoModelo).where(
+                DocumentoCandidatoModelo.candidato_id == candidato_id,
+                DocumentoCandidatoModelo.hash_sha256 == hash_sha256,
+            )
+        )
+        return self.obtener_documento(modelo.id) if modelo is not None else None
 
     def obtener_extraccion_documento(self, documento_id: str) -> dict[str, object] | None:
         modelo = self.sesion.get(ExtraccionDocumentoModelo, documento_id)
@@ -744,12 +822,14 @@ class RepositorioSqlalchemy:
                 ClienteModelo.activo.label("activo"),
             ).where(_filtro_clientes(ClienteModelo.id, clientes)),
             "perfiles": select(
+                PerfilPuestoModelo.id.label("id"),
                 PerfilPuestoModelo.codigo.label("codigo"),
                 PerfilPuestoModelo.titulo.label("titulo"),
                 PerfilPuestoModelo.activo.label("activo"),
                 PerfilPuestoModelo.creado_en.label("creado_en"),
             ).where(_filtro_clientes(PerfilPuestoModelo.cliente_id, clientes)),
             "postulaciones": select(
+                PostulacionModelo.id.label("id"),
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
                 PostulacionModelo.fuente.label("fuente"),
                 PostulacionModelo.estado.label("estado"),
@@ -813,6 +893,80 @@ class RepositorioSqlalchemy:
             return []
         filas = self.sesion.execute(consulta.limit(min(limite, 200))).mappings().all()
         return [dict(fila) for fila in filas]
+
+    def listar_opciones_operativas(
+        self, clientes: frozenset[str]
+    ) -> dict[str, list[dict[str, object]]]:
+        clientes_disponibles = self.sesion.execute(
+            select(ClienteModelo.id, ClienteModelo.codigo, ClienteModelo.nombre)
+            .where(ClienteModelo.activo.is_(True), _filtro_clientes(ClienteModelo.id, clientes))
+            .order_by(ClienteModelo.nombre)
+        ).mappings()
+        candidatos = self.sesion.execute(
+            select(
+                CandidatoModelo.id,
+                CandidatoModelo.cliente_id,
+                (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("nombre"),
+            )
+            .where(_filtro_clientes(CandidatoModelo.cliente_id, clientes))
+            .order_by(CandidatoModelo.apellidos, CandidatoModelo.nombres)
+        ).mappings()
+        perfiles = self.sesion.execute(
+            select(
+                PerfilPuestoModelo.id,
+                PerfilPuestoModelo.cliente_id,
+                PerfilPuestoModelo.codigo,
+                PerfilPuestoModelo.titulo,
+            )
+            .where(
+                PerfilPuestoModelo.activo.is_(True),
+                _filtro_clientes(PerfilPuestoModelo.cliente_id, clientes),
+            )
+            .order_by(PerfilPuestoModelo.codigo)
+        ).mappings()
+        versiones = self.sesion.execute(
+            select(
+                VersionPerfilPuestoModelo.id,
+                PerfilPuestoModelo.cliente_id,
+                PerfilPuestoModelo.id.label("perfil_id"),
+                PerfilPuestoModelo.codigo,
+                PerfilPuestoModelo.titulo,
+                VersionPerfilPuestoModelo.numero,
+            )
+            .join(PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id)
+            .where(
+                VersionPerfilPuestoModelo.publicado.is_(True),
+                PerfilPuestoModelo.activo.is_(True),
+                _filtro_clientes(PerfilPuestoModelo.cliente_id, clientes),
+            )
+            .order_by(PerfilPuestoModelo.codigo, VersionPerfilPuestoModelo.numero.desc())
+        ).mappings()
+        postulaciones = self.sesion.execute(
+            select(
+                PostulacionModelo.id,
+                PostulacionModelo.cliente_id,
+                PostulacionModelo.candidato_id,
+                PostulacionModelo.version_perfil_id,
+                (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                PerfilPuestoModelo.codigo.label("perfil_codigo"),
+                VersionPerfilPuestoModelo.numero.label("version_numero"),
+            )
+            .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .join(
+                VersionPerfilPuestoModelo,
+                VersionPerfilPuestoModelo.id == PostulacionModelo.version_perfil_id,
+            )
+            .join(PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id)
+            .where(_filtro_clientes(PostulacionModelo.cliente_id, clientes))
+            .order_by(PostulacionModelo.creado_en.desc())
+        ).mappings()
+        return {
+            "clientes": [dict(item) for item in clientes_disponibles],
+            "candidatos": [dict(item) for item in candidatos],
+            "perfiles": [dict(item) for item in perfiles],
+            "versiones": [dict(item) for item in versiones],
+            "postulaciones": [dict(item) for item in postulaciones],
+        }
 
     def crear_lote(
         self, datos: dict[str, object], filas: list[dict[str, object]]

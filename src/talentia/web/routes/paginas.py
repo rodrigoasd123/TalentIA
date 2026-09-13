@@ -6,14 +6,19 @@ from dataclasses import asdict
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
 from talentia.platform.security.contrasenas import FirmadorSesion, nuevo_csrf
-from talentia.shared.application.errores import NoAutorizadoError, TalentIAError
+from talentia.shared.application.errores import (
+    EntradaInvalidaError,
+    NoAutorizadoError,
+    TalentIAError,
+)
 from talentia.shared.domain.modelos import UsuarioActual, nuevo_id
 
 PLANTILLAS = Jinja2Templates(directory=Path(__file__).resolve().parents[1] / "templates")
@@ -52,6 +57,57 @@ def _contexto(request: Request, usuario: UsuarioActual, **extra: object) -> dict
 
 def _puede(usuario: UsuarioActual, permiso: str) -> bool:
     return usuario.tiene_permiso(permiso, PERMISOS_POR_ROL)
+
+
+def _requisitos_desde_texto(texto: str) -> list[dict[str, object]]:
+    requisitos: list[dict[str, object]] = []
+    for numero, linea in enumerate(texto.splitlines(), start=1):
+        if not linea.strip():
+            continue
+        partes = [parte.strip() for parte in linea.split("|")]
+        if len(partes) < 2 or len(partes) > 4:
+            raise EntradaInvalidaError(
+                f"Linea {numero}: use CODIGO | descripcion | obligatorio/opcional | peso"
+            )
+        tipo = partes[2].casefold() if len(partes) >= 3 else "obligatorio"
+        if tipo not in {"obligatorio", "opcional"}:
+            raise EntradaInvalidaError(f"Linea {numero}: indique obligatorio u opcional")
+        requisitos.append(
+            {
+                "codigo": partes[0],
+                "descripcion": partes[1],
+                "obligatorio": tipo == "obligatorio",
+                "peso": partes[3] if len(partes) == 4 else "1",
+            }
+        )
+    return requisitos
+
+
+def _respuesta_formulario(
+    request: Request,
+    usuario: UsuarioActual,
+    plantilla: str,
+    formulario: str,
+    *,
+    error: str | None = None,
+    datos: dict[str, str] | None = None,
+    status_code: int = 200,
+    **extra: object,
+) -> Response:
+    opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, formulario)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name=plantilla,
+        context=_contexto(
+            request,
+            usuario,
+            opciones=opciones,
+            error=error,
+            datos=datos or {},
+            **extra,
+        ),
+        status_code=status_code,
+    )
 
 
 def _respuesta_evaluacion(
@@ -313,6 +369,206 @@ def cambiar_cliente_web(
         usuario, usuario_id, cliente_id, accion == "asignar", nuevo_id()
     )
     return RedirectResponse("/modulo/usuarios", status_code=303)
+
+
+@router.get("/perfiles/nuevo", response_class=HTMLResponse)
+def nuevo_perfil(request: Request) -> Response:
+    usuario = _usuario(request)
+    return _respuesta_formulario(request, usuario, "nuevo_perfil.html", "perfiles")
+
+
+@router.post("/perfiles/nuevo", response_class=HTMLResponse)
+def crear_perfil_web(
+    request: Request,
+    csrf: str = Form(),
+    cliente_id: str = Form(),
+    codigo: str = Form(),
+    titulo: str = Form(),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    datos = {"cliente_id": cliente_id, "codigo": codigo, "titulo": titulo}
+    try:
+        perfil = request.app.state.servicio.crear_perfil(
+            usuario, datos, request.state.correlacion_id
+        )
+    except TalentIAError as error:
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nuevo_perfil.html",
+            "perfiles",
+            error=str(error),
+            datos=datos,
+            status_code=error.estado_http,
+        )
+    return RedirectResponse(f"/perfiles/{perfil['id']}/versiones/nueva", status_code=303)
+
+
+@router.get("/perfiles/{perfil_id}/versiones/nueva", response_class=HTMLResponse)
+def nueva_version_perfil(request: Request, perfil_id: str) -> Response:
+    usuario = _usuario(request)
+    perfil = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
+    return _respuesta_formulario(
+        request,
+        usuario,
+        "nueva_version_perfil.html",
+        "perfiles",
+        perfil=perfil,
+    )
+
+
+@router.post("/perfiles/{perfil_id}/versiones/nueva", response_class=HTMLResponse)
+def crear_version_perfil_web(
+    request: Request,
+    perfil_id: str,
+    csrf: str = Form(),
+    requisitos_texto: str = Form(),
+    ctc: str = Form(""),
+    publicado: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    datos_formulario = {
+        "requisitos_texto": requisitos_texto,
+        "ctc": ctc,
+        "publicado": publicado,
+    }
+    try:
+        perfil = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
+        version = request.app.state.servicio.crear_version_perfil(
+            usuario,
+            perfil_id,
+            {
+                "requisitos": _requisitos_desde_texto(requisitos_texto),
+                "ctc": ctc.strip() or None,
+                "publicado": publicado == "si",
+            },
+            request.state.correlacion_id,
+        )
+    except TalentIAError as error:
+        perfil = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nueva_version_perfil.html",
+            "perfiles",
+            error=str(error),
+            datos=datos_formulario,
+            status_code=error.estado_http,
+            perfil=perfil,
+        )
+    return RedirectResponse(
+        f"/modulo/perfiles?version={version['numero']}&perfil={perfil['id']}", status_code=303
+    )
+
+
+@router.get("/postulaciones/nueva", response_class=HTMLResponse)
+def nueva_postulacion(request: Request) -> Response:
+    usuario = _usuario(request)
+    return _respuesta_formulario(request, usuario, "nueva_postulacion.html", "postulaciones")
+
+
+@router.post("/postulaciones/nueva", response_class=HTMLResponse)
+def crear_postulacion_web(
+    request: Request,
+    csrf: str = Form(),
+    cliente_id: str = Form(),
+    candidato_id: str = Form(),
+    version_perfil_id: str = Form(),
+    fuente: str = Form("directa"),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    datos = {
+        "cliente_id": cliente_id,
+        "candidato_id": candidato_id,
+        "version_perfil_id": version_perfil_id,
+        "fuente": fuente,
+    }
+    try:
+        postulacion = request.app.state.servicio.crear_postulacion(
+            usuario, datos, request.state.correlacion_id
+        )
+    except TalentIAError as error:
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nueva_postulacion.html",
+            "postulaciones",
+            error=str(error),
+            datos=datos,
+            status_code=error.estado_http,
+        )
+    return RedirectResponse(
+        f"/modulo/postulaciones?postulacion={postulacion['id']}", status_code=303
+    )
+
+
+@router.get("/evaluaciones/nueva", response_class=HTMLResponse)
+def nueva_evaluacion(request: Request) -> Response:
+    usuario = _usuario(request)
+    return _respuesta_formulario(
+        request,
+        usuario,
+        "nueva_evaluacion.html",
+        "evaluaciones",
+        clave_idempotencia=nuevo_id(),
+    )
+
+
+@router.post("/evaluaciones/nueva", response_class=HTMLResponse)
+async def crear_evaluacion_web(
+    request: Request,
+    archivo: Annotated[UploadFile, File()],
+    csrf: str = Form(),
+    postulacion_id: str = Form(),
+    clave_idempotencia: str = Form(),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    datos = {
+        "postulacion_id": postulacion_id,
+        "clave_idempotencia": clave_idempotencia,
+    }
+    try:
+        postulacion = request.app.state.servicio.obtener_postulacion(usuario, postulacion_id)
+        contenido = await archivo.read()
+        documento = request.app.state.servicio.adjuntar_documento(
+            usuario,
+            str(postulacion["candidato_id"]),
+            archivo.filename or "cv",
+            archivo.content_type or "application/octet-stream",
+            contenido,
+            request.state.correlacion_id,
+        )
+        trabajo = request.app.state.servicio.solicitar_evaluacion(
+            usuario,
+            {
+                "cliente_id": postulacion["cliente_id"],
+                "postulacion_id": postulacion_id,
+                "documento_id": documento["id"],
+                "version_perfil_id": postulacion["version_perfil_id"],
+                "clave_idempotencia": clave_idempotencia,
+            },
+            request.state.correlacion_id,
+        )
+    except TalentIAError as error:
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nueva_evaluacion.html",
+            "evaluaciones",
+            error=str(error),
+            datos=datos,
+            status_code=error.estado_http,
+            clave_idempotencia=clave_idempotencia,
+        )
+    return RedirectResponse(f"/trabajos/{trabajo['id']}", status_code=303)
 
 
 @router.get("/evaluaciones/{evaluacion_id}", response_class=HTMLResponse)

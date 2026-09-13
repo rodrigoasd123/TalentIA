@@ -31,14 +31,16 @@ La fuente funcional completa es `IMPLEMENTATION_SPEC.md` y el flujo SDD vive en
     checkpoint por nodo, correlacion, lease, timeout y reinicio idempotente.
 12. Interfaz de evaluacion/HITL con evidencia navegable, correcciones verificadas, polling HTMX,
     CSRF, RBAC, alcance por cliente y resolucion concurrente atomica.
+13. Formularios de perfiles/versiones, postulaciones y carga de CV con inicio/seguimiento de trabajo,
+    datos conservados ante error e idempotencia de postulacion, documento y job.
 
 ## Pendientes implementables sin decisiones nuevas
 
-### 1. Formularios operativos restantes
+### 1. Flujos operativos restantes
 
-Crear vistas y formularios reales para perfiles, postulaciones, documentos, lotes, excolaboradores
-y metricas. Trabajos y evaluaciones ya disponen de pantallas especializadas. Mantener reglas en la
-capa de aplicacion, filtros del servidor, CSRF y alcance por cliente. Agregar pruebas E2E.
+Completar mapeo/correccion de lotes, flujo ex-TCS, exclusiones y metricas. Perfiles, postulaciones,
+documentos, trabajos y evaluaciones ya disponen de formularios o pantallas especializadas. Mantener
+reglas en aplicacion, filtros del servidor, CSRF y alcance por cliente.
 
 ### 2. Observabilidad y rendimiento
 
@@ -47,8 +49,8 @@ Crear benchmark reproducible con volumen representativo y documentar resultados 
 
 ### 3. Suite historica
 
-La dependencia declarada `langchain_openai` debe estar instalada. La verificacion final de fase 3
-aprobo 371 pruebas. Permanecen dos advertencias de deprecacion externas; conservarlas registradas sin
+La dependencia declarada `langchain_openai` debe estar instalada. La verificacion final de fase 4
+aprobo 375 pruebas. Permanecen dos advertencias de deprecacion externas; conservarlas registradas sin
 acoplar el runtime nuevo al anterior.
 
 ## Decisiones bloqueadas: no inventar

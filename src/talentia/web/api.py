@@ -278,8 +278,11 @@ def crear_version_perfil(
     entrada: AltaVersionPerfil,
     usuario: UsuarioDep,
     servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
 ) -> dict[str, object]:
-    return servicio_actual.crear_version_perfil(usuario, perfil_id, entrada.model_dump())
+    return servicio_actual.crear_version_perfil(
+        usuario, perfil_id, entrada.model_dump(), correlacion_id
+    )
 
 
 @router.post("/applications", status_code=201)

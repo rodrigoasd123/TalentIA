@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Nuevo perfil | TalentIA{% endblock %}
+{% block heading %}Crear perfil de puesto{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="/perfiles/nuevo" class="seccion formulario-operativo">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="rejilla-formulario">
+    <label>Cliente
+      <select name="cliente_id" required>
+        <option value="">Seleccione</option>
+        {% for cliente in opciones.clientes %}
+        <option value="{{ cliente.id }}" {% if datos.cliente_id == cliente.id %}selected{% endif %}>{{ cliente.codigo }} · {{ cliente.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Codigo
+      <input name="codigo" maxlength="50" required value="{{ datos.codigo or '' }}">
+    </label>
+    <label>Titulo
+      <input name="titulo" maxlength="200" required value="{{ datos.titulo or '' }}">
+    </label>
+  </div>
+  <div class="acciones-formulario">
+    <a class="btn btn-outline-secondary" href="/modulo/perfiles">Cancelar</a>
+    <button class="btn btn-primary" type="submit">Crear y agregar version</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,7 +1,7 @@
 # SPEC-030 - Reconstruccion greenfield de TalentIA
 
 - **Estado:** VERIFICANDO
-- **Fase activa:** Fase 3 - Interfaz de evaluacion y revision humana
+- **Fase activa:** Fase 4 - Formularios operativos
 - **Inicio de fase:** 2026-09-13
 - **Implementacion de fase concluida:** 2026-09-13
 - **Fuente ejecutable:** `IMPLEMENTATION_SPEC.md`

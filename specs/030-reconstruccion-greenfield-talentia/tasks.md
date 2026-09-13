@@ -74,20 +74,23 @@
 
 ## Fase 4 - Formularios operativos
 
-- [ ] **T-030-F4-001 - Formularios de perfiles y versiones**
+- [x] **T-030-F4-001 - Formularios de perfiles y versiones**
   - Cubre: FR-030-003, AC-030-003
   - Archivos: rutas/plantillas nuevas y casos de uso existentes
-  - Verificacion: alta, version, requisitos, publicacion, RBAC e IDOR
+  - Verificacion: alta, codigo unico, version, requisitos estructurados, CTC, publicacion, datos
+    conservados ante error, RBAC e IDOR
   - Dependencias: fase 3
-- [ ] **T-030-F4-002 - Formulario de postulacion y prevencion de duplicados**
+- [x] **T-030-F4-002 - Formulario de postulacion y prevencion de duplicados**
   - Cubre: FR-030-003, SEC-030-001, AC-030-002, AC-030-003
   - Archivos: rutas/plantillas nuevas y servicio existente
-  - Verificacion: candidato/perfil/fuente, duplicado e identidad cruzada
+  - Verificacion: candidato/perfil publicado/fuente, alcance cruzado y repeticion idempotente con una
+    sola postulacion y un evento
   - Dependencias: T-030-F4-001
-- [ ] **T-030-F4-003 - Carga CV, lanzamiento y seguimiento de trabajo**
+- [x] **T-030-F4-003 - Carga CV, lanzamiento y seguimiento de trabajo**
   - Cubre: FR-030-003, FR-030-005, AC-030-003, AC-030-005
   - Archivos: rutas, plantillas y fragmentos nuevos
-  - Verificacion: E2E sin llamadas API manuales
+  - Verificacion: E2E web carga DOCX, crea trabajo, muestra progreso y evaluacion; repeticion conserva
+    un documento/archivo/trabajo; error conserva seleccion y clave
   - Dependencias: T-030-F4-002
 
 ## Fase 5 - Lotes, ex-TCS y exclusiones

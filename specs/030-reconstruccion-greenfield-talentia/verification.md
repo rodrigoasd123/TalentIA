@@ -2,7 +2,33 @@
 
 Fecha de verificacion: 2026-09-13.
 
-Estado SDD: fase 3 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 4.
+Estado SDD: fase 4 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 5.
+
+## Evidencia de fase 4 - formularios operativos
+
+- `/perfiles/nuevo` crea perfiles dentro del alcance del usuario, normaliza el codigo, informa
+  duplicados y conserva cliente, codigo y titulo ante errores recuperables.
+- `/perfiles/{id}/versiones/nueva` captura requisitos mediante lineas estructuradas, obligatoriedad,
+  peso, CTC y publicacion. Rechaza formatos, pesos, CTC y codigos duplicados invalidos.
+- La creacion de versiones valida permiso y cliente del perfil para impedir IDOR y registra auditoria
+  correlacionada.
+- `/postulaciones/nueva` ofrece solo candidatos y versiones publicadas del alcance. El caso de uso
+  verifica cliente, candidato y perfil; una repeticion devuelve la misma postulacion sin nuevo evento.
+- `/evaluaciones/nueva` permite seleccionar postulacion, cargar PDF/DOCX, crear el trabajo durable y
+  abrir `/trabajos/{id}` sin llamadas API manuales.
+- Repetir carga con el mismo archivo y clave conserva exactamente un documento, un archivo privado y
+  un trabajo. El worker procesa ese trabajo y la web enlaza la evaluacion resultante.
+- Un archivo invalido conserva postulacion y clave de idempotencia; el navegador solo exige volver a
+  seleccionar el archivo por su restriccion de seguridad.
+- Las rutas de escritura exigen CSRF, RBAC y alcance por cliente. Se probaron usuario sin permiso,
+  perfil/postulacion de otro alcance y CSRF incorrecto.
+- `pytest -q tests/greenfield/test_operational_forms.py`: 4 pruebas aprobadas, 2 advertencias.
+- `pytest -q tests/greenfield`: 65 pruebas aprobadas, 2 advertencias.
+- `pytest -q`: 375 pruebas aprobadas, 2 advertencias, en 310,45 segundos.
+- `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
+- `ruff format --check src/talentia migrations_greenfield tests/greenfield`: 79 archivos conformes.
+- `mypy src/talentia`: 60 archivos sin observaciones.
+- `python scripts/check_repository.py`: 521 archivos revisados, repositorio seguro.
 
 ## Evidencia de fase 3 - interfaz de evaluacion y revision humana
 
@@ -113,8 +139,8 @@ Estado SDD: fase 3 implementada y en verificacion; no se declara `VERIFIED` ni s
   (`Starlette/AnyIO` y serializador de checkpoint de LangGraph), sin fallos funcionales actuales.
 - AG-02 y AG-03 ya se ejecutan desde el worker. En esta fase ambos adaptadores son locales y
   deterministas; la seleccion o evaluacion de un proveedor LLM permanece fuera del recorrido.
-- Los formularios operativos de perfiles, postulaciones y carga/seguimiento de CV permanecen para
-  la fase 4; no se adelantaron en este commit.
+- El mapeo/correccion de lotes, flujo ex-TCS y descargas de exclusion permanecen para la fase 5; no
+  se adelantaron ni se resolvieron decisiones BIZ.
 - No se incluyo un motor OCR concreto: el adaptador es opcional y la ausencia de texto deriva a
   revision humana, segun el alcance aprobado de la fase 1.
 - `BIZ-001..010` continuan en estado `BLOCKED`; las capacidades afectadas fallan cerrado o exigen

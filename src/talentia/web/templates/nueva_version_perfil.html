@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Nueva version {{ perfil.codigo }} | TalentIA{% endblock %}
+{% block heading %}Version de perfil{% endblock %}
+{% block content %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>{{ perfil.codigo }} · {{ perfil.titulo }}</h2></div>
+</section>
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<form method="post" action="/perfiles/{{ perfil.id }}/versiones/nueva" class="seccion formulario-operativo">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="rejilla-formulario">
+    <label class="ancho-completo">Requisitos
+      <textarea name="requisitos_texto" rows="7" required placeholder="PY | Experiencia Python | obligatorio | 1&#10;AWS | Experiencia AWS | opcional | 0.5">{{ datos.requisitos_texto or '' }}</textarea>
+      <small>Una linea por requisito: CODIGO | descripcion | obligatorio/opcional | peso</small>
+    </label>
+    <label>CTC del rol
+      <input name="ctc" type="number" min="0" step="0.01" value="{{ datos.ctc or '' }}">
+    </label>
+    <label class="opcion-check">
+      <input name="publicado" type="checkbox" value="si" {% if datos.publicado == 'si' %}checked{% endif %}>
+      Publicar version para postulaciones
+    </label>
+  </div>
+  <div class="acciones-formulario">
+    <a class="btn btn-outline-secondary" href="/modulo/perfiles">Cancelar</a>
+    <button class="btn btn-primary" type="submit">Guardar version</button>
+  </div>
+</form>
+{% endblock %}

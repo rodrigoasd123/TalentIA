@@ -37,6 +37,7 @@ body { margin: 0; color: var(--texto); background: var(--fondo); font-family: Ar
 .banda-metricas strong { font-size: 1.35rem; }
 .seccion { margin-top: 28px; }
 .titulo-seccion, .barra-herramientas { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.acciones-cabecera { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .titulo-seccion h2 { margin: 0; font-size: 1.08rem; }
 .busqueda { display: flex; gap: 8px; width: min(620px, 100%); }
 .tabla-responsive { overflow-x: auto; border: 1px solid var(--borde); background: #fff; }
@@ -55,6 +56,11 @@ body { margin: 0; color: var(--texto); background: var(--fondo); font-family: Ar
 .formulario-operativo { background: #fff; border: 1px solid var(--borde); padding: 22px; }
 .rejilla-formulario { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .rejilla-formulario label { display: grid; gap: 6px; font-size: .82rem; font-weight: 700; }
+.rejilla-formulario input, .rejilla-formulario select, .rejilla-formulario textarea { width: 100%; border: 1px solid #aebccc; border-radius: 4px; padding: 9px 10px; background: #fff; color: var(--texto); }
+.rejilla-formulario textarea { resize: vertical; }
+.rejilla-formulario small { color: var(--muted); font-weight: 400; }
+.rejilla-formulario .opcion-check { display: flex; align-items: center; gap: 8px; align-self: end; min-height: 42px; }
+.rejilla-formulario .opcion-check input { width: auto; }
 .ancho-completo { grid-column: 1 / -1; }
 .acciones-formulario { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 .ficha { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #fff; border: 1px solid var(--borde); }
