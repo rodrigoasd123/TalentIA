@@ -2,8 +2,8 @@
 
 Fecha: 2026-09-13
 
-Estado SDD: `VERIFICANDO`. La implementacion funcional de la fase 3 esta terminada, pero la fase no
-debe declararse cerrada hasta completar nuevamente la regresion total y registrar su resultado.
+Estado SDD: `VERIFICANDO`. La implementacion y las puertas tecnicas de la fase 3 estan terminadas. La
+fase permanece en este estado hasta la aprobacion expresa del propietario para iniciar la fase 4.
 
 ## Punto exacto alcanzado
 
@@ -30,27 +30,13 @@ debe declararse cerrada hasta completar nuevamente la regresion total y registra
   conformes.
 - `python -m mypy src/talentia`: 60 archivos sin observaciones.
 - `python scripts/check_repository.py`: 516 archivos revisados, repositorio seguro.
-- La suite completa fue iniciada, pero se interrumpio por solicitud expresa del propietario antes
-  de obtener un resultado final. Ese intento no constituye evidencia aprobatoria.
+- `python -m pytest -q`: 371 aprobadas, 2 advertencias, en 391,78 segundos.
 
 ## Lo que debe seguir
 
-1. Sin modificar codigo, ejecutar nuevamente:
-
-   ```powershell
-   .\.venv\Scripts\python.exe -m pytest -q --basetemp=tmp/pytest-fase-3-final -p no:cacheprovider
-   ```
-
-2. Si la suite completa falla, determinar si es una regresion de fase 3 o el timeout intermitente de
-   Streamlit ya documentado. Corregir solo regresiones atribuibles al cambio.
-3. Registrar en `verification.md` el numero exacto de pruebas, advertencias y duracion de la corrida
-   completa.
-4. Actualizar la fila `Calidad y regresion` de `rubric-gap-review.md` para retirar la brecha de la
-   puerta final solamente si la suite completa pasa.
-5. Repetir `git diff --check`, revisar el commit remoto y confirmar que los Markdown locales
-   `TalentIA_informacion_extraida_consolidada_v4.md` y `extraccion_talentia_imagenes (1).md`
-   permanezcan sin seguimiento y fuera del commit.
-6. Informar la fase 3 como terminada y solicitar aprobacion antes de comenzar la fase 4.
+1. Subir el cierre documental de verificacion a `codex/rubrica-greenfield-talentia`.
+2. Informar los resultados exactos y confirmar que `main` no fue modificado.
+3. Esperar aprobacion expresa antes de comenzar la fase 4.
 
 ## Siguiente fase tras aprobacion
 

@@ -30,7 +30,7 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`a18c67c`)
 | Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
 | Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas y correlacion conservada en trabajo/checkpoints | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
 | Metricas y observabilidad | Parcial | Metricas basicas, scripts de laboratorio y MLflow historico | Persistir eventos de piloto, panel de baseline y benchmark greenfield |
-| Calidad y regresion | Cumple fase 3 | 61 greenfield; web E2E, CSRF, RBAC, IDOR y decision concurrente cubiertos | Ejecutar regresion completa y puertas finales de fase 3; resolver advertencias antes de actualizar dependencias |
+| Calidad y regresion | Cumple fase 3 | 61 greenfield y 371 totales; web E2E, CSRF, RBAC, IDOR y decision concurrente; Ruff, formato, mypy y escaner aprobados | Resolver advertencias de dependencias antes de actualizar versiones |
 
 ## Orden de cierre recomendado
 

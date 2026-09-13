@@ -47,9 +47,9 @@ Crear benchmark reproducible con volumen representativo y documentar resultados 
 
 ### 3. Suite historica
 
-La dependencia declarada `langchain_openai` debe estar instalada. Una primera corrida tuvo un timeout
-intermitente de Streamlit tras 364 pruebas aprobadas; la prueba afectada paso aislada y la repeticion
-completa aprobo 366 pruebas. Conservar la advertencia sin acoplar el runtime nuevo al anterior.
+La dependencia declarada `langchain_openai` debe estar instalada. La verificacion final de fase 3
+aprobo 371 pruebas. Permanecen dos advertencias de deprecacion externas; conservarlas registradas sin
+acoplar el runtime nuevo al anterior.
 
 ## Decisiones bloqueadas: no inventar
 

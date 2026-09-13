@@ -25,8 +25,8 @@ Estado SDD: fase 3 implementada y en verificacion; no se declara `VERIFIED` ni s
 - `ruff format --check src/talentia migrations_greenfield tests/greenfield`: 78 archivos conformes.
 - `mypy src/talentia`: 60 archivos sin observaciones.
 - `python scripts/check_repository.py`: 516 archivos revisados, repositorio seguro.
-- La regresion completa fue detenida por solicitud expresa del propietario antes de producir un
-  resultado final. Debe repetirse para cerrar la fase; consulte `continuacion-fase-3.md`.
+- `pytest -q`: 371 pruebas aprobadas, 2 advertencias, en 391,78 segundos. La regresion historica y
+  greenfield es compatible con la fase 3.
 - `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
 - `ruff format --check src/talentia migrations_greenfield tests/greenfield`: 78 archivos conformes.
 - `mypy src/talentia`: 60 archivos sin observaciones.
