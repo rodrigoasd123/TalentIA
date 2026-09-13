@@ -110,3 +110,20 @@ class RevisionEvaluacion(Estricto):
 class SolicitudReporteExclusion(Estricto):
     cliente_id: str
     filtros: dict[str, object] = Field(default_factory=dict)
+
+
+class MapeoLote(Estricto):
+    columnas: dict[str, str]
+
+
+class CorreccionFilaLote(Estricto):
+    datos: dict[str, object]
+
+
+class ComprobacionExcolaborador(Estricto):
+    cliente_id: str
+    documento: str = Field(min_length=1, max_length=100)
+
+
+class ActualizacionReporteExclusion(Estricto):
+    filtros: dict[str, object] = Field(default_factory=dict)

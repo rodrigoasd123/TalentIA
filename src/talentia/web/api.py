@@ -15,14 +15,18 @@ from talentia.shared.application.servicio_principal import ServicioTalentIA
 from talentia.shared.domain.modelos import UsuarioActual, nuevo_id
 from talentia.web.schemas import (
     ActualizacionCandidato,
+    ActualizacionReporteExclusion,
     AltaCandidato,
     AltaPerfil,
     AltaPostulacion,
     AltaVersionPerfil,
     AsignacionCliente,
     AsignacionRol,
+    ComprobacionExcolaborador,
     ComprobacionIdentidad,
+    CorreccionFilaLote,
     Credenciales,
+    MapeoLote,
     RevisionEvaluacion,
     SolicitudEvaluacion,
     SolicitudReporteExclusion,
@@ -368,6 +372,31 @@ def obtener_lote(
     return servicio_actual.obtener_lote(usuario, lote_id)
 
 
+@router.patch("/import-batches/{lote_id}/mapping")
+def aplicar_mapeo_lote(
+    lote_id: str,
+    entrada: MapeoLote,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.aplicar_mapeo_lote(usuario, lote_id, entrada.columnas, correlacion_id)
+
+
+@router.patch("/import-batches/{lote_id}/rows/{numero}")
+def corregir_fila_lote(
+    lote_id: str,
+    numero: int,
+    entrada: CorreccionFilaLote,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.corregir_fila_lote(
+        usuario, lote_id, numero, entrada.datos, correlacion_id
+    )
+
+
 @router.post("/import-batches/{lote_id}/confirm")
 def confirmar_lote(
     lote_id: str,
@@ -376,6 +405,16 @@ def confirmar_lote(
     correlacion_id: CorrelacionDep,
 ) -> dict[str, object]:
     return servicio_actual.confirmar_lote(usuario, lote_id, correlacion_id)
+
+
+@router.post("/import-batches/{lote_id}/cancel")
+def cancelar_lote(
+    lote_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.cancelar_lote(usuario, lote_id, correlacion_id)
 
 
 @router.post("/former-employees/imports", status_code=201)
@@ -410,12 +449,50 @@ def crear_reporte_exclusion(
     )
 
 
+@router.post("/former-employees/checks")
+def comprobar_excolaborador(
+    entrada: ComprobacionExcolaborador,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.comprobar_excolaborador(
+        usuario, entrada.cliente_id, entrada.documento, correlacion_id
+    )
+
+
+@router.get("/exclusion-reports/{reporte_id}")
+def obtener_reporte_exclusion(
+    reporte_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.obtener_reporte_exclusion(usuario, reporte_id, correlacion_id)
+
+
+@router.patch("/exclusion-reports/{reporte_id}")
+def actualizar_reporte_exclusion(
+    reporte_id: str,
+    entrada: ActualizacionReporteExclusion,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.actualizar_reporte_exclusion(
+        usuario, reporte_id, entrada.filtros, correlacion_id
+    )
+
+
 @router.get("/exclusion-reports/{reporte_id}/download")
 def descargar_reporte_exclusion(
-    reporte_id: str, usuario: UsuarioDep, servicio_actual: ServicioDep
+    reporte_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
 ) -> Response:
     return Response(
-        servicio_actual.descargar_reporte_exclusion(usuario, reporte_id),
+        servicio_actual.descargar_reporte_exclusion(usuario, reporte_id, correlacion_id),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="exclusiones.csv"'},
     )

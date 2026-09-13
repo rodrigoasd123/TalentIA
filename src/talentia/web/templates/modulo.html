@@ -10,6 +10,8 @@
       {% if modulo == 'perfiles' %}<a class="btn btn-primary btn-sm" href="/perfiles/nuevo">Crear perfil</a>{% endif %}
       {% if modulo == 'postulaciones' %}<a class="btn btn-primary btn-sm" href="/postulaciones/nueva">Crear postulacion</a>{% endif %}
       {% if modulo == 'documentos' or modulo == 'trabajos' %}<a class="btn btn-primary btn-sm" href="/evaluaciones/nueva">Cargar CV y evaluar</a>{% endif %}
+      {% if modulo == 'lotes' or modulo == 'excolaboradores' %}<a class="btn btn-primary btn-sm" href="/lotes/nuevo">Importar archivo</a>{% endif %}
+      {% if modulo == 'exclusiones' %}<a class="btn btn-primary btn-sm" href="/exclusiones/nueva">Crear reporte</a>{% endif %}
     </div>
   </div>
   <div class="tabla-responsive">
@@ -26,6 +28,10 @@
             <a href="/evaluaciones/{{ fila[clave] }}">{{ fila[clave] }}</a>
           {% elif modulo == 'trabajos' and clave == 'id' %}
             <a href="/trabajos/{{ fila[clave] }}">{{ fila[clave] }}</a>
+          {% elif modulo == 'lotes' and clave == 'id' %}
+            <a href="/lotes/{{ fila[clave] }}">Revisar lote</a>
+          {% elif modulo == 'exclusiones' and clave == 'id' %}
+            <a href="/exclusiones/{{ fila[clave] }}">Ver reporte</a>
           {% else %}
             {{ fila[clave] if fila[clave] is not none else 'Pendiente' }}
           {% endif %}

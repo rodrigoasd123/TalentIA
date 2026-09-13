@@ -95,17 +95,17 @@
 
 ## Fase 5 - Lotes, ex-TCS y exclusiones
 
-- [ ] **T-030-F5-001 - Completar mapeo y correccion de lotes**
+- [x] **T-030-F5-001 - Completar mapeo y correccion de lotes**
   - Cubre: FR-030-003, SEC-030-001, AC-030-003
   - Archivos: rutas/plantillas nuevas y servicio/repositorio existentes
   - Verificacion: staging, errores, correccion, confirmacion y rollback
   - Dependencias: fase 4
-- [ ] **T-030-F5-002 - Completar flujo ex-TCS minimizado**
+- [x] **T-030-F5-002 - Completar flujo ex-TCS minimizado**
   - Cubre: FR-030-003, SEC-030-001, AC-030-003, AC-030-008
   - Archivos: rutas/plantillas nuevas
   - Verificacion: solo hash persistido, scope y BIZ bloqueadas
   - Dependencias: T-030-F5-001
-- [ ] **T-030-F5-003 - Completar exclusiones y descarga**
+- [x] **T-030-F5-003 - Completar exclusiones y descarga**
   - Cubre: FR-030-003, SEC-030-001, AC-030-003, AC-030-008
   - Archivos: rutas/plantillas nuevas y AG-05 existente
   - Verificacion: protegidos ausentes, filtros/hash conservados y auditoria

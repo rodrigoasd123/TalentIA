@@ -971,15 +971,25 @@ class RepositorioSqlalchemy:
     def crear_lote(
         self, datos: dict[str, object], filas: list[dict[str, object]]
     ) -> dict[str, object]:
-        existente = self.sesion.scalar(
+        misma_clave = self.sesion.scalar(
             select(LoteImportacionModelo).where(
-                or_(
-                    LoteImportacionModelo.hash_archivo == datos["hash_archivo"],
-                    LoteImportacionModelo.clave_idempotencia == datos["clave_idempotencia"],
-                )
+                LoteImportacionModelo.clave_idempotencia == datos["clave_idempotencia"]
             )
         )
-        if existente:
+        if misma_clave and (
+            misma_clave.hash_archivo != datos["hash_archivo"]
+            or misma_clave.cliente_id != datos["cliente_id"]
+            or misma_clave.tipo != datos["tipo"]
+        ):
+            raise ConflictoError("La clave de idempotencia ya identifica otro archivo")
+        existente = misma_clave or self.sesion.scalar(
+            select(LoteImportacionModelo).where(
+                LoteImportacionModelo.hash_archivo == datos["hash_archivo"],
+                LoteImportacionModelo.cliente_id == datos["cliente_id"],
+                LoteImportacionModelo.tipo == datos["tipo"],
+            )
+        )
+        if existente is not None:
             return {
                 "id": existente.id,
                 "estado": existente.estado,
@@ -994,48 +1004,149 @@ class RepositorioSqlalchemy:
         lote = LoteImportacionModelo(id=nuevo_id(), **datos)
         self.sesion.add(lote)
         self.sesion.flush()
-        tipo = str(datos["tipo"])
-        requeridas = {"documento"} if tipo == "excolaboradores" else {"nombres", "apellidos"}
-        encabezados = {str(clave).strip().casefold() for clave in filas[0] if clave}
-        if not requeridas.issubset(encabezados):
-            raise EntradaInvalidaError(
-                "Faltan columnas obligatorias: " + ", ".join(sorted(requeridas - encabezados))
-            )
-        documentos_lote: set[str] = set()
         for numero, fila in enumerate(filas, start=1):
             normalizada = {str(clave).strip().casefold(): valor for clave, valor in fila.items()}
-            errores = ["fila_vacia"] if not any(valor for valor in normalizada.values()) else []
-            if any(not str(normalizada.get(campo, "") or "").strip() for campo in requeridas):
-                errores.append("campo_obligatorio_vacio")
-            clasificacion = "invalida" if errores else "lista"
-            if tipo == "candidatos" and not errores:
-                documento = normalizar_documento(str(normalizada.get("documento", "") or ""))
-                existente_documento = bool(
-                    documento
-                    and self.sesion.scalar(
-                        select(CandidatoModelo.id).where(
-                            CandidatoModelo.cliente_id == datos["cliente_id"],
-                            CandidatoModelo.documento_normalizado == documento,
-                        )
-                    )
-                )
-                if documento and documento in documentos_lote:
-                    existente_documento = True
-                if documento:
-                    documentos_lote.add(documento)
-                clasificacion = "exacta" if existente_documento else "nueva"
             self.sesion.add(
                 FilaImportacionModelo(
                     id=nuevo_id(),
                     lote_id=lote.id,
                     numero=numero,
                     datos=normalizada,
-                    clasificacion=clasificacion,
-                    errores=errores,
+                    clasificacion="pendiente_validacion",
+                    errores=[],
                 )
             )
         self.sesion.flush()
+        self._reclasificar_filas(lote)
         return {"id": lote.id, "estado": lote.estado, "filas": len(filas), "reutilizado": False}
+
+    @staticmethod
+    def _columnas_permitidas(tipo: str) -> set[str]:
+        if tipo == "excolaboradores":
+            return {"documento", "elegible_reingreso"}
+        return {
+            "nombres",
+            "apellidos",
+            "tipo_documento",
+            "documento",
+            "correo",
+            "telefono",
+        }
+
+    def _reclasificar_filas(self, lote: LoteImportacionModelo) -> None:
+        filas = list(
+            self.sesion.scalars(
+                select(FilaImportacionModelo)
+                .where(FilaImportacionModelo.lote_id == lote.id)
+                .order_by(FilaImportacionModelo.numero)
+            )
+        )
+        requeridas = {"documento"} if lote.tipo == "excolaboradores" else {"nombres", "apellidos"}
+        documentos_lote: set[str] = set()
+        for fila in filas:
+            datos = fila.datos
+            errores: list[str] = []
+            if not any(str(valor or "").strip() for valor in datos.values()):
+                errores.append("La fila esta vacia")
+            faltantes = [
+                campo for campo in requeridas if not str(datos.get(campo, "") or "").strip()
+            ]
+            errores.extend(f"Falta el campo obligatorio: {campo}" for campo in sorted(faltantes))
+            correo = normalizar_correo(str(datos.get("correo") or ""))
+            if datos.get("correo") and (not correo or "@" not in correo):
+                errores.append("El correo no tiene un formato valido")
+            fila.errores = errores
+            if errores:
+                fila.clasificacion = "invalida"
+                continue
+            if lote.tipo == "excolaboradores":
+                fila.clasificacion = "lista"
+                continue
+            documento = normalizar_documento(str(datos.get("documento") or ""))
+            existente_documento = bool(
+                documento
+                and self.sesion.scalar(
+                    select(CandidatoModelo.id).where(
+                        CandidatoModelo.cliente_id == lote.cliente_id,
+                        CandidatoModelo.documento_normalizado == documento,
+                    )
+                )
+            )
+            duplicada_lote = bool(documento and documento in documentos_lote)
+            if documento:
+                documentos_lote.add(documento)
+            mismo_nombre = self.sesion.scalar(
+                select(CandidatoModelo.id).where(
+                    CandidatoModelo.cliente_id == lote.cliente_id,
+                    func.lower(CandidatoModelo.nombres)
+                    == str(datos.get("nombres", "")).strip().casefold(),
+                    func.lower(CandidatoModelo.apellidos)
+                    == str(datos.get("apellidos", "")).strip().casefold(),
+                )
+            )
+            if existente_documento or duplicada_lote:
+                fila.clasificacion = "exacta"
+            elif mismo_nombre:
+                fila.clasificacion = "requiere_revision"
+                fila.errores = ["Coincidencia de nombre: requiere revision humana"]
+            else:
+                fila.clasificacion = "nueva"
+
+    def aplicar_mapeo_lote(self, lote_id: str, mapeo: dict[str, str]) -> dict[str, object]:
+        lote = self.sesion.get(LoteImportacionModelo, lote_id)
+        if not lote:
+            raise ConflictoError("Lote no encontrado")
+        if lote.estado != "staging":
+            raise ConflictoError("Solo se puede mapear un lote en staging")
+        normalizado = {
+            origen.strip().casefold(): destino.strip().casefold()
+            for origen, destino in mapeo.items()
+        }
+        if not set(normalizado.values()).issubset(self._columnas_permitidas(lote.tipo)):
+            raise EntradaInvalidaError("El mapeo contiene columnas de destino no permitidas")
+        filas = self.sesion.scalars(
+            select(FilaImportacionModelo).where(FilaImportacionModelo.lote_id == lote_id)
+        )
+        for fila in filas:
+            corregida: dict[str, object] = {}
+            for clave, valor in fila.datos.items():
+                destino = normalizado.get(str(clave).casefold(), str(clave).casefold())
+                if (
+                    destino in corregida
+                    and corregida[destino] is not None
+                    and corregida[destino] != ""
+                ):
+                    raise EntradaInvalidaError(f"Varias columnas apuntan a {destino}")
+                corregida[destino] = valor
+            fila.datos = corregida
+        self._reclasificar_filas(lote)
+        self.sesion.flush()
+        return self.obtener_lote(lote_id) or {}
+
+    def corregir_fila_lote(
+        self, lote_id: str, numero: int, datos: dict[str, object]
+    ) -> dict[str, object]:
+        lote = self.sesion.get(LoteImportacionModelo, lote_id)
+        if not lote:
+            raise ConflictoError("Lote no encontrado")
+        if lote.estado != "staging":
+            raise ConflictoError("Solo se puede corregir un lote en staging")
+        fila = self.sesion.scalar(
+            select(FilaImportacionModelo).where(
+                FilaImportacionModelo.lote_id == lote_id,
+                FilaImportacionModelo.numero == numero,
+            )
+        )
+        if not fila:
+            raise EntradaInvalidaError("Fila no encontrada")
+        permitidas = self._columnas_permitidas(lote.tipo)
+        correcciones = {str(clave).strip().casefold(): valor for clave, valor in datos.items()}
+        if not set(correcciones).issubset(permitidas):
+            raise EntradaInvalidaError("La correccion contiene campos no permitidos")
+        fila.datos = {**fila.datos, **correcciones}
+        self._reclasificar_filas(lote)
+        self.sesion.flush()
+        return self.obtener_lote(lote_id) or {}
 
     def obtener_lote(self, lote_id: str) -> dict[str, object] | None:
         lote = self.sesion.get(LoteImportacionModelo, lote_id)
@@ -1068,19 +1179,21 @@ class RepositorioSqlalchemy:
             raise ConflictoError("Lote no encontrado")
         if lote.estado == "confirmado":
             return {"id": lote.id, "estado": lote.estado, "reutilizado": True}
-        invalidas = (
+        bloqueadas = (
             self.sesion.scalar(
                 select(func.count())
                 .select_from(FilaImportacionModelo)
                 .where(
                     FilaImportacionModelo.lote_id == lote_id,
-                    FilaImportacionModelo.clasificacion == "invalida",
+                    FilaImportacionModelo.clasificacion.in_(
+                        ["invalida", "requiere_revision", "pendiente_validacion"]
+                    ),
                 )
             )
             or 0
         )
-        if invalidas:
-            raise ConflictoError("El lote contiene filas invalidas")
+        if bloqueadas:
+            raise ConflictoError("El lote contiene filas invalidas o pendientes de revision")
         filas = list(
             self.sesion.scalars(
                 select(FilaImportacionModelo)
@@ -1103,6 +1216,18 @@ class RepositorioSqlalchemy:
             "importadas": importadas,
             "omitidas": omitidas,
         }
+
+    def cancelar_lote(self, lote_id: str) -> dict[str, object]:
+        lote = self.sesion.get(LoteImportacionModelo, lote_id)
+        if not lote:
+            raise ConflictoError("Lote no encontrado")
+        if lote.estado == "cancelado":
+            return {"id": lote.id, "estado": lote.estado, "reutilizado": True}
+        if lote.estado != "staging":
+            raise ConflictoError("Solo se puede cancelar un lote en staging")
+        lote.estado = "cancelado"
+        self.sesion.flush()
+        return {"id": lote.id, "estado": lote.estado, "reutilizado": False}
 
     def _importar_candidatos(
         self, lote: LoteImportacionModelo, filas: list[FilaImportacionModelo]
@@ -1175,10 +1300,23 @@ class RepositorioSqlalchemy:
             importadas += 1
         return importadas, len(filas) - importadas
 
-    def candidatos_para_exclusion(self, cliente_id: str) -> list[dict[str, object]]:
-        candidatos = self.sesion.scalars(
-            select(CandidatoModelo).where(CandidatoModelo.cliente_id == cliente_id)
+    def verificar_excolaborador(self, cliente_id: str, documento_hash: str) -> dict[str, object]:
+        coincidencia = self.sesion.scalar(
+            select(ExcolaboradorModelo.id).where(
+                ExcolaboradorModelo.cliente_id == cliente_id,
+                ExcolaboradorModelo.documento_hash == documento_hash,
+            )
         )
+        return {"coincidencia": coincidencia is not None}
+
+    def candidatos_para_exclusion(
+        self, cliente_id: str, filtros: dict[str, object]
+    ) -> list[dict[str, object]]:
+        consulta = select(CandidatoModelo).where(CandidatoModelo.cliente_id == cliente_id)
+        estado = str(filtros.get("estado") or "").strip()
+        if estado:
+            consulta = consulta.where(CandidatoModelo.estado == estado)
+        candidatos = self.sesion.scalars(consulta)
         return [
             {
                 "persona_id": candidato.id,
@@ -1197,6 +1335,26 @@ class RepositorioSqlalchemy:
         entradas: list[dict[str, str]],
         hash_contenido: str,
     ) -> dict[str, object]:
+        candidatos = self.sesion.scalars(
+            select(ReporteExclusionModelo).where(
+                ReporteExclusionModelo.cliente_id == cliente_id,
+                ReporteExclusionModelo.hash_contenido == hash_contenido,
+            )
+        )
+        for existente in candidatos:
+            if existente.filtros == filtros:
+                total = self.sesion.scalar(
+                    select(func.count())
+                    .select_from(EntradaExclusionModelo)
+                    .where(EntradaExclusionModelo.reporte_id == existente.id)
+                )
+                return {
+                    "id": existente.id,
+                    "estado": existente.estado,
+                    "total": total or 0,
+                    "hash_contenido": existente.hash_contenido,
+                    "reutilizado": True,
+                }
         reporte = ReporteExclusionModelo(
             id=nuevo_id(),
             cliente_id=cliente_id,
@@ -1221,6 +1379,7 @@ class RepositorioSqlalchemy:
             "estado": reporte.estado,
             "total": len(entradas),
             "hash_contenido": hash_contenido,
+            "reutilizado": False,
         }
 
     def obtener_reporte_exclusion(self, reporte_id: str) -> dict[str, object] | None:
@@ -1244,6 +1403,38 @@ class RepositorioSqlalchemy:
                 }
                 for entrada in entradas
             ],
+        }
+
+    def actualizar_reporte_exclusion(
+        self,
+        reporte_id: str,
+        filtros: dict[str, object],
+        entradas: list[dict[str, str]],
+        hash_contenido: str,
+    ) -> dict[str, object]:
+        reporte = self.sesion.get(ReporteExclusionModelo, reporte_id)
+        if not reporte:
+            raise ConflictoError("Reporte no encontrado")
+        reporte.filtros = filtros
+        reporte.hash_contenido = hash_contenido
+        self.sesion.execute(
+            delete(EntradaExclusionModelo).where(EntradaExclusionModelo.reporte_id == reporte_id)
+        )
+        for entrada in entradas:
+            self.sesion.add(
+                EntradaExclusionModelo(
+                    id=nuevo_id(),
+                    reporte_id=reporte.id,
+                    documento=entrada["documento"],
+                    motivo_generico=entrada["motivo_generico"],
+                )
+            )
+        self.sesion.flush()
+        return {
+            "id": reporte.id,
+            "estado": reporte.estado,
+            "total": len(entradas),
+            "hash_contenido": hash_contenido,
         }
 
 

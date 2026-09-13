@@ -2,7 +2,41 @@
 
 Fecha de verificacion: 2026-09-13.
 
-Estado SDD: fase 4 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 5.
+Estado SDD: fase 5 implementada y en verificacion; no se declara `VERIFIED` ni se inicia fase 6.
+
+## Evidencia de fase 5 - lotes, ex-TCS y exclusiones
+
+- Los lotes aceptan CSV/XLSX en staging, presentan una vista previa y permiten mapear columnas o
+  corregir filas antes de una confirmacion explicita. Las filas vacias, incompletas o con correo
+  invalido muestran errores accionables y bloquean la persistencia.
+- La clasificacion distingue filas nuevas, coincidencias exactas y coincidencias de nombre que
+  requieren revision humana. Los duplicados del archivo se omiten y no se fusionan identidades bajo
+  reglas `BIZ-008` no aprobadas.
+- La carga, el mapeo, la correccion, la confirmacion y la cancelacion quedan auditados en la misma
+  unidad de trabajo. Carga, confirmacion y cancelacion repetidas no duplican datos ni eventos.
+- Una confirmacion con fallo revierte candidatos, estado y auditoria. Se comprobo con un fallo
+  inyectado despues de escribir en la sesion y antes del commit.
+- Ex-TCS persiste el hash SHA-256 del documento normalizado y no el identificador crudo. Su consulta
+  aplica permiso y cliente; una coincidencia devuelve `revision_requerida`, nunca elegibilidad ni una
+  decision automatica.
+- AG-05 sigue siendo determinista y conservador. Los reportes aplican el filtro de estado, conservan
+  filtros y hash, minimizan la descarga a documento y motivo generico, verifican integridad y auditan
+  creacion, actualizacion, consulta y descarga.
+- API y web aplican autenticacion, RBAC, alcance contra IDOR y CSRF. La web permite cargar, revisar,
+  corregir, confirmar o cancelar lotes, comprobar ex-TCS y crear/descargar reportes sin usar la API
+  manualmente.
+- `pytest -q tests/greenfield/test_fase_5_lotes_excolaboradores_exclusiones.py`: 9 pruebas aprobadas,
+  1 advertencia.
+- `pytest -q tests/greenfield`: 74 pruebas aprobadas, 2 advertencias, en 59,03 segundos.
+- `pytest -q`: 384 pruebas aprobadas, 2 advertencias, en 93,60 segundos.
+- `ruff check src/talentia migrations_greenfield tests/greenfield`: aprobado.
+- `ruff format --check src/talentia migrations_greenfield tests/greenfield`: 80 archivos conformes.
+- `mypy src/talentia`: 60 archivos sin observaciones.
+- `python scripts/check_repository.py`: 524 archivos revisados, repositorio seguro. Los dos archivos
+  locales obsoletos de `src/talentia/platform/storage/` se eliminaron con autorizacion expresa del
+  propietario; nunca formaron parte de la rama.
+- No se crearon migraciones ni se asignaron criterios de vigencia, elegibilidad o identidad. Las
+  decisiones `BIZ-001..010` permanecen bloqueadas.
 
 ## Evidencia de fase 4 - formularios operativos
 

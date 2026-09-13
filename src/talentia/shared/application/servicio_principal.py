@@ -942,7 +942,9 @@ class ServicioTalentIA:
         if self._lector_lotes is None:
             raise EntradaInvalidaError("Lector de lotes no configurado")
         filas = self._lector_lotes(nombre, contenido)
-        huella = hashlib.sha256(contenido).hexdigest()
+        huella = hashlib.sha256(
+            cliente_id.encode() + b"\x1f" + tipo.encode() + b"\x1f" + contenido
+        ).hexdigest()
         with self._fabrica() as unidad:
             lote = unidad.datos.crear_lote(
                 {
@@ -954,15 +956,16 @@ class ServicioTalentIA:
                 },
                 filas,
             )
-            unidad.datos.registrar_evento(
-                cliente_id=cliente_id,
-                actor_id=usuario.id,
-                accion="lote.preparado",
-                recurso_tipo="lote",
-                recurso_id=str(lote["id"]),
-                detalle={"tipo": tipo, "filas": len(filas)},
-                correlacion_id=correlacion_id,
-            )
+            if not lote.get("reutilizado"):
+                unidad.datos.registrar_evento(
+                    cliente_id=cliente_id,
+                    actor_id=usuario.id,
+                    accion="lote.preparado",
+                    recurso_tipo="lote",
+                    recurso_id=str(lote["id"]),
+                    detalle={"tipo": tipo, "filas": len(filas)},
+                    correlacion_id=correlacion_id,
+                )
             return lote
 
     def obtener_lote(self, usuario: UsuarioActual, lote_id: str) -> dict[str, object]:
@@ -980,16 +983,115 @@ class ServicioTalentIA:
         lote = self.obtener_lote(usuario, lote_id)
         with self._fabrica() as unidad:
             resultado = unidad.datos.confirmar_lote(lote_id)
+            if not resultado.get("reutilizado"):
+                unidad.datos.registrar_evento(
+                    cliente_id=str(lote["cliente_id"]),
+                    actor_id=usuario.id,
+                    accion="lote.confirmado",
+                    recurso_tipo="lote",
+                    recurso_id=lote_id,
+                    detalle={"tipo": lote["tipo"]},
+                    correlacion_id=correlacion_id,
+                )
+            return resultado
+
+    def aplicar_mapeo_lote(
+        self,
+        usuario: UsuarioActual,
+        lote_id: str,
+        mapeo: dict[str, str],
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        lote = self.obtener_lote(usuario, lote_id)
+        if not mapeo or any(
+            not origen.strip() or not destino.strip() for origen, destino in mapeo.items()
+        ):
+            raise EntradaInvalidaError("El mapeo debe indicar columnas de origen y destino")
+        with self._fabrica() as unidad:
+            resultado = unidad.datos.aplicar_mapeo_lote(lote_id, mapeo)
             unidad.datos.registrar_evento(
                 cliente_id=str(lote["cliente_id"]),
                 actor_id=usuario.id,
-                accion="lote.confirmado",
+                accion="lote.mapeo_corregido",
                 recurso_tipo="lote",
                 recurso_id=lote_id,
-                detalle={"tipo": lote["tipo"]},
+                detalle={"columnas": sorted(mapeo.values())},
                 correlacion_id=correlacion_id,
             )
             return resultado
+
+    def corregir_fila_lote(
+        self,
+        usuario: UsuarioActual,
+        lote_id: str,
+        numero: int,
+        datos: dict[str, object],
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        lote = self.obtener_lote(usuario, lote_id)
+        if numero < 1 or not datos:
+            raise EntradaInvalidaError("La correccion de fila no es valida")
+        with self._fabrica() as unidad:
+            resultado = unidad.datos.corregir_fila_lote(lote_id, numero, datos)
+            unidad.datos.registrar_evento(
+                cliente_id=str(lote["cliente_id"]),
+                actor_id=usuario.id,
+                accion="lote.fila_corregida",
+                recurso_tipo="lote",
+                recurso_id=lote_id,
+                detalle={"fila": numero, "campos": sorted(datos)},
+                correlacion_id=correlacion_id,
+            )
+            return resultado
+
+    def cancelar_lote(
+        self, usuario: UsuarioActual, lote_id: str, correlacion_id: str
+    ) -> dict[str, object]:
+        lote = self.obtener_lote(usuario, lote_id)
+        with self._fabrica() as unidad:
+            resultado = unidad.datos.cancelar_lote(lote_id)
+            if not resultado.get("reutilizado"):
+                unidad.datos.registrar_evento(
+                    cliente_id=str(lote["cliente_id"]),
+                    actor_id=usuario.id,
+                    accion="lote.cancelado",
+                    recurso_tipo="lote",
+                    recurso_id=lote_id,
+                    detalle={"tipo": lote["tipo"]},
+                    correlacion_id=correlacion_id,
+                )
+            return resultado
+
+    def comprobar_excolaborador(
+        self,
+        usuario: UsuarioActual,
+        cliente_id: str,
+        documento: str,
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        _exigir_permiso(usuario, "excolaboradores:escribir")
+        _exigir_cliente(usuario, cliente_id)
+        normalizado = normalizar_documento(documento)
+        if not normalizado:
+            raise EntradaInvalidaError("Documento invalido")
+        documento_hash = hashlib.sha256(normalizado.encode()).hexdigest()
+        with self._fabrica() as unidad:
+            coincidencia = unidad.datos.verificar_excolaborador(cliente_id, documento_hash)
+            encontrada = bool(coincidencia["coincidencia"])
+            unidad.datos.registrar_evento(
+                cliente_id=cliente_id,
+                actor_id=usuario.id,
+                accion="excolaborador.consultado",
+                recurso_tipo="excolaborador",
+                recurso_id=None,
+                detalle={"coincidencia": encontrada, "requiere_revision": encontrada},
+                correlacion_id=correlacion_id,
+            )
+        return {
+            "coincidencia": encontrada,
+            "requiere_revision": encontrada,
+            "resultado": "revision_requerida" if encontrada else "sin_coincidencia",
+        }
 
     def crear_reporte_exclusion(
         self,
@@ -1000,8 +1102,10 @@ class ServicioTalentIA:
     ) -> dict[str, object]:
         _exigir_permiso(usuario, "reportes:leer")
         _exigir_cliente(usuario, cliente_id)
+        if not set(filtros).issubset({"estado"}):
+            raise EntradaInvalidaError("Los filtros de exclusion no son validos")
         with self._fabrica() as unidad:
-            registros = unidad.datos.candidatos_para_exclusion(cliente_id)
+            registros = unidad.datos.candidatos_para_exclusion(cliente_id, filtros)
             entradas = clasificar_exclusiones(registros)
             _contenido, huella = generar_csv(entradas)
             reporte = unidad.datos.guardar_reporte_exclusion(
@@ -1016,18 +1120,82 @@ class ServicioTalentIA:
                 ],
                 huella,
             )
+            if not reporte.get("reutilizado"):
+                unidad.datos.registrar_evento(
+                    cliente_id=cliente_id,
+                    actor_id=usuario.id,
+                    accion="exclusion.exportada",
+                    recurso_tipo="reporte_exclusion",
+                    recurso_id=str(reporte["id"]),
+                    detalle={"total": len(entradas), "hash": huella},
+                    correlacion_id=correlacion_id,
+                )
+            return reporte
+
+    def obtener_reporte_exclusion(
+        self, usuario: UsuarioActual, reporte_id: str, correlacion_id: str
+    ) -> dict[str, object]:
+        _exigir_permiso(usuario, "reportes:leer")
+        with self._fabrica() as unidad:
+            reporte = unidad.datos.obtener_reporte_exclusion(reporte_id)
+            if not reporte:
+                raise NoEncontradoError("Reporte no encontrado")
+            _exigir_cliente(usuario, str(reporte["cliente_id"]))
             unidad.datos.registrar_evento(
-                cliente_id=cliente_id,
+                cliente_id=str(reporte["cliente_id"]),
                 actor_id=usuario.id,
-                accion="exclusion.exportada",
+                accion="exclusion.consultada",
                 recurso_tipo="reporte_exclusion",
-                recurso_id=str(reporte["id"]),
-                detalle={"total": len(entradas), "hash": huella},
+                recurso_id=reporte_id,
+                detalle={"hash": reporte["hash_contenido"]},
                 correlacion_id=correlacion_id,
             )
             return reporte
 
-    def descargar_reporte_exclusion(self, usuario: UsuarioActual, reporte_id: str) -> bytes:
+    def actualizar_reporte_exclusion(
+        self,
+        usuario: UsuarioActual,
+        reporte_id: str,
+        filtros: dict[str, object],
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        reporte = self.obtener_reporte_exclusion(usuario, reporte_id, correlacion_id)
+        cliente_id = str(reporte["cliente_id"])
+        with self._fabrica() as unidad:
+            if not set(filtros).issubset({"estado"}):
+                raise EntradaInvalidaError("Los filtros de exclusion no son validos")
+            registros = unidad.datos.candidatos_para_exclusion(cliente_id, filtros)
+            entradas = clasificar_exclusiones(registros)
+            _contenido, huella = generar_csv(entradas)
+            actualizado = unidad.datos.actualizar_reporte_exclusion(
+                reporte_id,
+                filtros,
+                [
+                    {
+                        "documento": entrada.documento,
+                        "motivo_generico": entrada.motivo_generico,
+                    }
+                    for entrada in entradas
+                ],
+                huella,
+            )
+            unidad.datos.registrar_evento(
+                cliente_id=cliente_id,
+                actor_id=usuario.id,
+                accion="exclusion.actualizada",
+                recurso_tipo="reporte_exclusion",
+                recurso_id=reporte_id,
+                detalle={"total": len(entradas), "hash": huella},
+                correlacion_id=correlacion_id,
+            )
+            return actualizado
+
+    def descargar_reporte_exclusion(
+        self,
+        usuario: UsuarioActual,
+        reporte_id: str,
+        correlacion_id: str,
+    ) -> bytes:
         _exigir_permiso(usuario, "reportes:leer")
         with self._fabrica() as unidad:
             reporte = unidad.datos.obtener_reporte_exclusion(reporte_id)
@@ -1042,4 +1210,13 @@ class ServicioTalentIA:
             contenido, huella = generar_csv(entradas)
             if huella != reporte["hash_contenido"]:
                 raise ConflictoError("El reporte no supera la verificacion de integridad")
+            unidad.datos.registrar_evento(
+                cliente_id=str(reporte["cliente_id"]),
+                actor_id=usuario.id,
+                accion="exclusion.descargada",
+                recurso_tipo="reporte_exclusion",
+                recurso_id=reporte_id,
+                detalle={"hash": huella, "total": len(entradas)},
+                correlacion_id=correlacion_id,
+            )
             return contenido

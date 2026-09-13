@@ -114,9 +114,23 @@ class DatosTalentIA(Protocol):
 
     def obtener_lote(self, lote_id: str) -> dict[str, object] | None: ...
 
+    def aplicar_mapeo_lote(self, lote_id: str, mapeo: dict[str, str]) -> dict[str, object]: ...
+
+    def corregir_fila_lote(
+        self, lote_id: str, numero: int, datos: dict[str, object]
+    ) -> dict[str, object]: ...
+
     def confirmar_lote(self, lote_id: str) -> dict[str, object]: ...
 
-    def candidatos_para_exclusion(self, cliente_id: str) -> list[dict[str, object]]: ...
+    def cancelar_lote(self, lote_id: str) -> dict[str, object]: ...
+
+    def verificar_excolaborador(
+        self, cliente_id: str, documento_hash: str
+    ) -> dict[str, object]: ...
+
+    def candidatos_para_exclusion(
+        self, cliente_id: str, filtros: dict[str, object]
+    ) -> list[dict[str, object]]: ...
 
     def guardar_reporte_exclusion(
         self,
@@ -127,6 +141,14 @@ class DatosTalentIA(Protocol):
     ) -> dict[str, object]: ...
 
     def obtener_reporte_exclusion(self, reporte_id: str) -> dict[str, object] | None: ...
+
+    def actualizar_reporte_exclusion(
+        self,
+        reporte_id: str,
+        filtros: dict[str, object],
+        entradas: list[dict[str, str]],
+        hash_contenido: str,
+    ) -> dict[str, object]: ...
 
     def listar_panel_operativo(
         self, modulo: str, clientes: frozenset[str], limite: int

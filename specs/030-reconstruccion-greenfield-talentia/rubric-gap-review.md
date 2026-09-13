@@ -4,7 +4,7 @@ Fecha: 2026-09-13
 
 Rama de trabajo: `codex/rubrica-greenfield-talentia`
 
-Base revisada: `origin/codex/rubrica-greenfield-talentia` (`a18c67c`)
+Base revisada: `origin/codex/rubrica-greenfield-talentia` (`e5c924b`)
 
 ## Regla de lectura
 
@@ -25,18 +25,19 @@ Base revisada: `origin/codex/rubrica-greenfield-talentia` (`a18c67c`)
 | LangGraph y recuperacion | Cumple en backend | Diez nodos reales, estado seguro, checkpoint unico por nodo, correlacion, lease, timeout, reintento y reinicio probado sin duplicados | Telemetria persistente de fase 6 y aceptacion operativa |
 | Evaluacion con evidencia | Cumple | AG-03 persiste valoracion por requisito y la web muestra evidencia minima navegable, fuente y fallback humano | UAT con usuarios del piloto |
 | Revision humana | Cumple | Fallback fail-closed, evidencia navegable, formulario aceptar/corregir/rechazar, justificacion, correcciones, CSRF/RBAC/IDOR y decision/auditoria atomicas | UAT con usuarios del piloto |
-| Interfaz Jinja2/HTMX | Parcial | Login, candidatos, perfiles/versiones, postulaciones, CV/evaluacion, HITL y polling de trabajos; errores conservan datos no sensibles | Formularios de lotes, ex-TCS y exclusiones de fase 5 |
-| Importaciones y ex-TCS | Parcial | Staging, confirmacion, idempotencia y proyeccion web | Mapeo/correccion web completo y decisiones `BIZ-001/008` |
+| Interfaz Jinja2/HTMX | Cumple fase 5 | Login, candidatos, perfiles/versiones, postulaciones, CV/evaluacion, HITL, trabajos, lotes, ex-TCS y exclusiones con recorridos web | UAT de fase 8 |
+| Importaciones y ex-TCS | Cumple fase 5 | Staging separado, mapeo/correccion, errores por fila, confirmacion/cancelacion, rollback, idempotencia, hash y revision humana | Decisiones `BIZ-001/008` permanecen bloqueadas |
+| Exclusiones y descargas | Cumple fase 5 | AG-05 determinista, filtros y hash persistidos, CSV minimo, integridad, RBAC, IDOR y auditoria de crear/cambiar/consultar/descargar | Definir `BIZ-001` para producir vigencias reales |
 | Privacidad y prompt injection | Cumple en recorrido IA actual | API y worker bloquean instrucciones incrustadas antes de AG-02/03, retiran PII y no llaman proveedor remoto | Probar nuevamente al habilitar cualquier proveedor futuro |
-| Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas y correlacion conservada en trabajo/checkpoints | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
+| Auditoria | Cumple en flujos implementados | Cadena hash, evaluacion/revision atomicas, lotes y descargas sensibles auditados; correlacion conservada | Telemetria nodo a nodo de fase 6 y politica `BIZ-007` |
 | Metricas y observabilidad | Parcial | Metricas basicas, scripts de laboratorio y MLflow historico | Persistir eventos de piloto, panel de baseline y benchmark greenfield |
-| Calidad y regresion | Cumple fase 4 | 65 greenfield y 375 totales; formularios/E2E, validacion, RBAC, IDOR e idempotencia; Ruff, formato, mypy y escaner aprobados | Resolver advertencias de dependencias antes de actualizar versiones |
+| Calidad y regresion | Cumple fase 5 | 74 greenfield y 384 totales; E2E, validacion, rollback, RBAC, IDOR e idempotencia; Ruff, formato, mypy y escaner aprobados | Resolver advertencias al actualizar dependencias |
 
 ## Orden de cierre recomendado
 
-1. Completar lotes, ex-TCS y exclusiones sin resolver decisiones BIZ bloqueadas.
-2. Persistir metricas de piloto y ejecutar benchmark greenfield con MLflow.
-3. Ejecutar aceptacion de usuarios.
+1. Persistir metricas de piloto y ejecutar benchmark greenfield con MLflow.
+2. Completar endurecimiento y aceptacion tecnica.
+3. Ejecutar decisiones de negocio y UAT con aprobacion expresa.
 
 ## Decisiones que permanecen cerradas
 

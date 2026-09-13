@@ -652,6 +652,210 @@ def estado_trabajo(request: Request, trabajo_id: str) -> Response:
     )
 
 
+def _pagina_nuevo_lote(
+    request: Request,
+    usuario: UsuarioActual,
+    *,
+    error: str | None = None,
+    resultado_excolaborador: dict[str, object] | None = None,
+) -> Response:
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="nuevo_lote.html",
+        context=_contexto(
+            request,
+            usuario,
+            error=error,
+            resultado_excolaborador=resultado_excolaborador,
+            clave_idempotencia=nuevo_id(),
+        ),
+    )
+
+
+@router.get("/lotes/nuevo", response_class=HTMLResponse)
+def nuevo_lote(request: Request) -> Response:
+    return _pagina_nuevo_lote(request, _usuario(request))
+
+
+@router.post("/lotes/nuevo", response_class=HTMLResponse)
+async def crear_lote_web(
+    request: Request,
+    archivo: Annotated[UploadFile, File()],
+    csrf: str = Form(),
+    cliente_id: str = Form(),
+    tipo: str = Form(),
+    clave_idempotencia: str = Form(),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    try:
+        lote = request.app.state.servicio.preparar_lote(
+            usuario,
+            cliente_id,
+            tipo,
+            archivo.filename or "lote.csv",
+            await archivo.read(),
+            clave_idempotencia,
+            request.state.correlacion_id,
+        )
+    except TalentIAError as error:
+        return _pagina_nuevo_lote(request, usuario, error=str(error))
+    return RedirectResponse(f"/lotes/{lote['id']}", status_code=303)
+
+
+@router.get("/lotes/{lote_id}", response_class=HTMLResponse)
+def detalle_lote(request: Request, lote_id: str) -> Response:
+    usuario = _usuario(request)
+    return _pagina_detalle_lote(request, usuario, lote_id)
+
+
+def _pagina_detalle_lote(
+    request: Request,
+    usuario: UsuarioActual,
+    lote_id: str,
+    *,
+    error: str | None = None,
+    status_code: int = 200,
+) -> Response:
+    lote = request.app.state.servicio.obtener_lote(usuario, lote_id)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_lote.html",
+        context=_contexto(request, usuario, lote=lote, error=error),
+        status_code=status_code,
+    )
+
+
+@router.post("/lotes/{lote_id}/mapeo", response_class=HTMLResponse)
+def mapear_lote_web(
+    request: Request,
+    lote_id: str,
+    csrf: str = Form(),
+    origen: str = Form(),
+    destino: str = Form(),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    try:
+        request.app.state.servicio.aplicar_mapeo_lote(
+            usuario, lote_id, {origen: destino}, request.state.correlacion_id
+        )
+    except TalentIAError as error:
+        return _pagina_detalle_lote(
+            request, usuario, lote_id, error=str(error), status_code=error.estado_http
+        )
+    return RedirectResponse(f"/lotes/{lote_id}", status_code=303)
+
+
+@router.post("/lotes/{lote_id}/filas/{numero}", response_class=HTMLResponse)
+async def corregir_fila_lote_web(request: Request, lote_id: str, numero: int) -> Response:
+    usuario = _usuario(request)
+    formulario = await request.form()
+    if str(formulario.get("csrf", "")) != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    datos = {
+        clave: str(valor)
+        for clave, valor in formulario.items()
+        if clave != "csrf" and str(valor).strip()
+    }
+    try:
+        request.app.state.servicio.corregir_fila_lote(
+            usuario, lote_id, numero, datos, request.state.correlacion_id
+        )
+    except TalentIAError as error:
+        return _pagina_detalle_lote(
+            request, usuario, lote_id, error=str(error), status_code=error.estado_http
+        )
+    return RedirectResponse(f"/lotes/{lote_id}", status_code=303)
+
+
+@router.post("/lotes/{lote_id}/confirmar")
+def confirmar_lote_web(request: Request, lote_id: str, csrf: str = Form()) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    try:
+        request.app.state.servicio.confirmar_lote(usuario, lote_id, request.state.correlacion_id)
+    except TalentIAError as error:
+        return _pagina_detalle_lote(
+            request, usuario, lote_id, error=str(error), status_code=error.estado_http
+        )
+    return RedirectResponse(f"/lotes/{lote_id}", status_code=303)
+
+
+@router.post("/lotes/{lote_id}/cancelar")
+def cancelar_lote_web(request: Request, lote_id: str, csrf: str = Form()) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    try:
+        request.app.state.servicio.cancelar_lote(usuario, lote_id, request.state.correlacion_id)
+    except TalentIAError as error:
+        return _pagina_detalle_lote(
+            request, usuario, lote_id, error=str(error), status_code=error.estado_http
+        )
+    return RedirectResponse(f"/lotes/{lote_id}", status_code=303)
+
+
+@router.post("/excolaboradores/comprobar", response_class=HTMLResponse)
+def comprobar_excolaborador_web(
+    request: Request,
+    csrf: str = Form(),
+    cliente_id: str = Form(),
+    documento: str = Form(),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    resultado = request.app.state.servicio.comprobar_excolaborador(
+        usuario, cliente_id, documento, request.state.correlacion_id
+    )
+    return _pagina_nuevo_lote(request, usuario, resultado_excolaborador=resultado)
+
+
+@router.get("/exclusiones/nueva", response_class=HTMLResponse)
+def nueva_exclusion(request: Request) -> Response:
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="nueva_exclusion.html",
+        context=_contexto(request, _usuario(request), error=None),
+    )
+
+
+@router.post("/exclusiones/nueva", response_class=HTMLResponse)
+def crear_exclusion_web(
+    request: Request,
+    csrf: str = Form(),
+    cliente_id: str = Form(),
+    estado: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    reporte = request.app.state.servicio.crear_reporte_exclusion(
+        usuario,
+        cliente_id,
+        {"estado": estado} if estado else {},
+        request.state.correlacion_id,
+    )
+    return RedirectResponse(f"/exclusiones/{reporte['id']}", status_code=303)
+
+
+@router.get("/exclusiones/{reporte_id}", response_class=HTMLResponse)
+def detalle_exclusion(request: Request, reporte_id: str) -> Response:
+    usuario = _usuario(request)
+    reporte = request.app.state.servicio.obtener_reporte_exclusion(
+        usuario, reporte_id, request.state.correlacion_id
+    )
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_exclusion.html",
+        context=_contexto(request, usuario, reporte=reporte),
+    )
+
+
 @router.get("/modulo/{modulo}", response_class=HTMLResponse)
 def modulo(request: Request, modulo: str) -> HTMLResponse:
     usuario = _usuario(request)
