@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import TracebackType
 from typing import Any
 
@@ -34,6 +35,7 @@ from talentia.shared.infrastructure.modelos_orm import (
     EventoAuditoriaModelo,
     EventoCandidatoModelo,
     ExcolaboradorModelo,
+    ExtraccionDocumentoModelo,
     FilaImportacionModelo,
     LoteExcolaboradoresModelo,
     LoteImportacionModelo,
@@ -42,6 +44,7 @@ from talentia.shared.infrastructure.modelos_orm import (
     ReporteExclusionModelo,
     RevisionHumanaModelo,
     RolModelo,
+    SugerenciaCampoModelo,
     TrabajoAgenteModelo,
     UsuarioModelo,
     UsuarioRolModelo,
@@ -420,6 +423,85 @@ class RepositorioSqlalchemy:
         except IntegrityError as exc:
             raise ConflictoError("El documento ya fue adjuntado") from exc
         return {"id": modelo.id, "hash_sha256": modelo.hash_sha256}
+
+    def obtener_documento(self, documento_id: str) -> dict[str, object] | None:
+        modelo = self.sesion.get(DocumentoCandidatoModelo, documento_id)
+        if modelo is None:
+            return None
+        return {
+            "id": modelo.id,
+            "cliente_id": modelo.cliente_id,
+            "candidato_id": modelo.candidato_id,
+            "nombre_original": modelo.nombre_original,
+            "tipo_mime": modelo.tipo_mime,
+            "hash_sha256": modelo.hash_sha256,
+            "ruta_almacenamiento": modelo.ruta_almacenamiento,
+            "tamano_bytes": modelo.tamano_bytes,
+        }
+
+    def obtener_extraccion_documento(self, documento_id: str) -> dict[str, object] | None:
+        modelo = self.sesion.get(ExtraccionDocumentoModelo, documento_id)
+        if modelo is None:
+            return None
+        sugerencias = self.sesion.scalars(
+            select(SugerenciaCampoModelo)
+            .where(SugerenciaCampoModelo.extraccion_id == modelo.id)
+            .order_by(SugerenciaCampoModelo.campo)
+        ).all()
+        return {
+            "id": modelo.id,
+            "documento_id": modelo.documento_id,
+            "estado": modelo.estado,
+            "texto_sanitizado": modelo.texto_sanitizado,
+            "campos": modelo.campos,
+            "referencias": modelo.referencias,
+            "error": modelo.error,
+            "version": modelo.version,
+            "sugerencias": [
+                {
+                    "id": sugerencia.id,
+                    "campo": sugerencia.campo,
+                    "valor": sugerencia.valor,
+                    "confianza": sugerencia.confianza,
+                    "fuente": sugerencia.fuente,
+                    "estado": sugerencia.estado,
+                }
+                for sugerencia in sugerencias
+            ],
+        }
+
+    def guardar_extraccion_documento(
+        self,
+        datos: dict[str, object],
+        sugerencias: list[dict[str, object]],
+    ) -> dict[str, object]:
+        documento_id = str(datos["documento_id"])
+        existente = self.obtener_extraccion_documento(documento_id)
+        if existente is not None:
+            return {**existente, "reutilizado": True}
+        modelo = ExtraccionDocumentoModelo(id=documento_id, **datos)
+        self.sesion.add(modelo)
+        self.sesion.flush()
+        for sugerencia in sugerencias:
+            identificador = hashlib.sha256(
+                f"{documento_id}:{sugerencia['campo']}".encode()
+            ).hexdigest()[:32]
+            self.sesion.add(
+                SugerenciaCampoModelo(
+                    id=identificador,
+                    extraccion_id=modelo.id,
+                    campo=str(sugerencia["campo"]),
+                    valor=sugerencia["valor"],
+                    confianza=Decimal(str(sugerencia["confianza"])),
+                    fuente=sugerencia["fuente"],
+                    estado="pendiente",
+                )
+            )
+        self.sesion.flush()
+        resultado = self.obtener_extraccion_documento(documento_id)
+        if resultado is None:
+            raise RuntimeError("No se pudo recuperar la extraccion persistida")
+        return {**resultado, "reutilizado": False}
 
     def validar_solicitud_evaluacion(
         self,

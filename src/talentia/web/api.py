@@ -243,6 +243,25 @@ async def adjuntar_cv(
     )
 
 
+@router.post("/documents/{documento_id}/extraction")
+def procesar_documento(
+    documento_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.procesar_documento(usuario, documento_id, correlacion_id)
+
+
+@router.get("/documents/{documento_id}/extraction")
+def obtener_extraccion_documento(
+    documento_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+) -> dict[str, object]:
+    return servicio_actual.obtener_extraccion_documento(usuario, documento_id)
+
+
 @router.post("/job-profiles", status_code=201)
 def crear_perfil(
     entrada: AltaPerfil,

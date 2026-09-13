@@ -63,6 +63,16 @@ class DatosTalentIA(Protocol):
 
     def guardar_documento(self, datos: dict[str, object]) -> dict[str, object]: ...
 
+    def obtener_documento(self, documento_id: str) -> dict[str, object] | None: ...
+
+    def obtener_extraccion_documento(self, documento_id: str) -> dict[str, object] | None: ...
+
+    def guardar_extraccion_documento(
+        self,
+        datos: dict[str, object],
+        sugerencias: list[dict[str, object]],
+    ) -> dict[str, object]: ...
+
     def validar_solicitud_evaluacion(
         self,
         cliente_id: str,

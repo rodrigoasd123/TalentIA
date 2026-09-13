@@ -15,6 +15,14 @@ class EstadoExtraccion(StrEnum):
     BLOQUEADA = "bloqueada"
 
 
+class LecturaDocumentoError(RuntimeError):
+    """Fallo seguro y mostrable sin filtrar contenido del documento."""
+
+    def __init__(self, codigo: str, mensaje: str) -> None:
+        super().__init__(mensaje)
+        self.codigo = codigo
+
+
 @dataclass(frozen=True, slots=True)
 class ReferenciaFuente:
     documento_id: str
@@ -22,6 +30,18 @@ class ReferenciaFuente:
     inicio: int
     fin: int
     fragmento: str
+
+
+@dataclass(frozen=True, slots=True)
+class PaginaDocumento:
+    numero: int
+    texto: str
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentoLeido:
+    paginas: tuple[PaginaDocumento, ...]
+    metodo: str
 
 
 @dataclass(slots=True)

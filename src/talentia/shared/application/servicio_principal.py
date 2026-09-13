@@ -10,6 +10,8 @@ from decimal import Decimal
 from typing import Protocol, cast
 
 from talentia.ai.agents.exclusiones import EntradaExclusion, clasificar_exclusiones, generar_csv
+from talentia.ai.agents.lector_cv import extraer_cv_paginas
+from talentia.ai.guardrails.privacidad import SanitizacionError
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
 from talentia.modules.candidates.domain.modelos import (
     Candidato,
@@ -21,6 +23,7 @@ from talentia.modules.candidates.domain.modelos import (
     tokens_nombre,
     ultimos_nueve_telefono,
 )
+from talentia.modules.documents.domain.modelos import DocumentoLeido, LecturaDocumentoError
 from talentia.platform.security.contrasenas import verificar_contrasena
 from talentia.shared.application.errores import (
     ConflictoError,
@@ -42,6 +45,10 @@ class LectorLotes(Protocol):
     def __call__(
         self, nombre: str, contenido: bytes, maximo: int = 5000
     ) -> list[dict[str, object]]: ...
+
+
+class ExtractorDocumento(Protocol):
+    def __call__(self, ruta: str, tipo_mime: str) -> DocumentoLeido: ...
 
 
 def _exigir_permiso(usuario: UsuarioActual, permiso: str) -> None:
@@ -75,11 +82,13 @@ class ServicioTalentIA:
         fabrica_unidad: FabricaUnidadTrabajo,
         almacen_documentos: AlmacenDocumentos | None = None,
         lector_lotes: LectorLotes | None = None,
+        extractor_documento: ExtractorDocumento | None = None,
         maximo_documento_bytes: int = 10 * 1024 * 1024,
     ) -> None:
         self._fabrica = fabrica_unidad
         self._almacen = almacen_documentos
         self._lector_lotes = lector_lotes
+        self._extractor_documento = extractor_documento
         self._maximo_documento_bytes = maximo_documento_bytes
 
     def autenticar(self, correo: str, contrasena: str, correlacion_id: str) -> UsuarioActual:
@@ -518,6 +527,98 @@ class ServicioTalentIA:
                 correlacion_id=correlacion_id,
             )
             return documento
+
+    def obtener_extraccion_documento(
+        self, usuario: UsuarioActual, documento_id: str
+    ) -> dict[str, object]:
+        _exigir_permiso(usuario, "candidatos:leer")
+        with self._fabrica() as unidad:
+            documento = unidad.datos.obtener_documento(documento_id)
+            if documento is None:
+                raise NoEncontradoError("Documento no encontrado")
+            _exigir_cliente(usuario, str(documento["cliente_id"]))
+            extraccion = unidad.datos.obtener_extraccion_documento(documento_id)
+            if extraccion is None:
+                raise NoEncontradoError("Extraccion no encontrada")
+            return extraccion
+
+    def procesar_documento(
+        self, usuario: UsuarioActual, documento_id: str, correlacion_id: str
+    ) -> dict[str, object]:
+        _exigir_permiso(usuario, "documentos:escribir")
+        with self._fabrica() as unidad:
+            documento = unidad.datos.obtener_documento(documento_id)
+            if documento is None:
+                raise NoEncontradoError("Documento no encontrado")
+            _exigir_cliente(usuario, str(documento["cliente_id"]))
+            existente = unidad.datos.obtener_extraccion_documento(documento_id)
+            if existente is not None:
+                return {**existente, "reutilizado": True}
+        if self._extractor_documento is None:
+            raise EntradaInvalidaError("Extractor de documentos no configurado")
+
+        estado = "completa"
+        texto_sanitizado: str | None = None
+        campos: dict[str, object] = {}
+        referencias: list[dict[str, object]] = []
+        sugerencias: list[dict[str, object]] = []
+        error_seguro: str | None = None
+        try:
+            leido = self._extractor_documento(
+                str(documento["ruta_almacenamiento"]), str(documento["tipo_mime"])
+            )
+            lectura = extraer_cv_paginas(
+                documento_id, tuple((pagina.numero, pagina.texto) for pagina in leido.paginas)
+            )
+            texto_sanitizado = lectura.texto.texto
+            estado = "revision_manual" if lectura.requiere_revision else "completa"
+            for campo in lectura.campos:
+                campos[campo.campo] = campo.valor
+                if campo.valor is None or campo.fuente is None:
+                    continue
+                fuente = asdict(campo.fuente)
+                referencias.append(fuente)
+                sugerencias.append(
+                    {
+                        "campo": campo.campo,
+                        "valor": {"texto": campo.valor},
+                        "confianza": campo.confianza,
+                        "fuente": fuente,
+                    }
+                )
+        except LecturaDocumentoError as error:
+            estado = "revision_manual" if error.codigo == "ocr_requerido" else "bloqueada"
+            error_seguro = error.codigo
+        except SanitizacionError:
+            estado = "bloqueada"
+            error_seguro = "contenido_no_confiable"
+
+        with self._fabrica() as unidad:
+            extraccion = unidad.datos.guardar_extraccion_documento(
+                {
+                    "documento_id": documento_id,
+                    "estado": estado,
+                    "texto_sanitizado": texto_sanitizado,
+                    "campos": campos,
+                    "referencias": referencias,
+                    "error": error_seguro,
+                },
+                sugerencias,
+            )
+            unidad.datos.registrar_evento(
+                cliente_id=str(documento["cliente_id"]),
+                actor_id=usuario.id,
+                accion="documento.extraccion_completada",
+                recurso_tipo="documento",
+                recurso_id=documento_id,
+                detalle={
+                    "estado": estado,
+                    "campos_sugeridos": len(sugerencias),
+                    "error": error_seguro,
+                },
+                correlacion_id=correlacion_id,
+            )
+            return extraccion
 
     def solicitar_evaluacion(
         self, usuario: UsuarioActual, datos: dict[str, object]

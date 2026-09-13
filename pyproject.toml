@@ -24,6 +24,7 @@ dependencies = [
     "langchain-openai>=0.1.0,<0.4.0",
     "langgraph>=0.2.0,<0.3.0",
     "jinja2>=3.1.4,<4.0.0",
+    "pypdf>=4.3.0,<7.0.0",
 ]
 
 [project.scripts]
@@ -34,7 +35,7 @@ talentia-worker = "talentia.platform.jobs.worker:ejecutar"
 # Orquestación de grafo. TalentIA funciona sin esto: cae al motor nativo incluido.
 graph = ["langgraph>=0.2.0,<0.3.0", "langchain-core>=0.3.85,<1.0.0"]
 # Extracción de texto de documentos reales.
-documents = ["pypdf>=4.3.0", "python-docx>=1.1.0"]
+documents = ["python-docx>=1.1.0"]
 # Generación de los PDF ficticios de laboratorio.
 fixtures = ["reportlab>=4.2.0"]
 # Integración con Gmail API.

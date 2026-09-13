@@ -34,6 +34,30 @@ def _buscar_linea(documento_id: str, texto: str, patron: str, campo: str) -> Cam
     return CampoExtraido(campo, valor, 0.75, fuente)
 
 
+def _buscar_linea_con_fuente(
+    documento_id: str,
+    texto_sanitizado: str,
+    paginas_originales: tuple[tuple[int, str], ...],
+    patron: str,
+    campo: str,
+) -> CampoExtraido:
+    coincidencia = re.search(patron, texto_sanitizado, re.I | re.M)
+    if not coincidencia:
+        return CampoExtraido(campo, None, 0.0, None)
+    valor = coincidencia.group(1).strip()
+    for pagina, original in paginas_originales:
+        ubicada = re.search(re.escape(valor), original, re.I)
+        if ubicada:
+            inicio, fin = ubicada.span()
+            return CampoExtraido(
+                campo,
+                valor,
+                0.75,
+                ReferenciaFuente(documento_id, pagina, inicio, fin, original[inicio:fin]),
+            )
+    return CampoExtraido(campo, valor, 0.5, None)
+
+
 def extraer_cv(documento_id: str, texto_original: str) -> ResultadoLectura:
     limpio = sanitizar(texto_original)
     campos = (
@@ -58,3 +82,21 @@ def extraer_cv(documento_id: str, texto_original: str) -> ResultadoLectura:
         ),
     )
     return ResultadoLectura(limpio, campos, any(campo.valor is None for campo in campos))
+
+
+def extraer_cv_paginas(documento_id: str, paginas: tuple[tuple[int, str], ...]) -> ResultadoLectura:
+    originales = tuple((numero, texto) for numero, texto in paginas if texto.strip())
+    texto_original = "\n".join(texto for _, texto in originales)
+    limpio = sanitizar(texto_original)
+    patrones = (
+        (r"(?:skills|habilidades)\s*:\s*(.+)", "skills"),
+        (r"(?:experiencia|experience)\s*:\s*(.+)", "experiencia"),
+        (r"(?:educacion|education)\s*:\s*(.+)", "educacion"),
+        (r"(?:empresa reciente|ultima empresa)\s*:\s*(.+)", "empresa_reciente"),
+    )
+    campos = tuple(
+        _buscar_linea_con_fuente(documento_id, limpio.texto, originales, patron, campo)
+        for patron, campo in patrones
+    )
+    requiere_revision = any(campo.valor is None or campo.fuente is None for campo in campos)
+    return ResultadoLectura(limpio, campos, requiere_revision)
