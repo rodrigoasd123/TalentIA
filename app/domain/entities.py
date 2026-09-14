@@ -235,8 +235,10 @@ class Candidate(Entity):
         if self.birth_date is None:
             return self.reported_age
         today = date.today()
-        return today.year - self.birth_date.year - (
-            (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+        return (
+            today.year
+            - self.birth_date.year
+            - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
         )
 
     @property
@@ -481,6 +483,8 @@ class WorkflowRun(Entity):
     started_at: datetime = Field(default_factory=_now)
     finished_at: datetime | None = None
     node_timings: dict[str, float] = Field(default_factory=dict)
+    node_runs: list[dict[str, Any]] = Field(default_factory=list)
+    mlflow_run_id: str = ""
     token_usage: dict[str, Any] = Field(default_factory=dict)
     cost_usd: float = 0.0
     error: str = ""
@@ -508,8 +512,23 @@ class NodeRun(BaseModel):
 
 
 __all__ = [
-    "Application", "AuditEvent", "BiasAuditResult", "Candidate", "DimensionScore",
-    "Education", "EmailMessage", "EmailTemplate", "Entity", "Evaluation",
-    "HumanReviewItem", "Job", "JobRequirements", "NodeRun", "ResumeDocument",
-    "ResumeExtraction", "User", "WorkExperience", "WorkflowRun",
+    "Application",
+    "AuditEvent",
+    "BiasAuditResult",
+    "Candidate",
+    "DimensionScore",
+    "Education",
+    "EmailMessage",
+    "EmailTemplate",
+    "Entity",
+    "Evaluation",
+    "HumanReviewItem",
+    "Job",
+    "JobRequirements",
+    "NodeRun",
+    "ResumeDocument",
+    "ResumeExtraction",
+    "User",
+    "WorkExperience",
+    "WorkflowRun",
 ]

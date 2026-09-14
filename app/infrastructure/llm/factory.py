@@ -32,9 +32,10 @@ def build_llm(
     model: str = DEFAULT_MODEL,
     base_url: str = "",
     timeout_seconds: int = 60,
+    adapter_type: str | None = None,
 ) -> LLMPort:
     """Devuelve el adaptador correspondiente al proveedor indicado."""
-    normalized = (provider or "mock").strip().lower()
+    normalized = (adapter_type or provider or "mock").strip().lower()
 
     if normalized == "openai":
         if not api_key:
@@ -53,7 +54,7 @@ def build_llm(
             GeminiAdapter(api_key=api_key, model=model, default_timeout=timeout_seconds)
         )
 
-    if normalized == "genai_lab":
+    if normalized in {"genai_lab", "openai_compatible"}:
         if not api_key or not base_url:
             logger.warning("Se solicitó GenAI Lab sin URL base o API key; se usa el simulador.")
             return MockLLMAdapter()
@@ -63,6 +64,8 @@ def build_llm(
                 model=model,
                 base_url=base_url,
                 default_timeout=timeout_seconds,
+                provider_name=provider,
+                allow_unlisted_models=normalized == "openai_compatible" and provider != "genai_lab",
             )
         )
 
@@ -81,11 +84,26 @@ def build_llm_from_settings(store) -> LLMPort:
         api_key=config["api_key"],
         model=config["model"],
         base_url=config["base_url"],
+        adapter_type=str(config.get("adapter_type") or config["provider"]),
     )
 
 
 def build_llm_for_model(store, model: str) -> LLMPort:
     """Construye el proveedor y toma la clave interna según el modelo."""
+    from app.infrastructure.llm.catalog_store import AIModelCatalogStore
+
+    try:
+        resolved = AIModelCatalogStore(store._session).resolve(model)
+    except Exception:
+        resolved = None
+    if resolved is not None:
+        return build_llm(
+            str(resolved["provider"]),
+            adapter_type=str(resolved["adapter_type"]),
+            api_key=str(resolved["api_key"]),
+            model=str(resolved["model"]),
+            base_url=str(resolved["base_url"]),
+        )
     provider = provider_for_model(model)
     legacy_key = store.get("llm.api_key", "")
     if provider == "gemini":

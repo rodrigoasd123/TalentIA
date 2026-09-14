@@ -64,7 +64,7 @@ class SettingsUpdateRequest(BaseModel):
 
 class CredentialTestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    provider: Literal["genai_lab", "gemini", "openai", "mock"] = "genai_lab"
+    provider: str = Field(default="genai_lab", min_length=2, max_length=64)
     api_key: str = ""
     model: str = "gemini-2.5-flash"
     base_url: str = ""
@@ -80,6 +80,45 @@ class ModelBenchmarkRequest(BaseModel):
     models: list[str] = Field(min_length=1, max_length=5)
     baseline_model: str = ""
     confirmed: bool = False
+
+
+class AIProviderCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider_id: str = Field(min_length=2, max_length=64)
+    display_name: str = Field(min_length=2, max_length=120)
+    base_url: str = Field(min_length=8, max_length=500)
+
+
+class AIProviderUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    display_name: str | None = Field(default=None, min_length=2, max_length=120)
+    base_url: str | None = Field(default=None, min_length=8, max_length=500)
+    is_enabled: bool | None = None
+
+
+class AIProviderCredentialRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    credential: str = Field(min_length=1, max_length=4096)
+
+
+class AIModelCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model_id: str = Field(min_length=1, max_length=160)
+    display_name: str = Field(default="", max_length=160)
+    capabilities: list[str] = Field(default_factory=lambda: ["generation"])
+    input_price_per_million: float | None = Field(default=None, ge=0)
+    output_price_per_million: float | None = Field(default=None, ge=0)
+
+
+class AIModelUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    display_name: str | None = Field(default=None, max_length=160)
+    is_enabled: bool | None = None
+    input_price_per_million: float | None = Field(default=None, ge=0)
+    output_price_per_million: float | None = Field(default=None, ge=0)
 
 
 class JobSummary(BaseModel):
@@ -362,10 +401,15 @@ class ImportCancelRequest(BaseModel):
 
 
 __all__ = [
+    "AIModelCreateRequest",
+    "AIModelUpdateRequest",
+    "AIProviderCreateRequest",
+    "AIProviderCredentialRequest",
+    "AIProviderUpdateRequest",
     "AgentHealthResponse",
+    "CandidateIdentityCheckRequest",
     "CredentialTestRequest",
     "CredentialTestResponse",
-    "CandidateIdentityCheckRequest",
     "DimensionOut",
     "ErrorDetail",
     "ErrorResponse",

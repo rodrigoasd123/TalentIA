@@ -24,8 +24,6 @@ class OpenAICompatibleAdapter:
     llegar sin transformaciones.
     """
 
-    provider = "genai_lab"
-
     def __init__(
         self,
         *,
@@ -34,11 +32,15 @@ class OpenAICompatibleAdapter:
         base_url: str = DEFAULT_GENAI_LAB_BASE_URL,
         default_timeout: int = 90,
         verify_ssl: bool | None = None,
+        provider_name: str = "genai_lab",
+        allow_unlisted_models: bool = False,
     ) -> None:
         self._api_key = (api_key or "").strip()
         self._model = (model or GENAI_LAB_CHAT_MODELS[0]).strip()
         self._base_url = (base_url or DEFAULT_GENAI_LAB_BASE_URL).strip().rstrip("/")
         self._default_timeout = default_timeout
+        self.provider = provider_name
+        self._allow_unlisted_models = allow_unlisted_models
         self._verify_ssl = (
             verify_ssl
             if verify_ssl is not None
@@ -86,7 +88,7 @@ class OpenAICompatibleAdapter:
                 "Falta una API key o la URL base de GenAI Lab no es válida. "
                 "La URL debe comenzar por https:// (o http:// para un gateway local)."
             )
-        if self._model not in GENAI_LAB_CHAT_MODELS:
+        if not self._allow_unlisted_models and self._model not in GENAI_LAB_CHAT_MODELS:
             raise LLMError(
                 f"El modelo «{self._model}» no está habilitado para generación de texto."
             )
@@ -97,17 +99,11 @@ class OpenAICompatibleAdapter:
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "Return only one valid json object. "
-                        f"{system_instruction}"
-                    ),
+                    "content": (f"Return only one valid json object. {system_instruction}"),
                 },
                 {
                     "role": "user",
-                    "content": (
-                        "Return the result as a valid json object. "
-                        f"{user_content}"
-                    ),
+                    "content": (f"Return the result as a valid json object. {user_content}"),
                 },
             ],
             "response_format": {"type": "json_object"},
@@ -122,9 +118,7 @@ class OpenAICompatibleAdapter:
             payload["max_tokens"] = max_output_tokens
         timeout = timeout_seconds or self._default_timeout
         try:
-            with httpx.Client(
-                timeout=timeout, verify=self._verify_ssl, trust_env=False
-            ) as client:
+            with httpx.Client(timeout=timeout, verify=self._verify_ssl, trust_env=False) as client:
                 response = client.post(
                     self._endpoint("chat/completions"),
                     headers=self._headers(),
@@ -146,25 +140,23 @@ class OpenAICompatibleAdapter:
     def list_models(self) -> list[str]:
         """Devuelve el catálogo permitido, intersectado con el gateway si responde."""
         if not self.is_configured:
-            return list(GENAI_LAB_CHAT_MODELS)
+            return [self._model] if self._allow_unlisted_models else list(GENAI_LAB_CHAT_MODELS)
         try:
-            with httpx.Client(
-                timeout=20, verify=self._verify_ssl, trust_env=False
-            ) as client:
+            with httpx.Client(timeout=20, verify=self._verify_ssl, trust_env=False) as client:
                 response = client.get(self._endpoint("models"), headers=self._headers())
             if response.status_code != 200:
-                return list(GENAI_LAB_CHAT_MODELS)
-            available = {
-                str(item.get("id", "")) for item in response.json().get("data", [])
-            }
+                return [self._model] if self._allow_unlisted_models else list(GENAI_LAB_CHAT_MODELS)
+            available = {str(item.get("id", "")) for item in response.json().get("data", [])}
             selected = [
                 model
                 for model in GENAI_LAB_CHAT_MODELS
                 if model in available or gateway_model_id(model) in available
             ]
+            if self._allow_unlisted_models:
+                return sorted(available) or [self._model]
             return selected or list(GENAI_LAB_CHAT_MODELS)
         except (httpx.HTTPError, ValueError, TypeError):
-            return list(GENAI_LAB_CHAT_MODELS)
+            return [self._model] if self._allow_unlisted_models else list(GENAI_LAB_CHAT_MODELS)
 
     def verify_credentials(self) -> tuple[bool, str]:
         if not self._valid_base_url():
@@ -176,9 +168,7 @@ class OpenAICompatibleAdapter:
         if not self._api_key:
             return False, "No se ha introducido ninguna API key."
         try:
-            with httpx.Client(
-                timeout=20, verify=self._verify_ssl, trust_env=False
-            ) as client:
+            with httpx.Client(timeout=20, verify=self._verify_ssl, trust_env=False) as client:
                 response = client.get(self._endpoint("models"), headers=self._headers())
         except httpx.HTTPError as exc:
             return False, f"No se pudo conectar con GenAI Lab: {type(exc).__name__}"
@@ -192,9 +182,9 @@ class OpenAICompatibleAdapter:
     def _describe_error(response: httpx.Response) -> str:
         try:
             detail = response.json().get("error", {})
-            message = str(
-                detail.get("message", detail) if isinstance(detail, dict) else detail
-            )[:300]
+            message = str(detail.get("message", detail) if isinstance(detail, dict) else detail)[
+                :300
+            ]
         except (json.JSONDecodeError, ValueError):
             message = ""
         hints = {
@@ -222,9 +212,7 @@ class OpenAICompatibleAdapter:
         usage = data.get("usage") or {}
         return LLMResponse(
             text=str(content),
-            prompt_tokens=int(
-                usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0
-            ),
+            prompt_tokens=int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0),
             completion_tokens=int(
                 usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0
             ),

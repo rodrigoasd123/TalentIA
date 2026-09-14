@@ -174,18 +174,18 @@ class MlflowLLMTracker:
             "usage": usage,
         }
 
-    def record_benchmark_summary(self, summary: dict[str, Any]) -> None:
+    def record_benchmark_summary(self, summary: dict[str, Any]) -> str:
         """Guarda calidad y eficiencia agregadas sin contenido de los casos."""
         settings = get_settings()
         if not settings.mlflow_enabled:
-            return
+            return ""
         try:
             import mlflow
 
             with self._lock:
                 mlflow.set_tracking_uri(settings.resolved_mlflow_tracking_uri)
                 mlflow.set_experiment("TalentIA-Benchmark")
-                with mlflow.start_run(run_name=str(summary["model"])):
+                with mlflow.start_run(run_name=str(summary["model"])) as run:
                     mlflow.log_params(
                         {
                             "model": summary["model"],
@@ -194,17 +194,90 @@ class MlflowLLMTracker:
                             "suite_hash": summary.get("suite_hash", "unknown"),
                         }
                     )
-                    mlflow.log_metrics(
-                        {
-                            "quality_score": summary["quality"],
-                            "success_rate": summary["success_rate"],
-                            "total_tokens": summary["total_tokens"],
-                            "avg_latency_seconds": summary["avg_latency_seconds"],
-                        }
-                    )
+                    metrics = {
+                        "quality_score": summary["quality"],
+                        "success_rate": summary["success_rate"],
+                        "total_tokens": summary["total_tokens"],
+                        "prompt_tokens": summary.get("prompt_tokens", 0),
+                        "completion_tokens": summary.get("completion_tokens", 0),
+                        "avg_latency_seconds": summary["avg_latency_seconds"],
+                        "p95_latency_seconds": summary.get("p95_latency_seconds", 0),
+                    }
+                    if summary.get("estimated_cost_usd") is not None:
+                        metrics["estimated_cost_usd"] = summary["estimated_cost_usd"]
+                    mlflow.log_metrics(metrics)
                     mlflow.set_tag("component", "model-benchmark")
+                    return str(run.info.run_id)
         except Exception as exc:  # pragma: no cover
             logger.warning("No se pudo registrar benchmark", error=type(exc).__name__)
+        return ""
+
+    def record_workflow_trace(self, run: Any, *, provider: str, model: str) -> str:
+        """Registra un workflow y sus nodos como runs padre/hijo metadata-only."""
+        settings = get_settings()
+        if not settings.mlflow_enabled:
+            return ""
+        try:
+            import mlflow
+
+            with self._lock:
+                mlflow.set_tracking_uri(settings.resolved_mlflow_tracking_uri)
+                mlflow.set_experiment(settings.mlflow_experiment_name)
+                with mlflow.start_run(run_name=f"workflow:{run.graph_name}") as parent:
+                    mlflow.log_params(
+                        {
+                            "workflow_run_id": run.id,
+                            "trace_id": run.trace_id,
+                            "graph": run.graph_name,
+                            "agent_version": run.agent_version,
+                            "provider": provider,
+                            "model": model,
+                            "status": run.status.value,
+                        }
+                    )
+                    usage = run.token_usage or {}
+                    mlflow.log_metrics(
+                        {
+                            "duration_seconds": run.duration_seconds,
+                            "prompt_tokens": int(usage.get("prompt_tokens", 0)),
+                            "completion_tokens": int(usage.get("completion_tokens", 0)),
+                            "total_tokens": int(usage.get("total_tokens", 0)),
+                            "node_count": len(run.node_runs),
+                        }
+                    )
+                    mlflow.set_tags({"component": "workflow", "privacy": "metadata-only"})
+                    for node in run.node_runs:
+                        with mlflow.start_run(run_name=f"node:{node['node']}", nested=True):
+                            mlflow.log_params(
+                                {
+                                    "workflow_run_id": run.id,
+                                    "node": node["node"],
+                                    "node_version": node.get("version", ""),
+                                    "sequence": node.get("sequence", 0),
+                                    "status": node.get("status", "unknown"),
+                                    "attempts": node.get("attempts", 1),
+                                    "deterministic": node.get("deterministic", True),
+                                }
+                            )
+                            mlflow.log_metrics(
+                                {
+                                    "duration_seconds": node.get("duration_seconds", 0),
+                                    "prompt_tokens": node.get("prompt_tokens", 0),
+                                    "completion_tokens": node.get("completion_tokens", 0),
+                                    "total_tokens": node.get("total_tokens", 0),
+                                }
+                            )
+                            mlflow.set_tags(
+                                {
+                                    "component": "graph-node",
+                                    "error_type": node.get("error_type", ""),
+                                    "privacy": "metadata-only",
+                                }
+                            )
+                    return str(parent.info.run_id)
+        except Exception as exc:  # pragma: no cover - observabilidad no bloquea negocio
+            logger.warning("No se pudo registrar traza de workflow", error=type(exc).__name__)
+            return ""
 
 
 MLFLOW_TRACKER = MlflowLLMTracker()

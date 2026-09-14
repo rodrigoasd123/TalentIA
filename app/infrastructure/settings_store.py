@@ -315,6 +315,21 @@ class SettingsStore:
 
     def llm_config(self) -> dict[str, Any]:
         model = self.get("llm.model", "gemini-2.5-flash")
+        # El catálogo persistido extiende la configuración sin romper las claves
+        # históricas. La importación local evita un ciclo entre ambos almacenes.
+        from app.infrastructure.llm.catalog_store import AIModelCatalogStore
+
+        try:
+            resolved = AIModelCatalogStore(self._session).resolve(model)
+        except Exception:
+            resolved = None
+        if resolved is not None:
+            return {
+                **resolved,
+                "temperature": self.get_float("llm.temperature", 0.1),
+                "budget_usd": self.get_float("llm.budget_usd_per_job", 5.0),
+                "enable_bias_audit": self.get_bool("llm.enable_bias_audit", True),
+            }
         try:
             provider = provider_for_model(model)
         except ValueError:
@@ -334,6 +349,7 @@ class SettingsStore:
             api_key = ""
         return {
             "provider": provider,
+            "adapter_type": provider,
             "api_key": api_key,
             "base_url": self.get("llm.base_url", DEFAULT_GENAI_LAB_BASE_URL),
             "model": model,

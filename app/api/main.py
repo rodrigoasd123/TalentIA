@@ -16,24 +16,31 @@ Dos decisiones que se ven en el código y conviene señalar:
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import Depends, FastAPI, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.agent import AGENT_NAME, AGENT_VERSION, EvaluationRequest, VeraAgent
-from app.ai.graphs.evaluation_graph import GRAPH_NAME, GRAPH_VERSION
+from app.ai.graphs.evaluation_graph import GRAPH_NAME, GRAPH_VERSION, graph_diagram
 from app.ai.graphs.model_benchmark_graph import run_model_benchmark
 from app.ai.graphs.runner import langgraph_available
 from app.ai.prompts.registry import get_prompt_registry
-from app.api.dependencies import requires, requires_settings_write
+from app.api.dependencies import CurrentUserDep, requires, requires_settings_write
 from app.api.schemas import (
     AgentHealthResponse,
+    AIModelCreateRequest,
+    AIModelUpdateRequest,
+    AIProviderCreateRequest,
+    AIProviderCredentialRequest,
+    AIProviderUpdateRequest,
     CredentialTestRequest,
     CredentialTestResponse,
     DimensionOut,
@@ -50,6 +57,7 @@ from app.api.schemas import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
+from app.application.services.audit_service import AuditService
 from app.application.unit_of_work import UnitOfWork
 from app.core.config import get_settings
 from app.core.exceptions import NotFoundError, ValidationError, VeraError
@@ -57,23 +65,22 @@ from app.core.logging import configure_logging, get_logger, get_trace_id, set_tr
 from app.core.observability import METRICS
 from app.domain.enums import Permission
 from app.domain.value_objects import EmailAddress
+from app.infrastructure.database.models import (
+    EvaluationModel,
+    ModelBenchmarkRunModel,
+    WorkflowRunModel,
+)
 from app.infrastructure.database.session import get_session, init_database
 from app.infrastructure.fixtures_loader import (
     job_brief_markdown,
     load_all_jobs,
     load_all_resumes,
 )
+from app.infrastructure.llm.catalog_store import AIModelCatalogStore
 from app.infrastructure.llm.factory import build_llm_from_settings, describe_provider
 from app.infrastructure.llm.gemini_adapter import GeminiAdapter
-from app.infrastructure.llm.model_catalog import (
-    SELECTABLE_LLM_MODELS,
-    provider_for_model,
-)
 from app.infrastructure.llm.openai_adapter import OpenAIAdapter
-from app.infrastructure.llm.openai_compatible_adapter import (
-    DEFAULT_GENAI_LAB_BASE_URL,
-    OpenAICompatibleAdapter,
-)
+from app.infrastructure.llm.openai_compatible_adapter import OpenAICompatibleAdapter
 from app.infrastructure.observability.mlflow_tracker import MLFLOW_TRACKER
 from app.infrastructure.settings_store import SettingsStore
 
@@ -227,22 +234,189 @@ def llm_observability() -> dict[str, object]:
     return MLFLOW_TRACKER.status()
 
 
+def _workflow_view(session: Session, run: WorkflowRunModel) -> dict[str, object]:
+    evaluation = session.scalar(
+        select(EvaluationModel).where(EvaluationModel.workflow_run_id == run.id)
+    )
+    model = evaluation.model_name if evaluation else ""
+    provider = "unknown"
+    if model:
+        try:
+            provider = str(AIModelCatalogStore(session).resolve(model)["provider"])
+        except ValidationError:
+            pass
+    node_runs = list(run.node_runs or [])
+    if not node_runs:
+        node_runs = [
+            {
+                "sequence": index,
+                "node": name,
+                "status": "completed",
+                "duration_seconds": duration,
+                "attempts": 1,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            }
+            for index, (name, duration) in enumerate((run.node_timings or {}).items(), start=1)
+        ]
+    return {
+        "id": run.id,
+        "trace_id": run.trace_id,
+        "application_id": run.application_id,
+        "graph": run.graph_name,
+        "graph_version": GRAPH_VERSION if run.graph_name == GRAPH_NAME else "",
+        "status": run.status,
+        "provider": provider,
+        "model": model,
+        "started_at": run.started_at.isoformat(),
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "duration_seconds": (
+            round((run.finished_at - run.started_at).total_seconds(), 4)
+            if run.finished_at
+            else None
+        ),
+        "token_usage": dict(run.token_usage or {}),
+        "cost_usd": run.cost_usd,
+        "node_runs": node_runs,
+        "mlflow_run_id": run.mlflow_run_id,
+    }
+
+
+@app.get(
+    f"{API_PREFIX}/observability/processes",
+    tags=["observabilidad"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
+def list_observed_processes(
+    session: SessionDep,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    status_filter: str = Query(default="", alias="status"),
+) -> dict[str, object]:
+    statement = select(WorkflowRunModel).order_by(WorkflowRunModel.started_at.desc())
+    if status_filter:
+        statement = statement.where(WorkflowRunModel.status == status_filter)
+    rows = list(session.scalars(statement.offset(offset).limit(limit + 1)))
+    return {
+        "items": [_workflow_view(session, row) for row in rows[:limit]],
+        "offset": offset,
+        "limit": limit,
+        "has_more": len(rows) > limit,
+        "mlflow": MLFLOW_TRACKER.status(),
+    }
+
+
+@app.get(
+    f"{API_PREFIX}/observability/processes/{{run_id}}",
+    tags=["observabilidad"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
+def observed_process_detail(run_id: str, session: SessionDep) -> dict[str, object]:
+    run = session.get(WorkflowRunModel, run_id)
+    if run is None:
+        raise NotFoundError("Proceso observado no encontrado.")
+    return {
+        **_workflow_view(session, run),
+        "topology": graph_diagram() if run.graph_name == GRAPH_NAME else "",
+        "privacy": "Solo metadatos; no se incluyen prompts, respuestas, CV ni PII.",
+    }
+
+
 @app.post(
     f"{API_PREFIX}/benchmarks/models",
     tags=["observabilidad"],
     dependencies=[Depends(requires_settings_write)],
 )
-def benchmark_models(payload: ModelBenchmarkRequest, store: StoreDep) -> dict[str, object]:
+def benchmark_models(
+    payload: ModelBenchmarkRequest,
+    store: StoreDep,
+    session: SessionDep,
+    user: CurrentUserDep,
+) -> dict[str, object]:
     """Compara modelos con la misma suite sintética y conserva las llamadas en MLflow."""
     if not payload.confirmed:
         raise ValidationError("Confirma explícitamente el consumo antes de ejecutar.")
     models = payload.models
-    invalid = sorted(set(models) - set(SELECTABLE_LLM_MODELS))
+    catalog = AIModelCatalogStore(session)
+    invalid = sorted(set(models) - set(catalog.selectable_models()))
     if invalid:
         raise ValidationError(f"Modelos fuera del catálogo: {', '.join(invalid)}")
     if payload.baseline_model and payload.baseline_model not in models:
         raise ValidationError("El modelo base debe formar parte de los modelos seleccionados.")
-    return run_model_benchmark(store, models, baseline_model=payload.baseline_model or models[0])
+    result = run_model_benchmark(store, models, baseline_model=payload.baseline_model or models[0])
+    benchmark_id = uuid.uuid4().hex
+    mlflow_run_id = next(
+        (
+            str(row.get("mlflow_run_id") or "")
+            for row in result.get("ranking", [])
+            if row.get("mlflow_run_id")
+        ),
+        "",
+    )
+    session.add(
+        ModelBenchmarkRunModel(
+            id=benchmark_id,
+            started_by=user.user_id,
+            suite_version=str(result["suite_version"]),
+            suite_hash=str(result["suite_hash"]),
+            graph_name=str(result["graph"]),
+            graph_version=str(result["version"]),
+            baseline_model=str(result["baseline_model"]),
+            ranking=list(result["ranking"]),
+            results=list(result["results"]),
+            mlflow_run_id=mlflow_run_id,
+        )
+    )
+    session.flush()
+    AuditService(UnitOfWork(session).audit).record(
+        action="ai.benchmark.executed",
+        actor=user.as_actor(),
+        resource_type="model_benchmark",
+        resource_id=benchmark_id,
+        new_state={
+            "models": models,
+            "baseline_model": str(result["baseline_model"]),
+            "suite_version": str(result["suite_version"]),
+            "mlflow_run_id": mlflow_run_id,
+        },
+    )
+    return {**result, "id": benchmark_id, "started_by": user.user_id}
+
+
+@app.get(
+    f"{API_PREFIX}/benchmarks/models",
+    tags=["observabilidad"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
+def list_model_benchmarks(
+    session: SessionDep,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, object]:
+    statement = select(ModelBenchmarkRunModel).order_by(ModelBenchmarkRunModel.created_at.desc())
+    rows = list(session.scalars(statement.offset(offset).limit(limit + 1)))
+    return {
+        "items": [
+            {
+                "id": row.id,
+                "started_by": row.started_by,
+                "created_at": row.created_at.isoformat(),
+                "suite_version": row.suite_version,
+                "suite_hash": row.suite_hash,
+                "graph": row.graph_name,
+                "graph_version": row.graph_version,
+                "baseline_model": row.baseline_model,
+                "status": row.status,
+                "ranking": list(row.ranking or []),
+                "mlflow_run_id": row.mlflow_run_id,
+            }
+            for row in rows[:limit]
+        ],
+        "offset": offset,
+        "limit": limit,
+        "has_more": len(rows) > limit,
+    }
 
 
 # ── Configuración ────────────────────────────────────────────────────────────
@@ -275,7 +449,10 @@ def read_settings(store: StoreDep) -> SettingsResponse:
     dependencies=[Depends(requires_settings_write)],
 )
 def update_settings(
-    payload: SettingsUpdateRequest, store: StoreDep, session: SessionDep
+    payload: SettingsUpdateRequest,
+    store: StoreDep,
+    session: SessionDep,
+    user: CurrentUserDep,
 ) -> SettingsResponse:
     """Actualiza claves de configuración.
 
@@ -285,12 +462,21 @@ def update_settings(
     model = payload.values.get("llm.model")
     values = dict(payload.values)
     if model:
-        if model not in SELECTABLE_LLM_MODELS:
+        catalog = AIModelCatalogStore(session)
+        if model not in catalog.selectable_models():
             raise ValidationError(
                 f"El modelo «{model}» no pertenece al catálogo de generación vigente."
             )
-        values["llm.provider"] = provider_for_model(model)
+        values["llm.provider"] = str(catalog.resolve(model)["provider"])
     applied = store.set_many(values, updated_by=payload.updated_by)
+    if model:
+        AuditService(UnitOfWork(session).audit).record(
+            action="ai.model.activated",
+            actor=user.as_actor(),
+            resource_type="ai_model",
+            resource_id=model,
+            new_state={"model": model, "provider": values.get("llm.provider", "")},
+        )
     session.commit()
     logger.info("Configuración modificada", keys=applied, updated_by=payload.updated_by)
     return read_settings(store)
@@ -302,40 +488,53 @@ def update_settings(
     tags=["configuración"],
     dependencies=[Depends(requires_settings_write)],
 )
-def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> CredentialTestResponse:
+def test_credentials(
+    payload: CredentialTestRequest,
+    store: StoreDep,
+    session: SessionDep,
+    user: CurrentUserDep,
+) -> CredentialTestResponse:
     """Verifica una API key sin llegar a gastar una generación completa.
 
     Si no se envía clave, se usa la ya guardada: así el panel puede comprobar la
     credencial existente sin obligar a reescribirla.
     """
-    try:
-        provider = provider_for_model(payload.model)
-    except ValueError as exc:
-        raise ValidationError(str(exc)) from exc
-    if provider == "mock":
+    catalog = AIModelCatalogStore(session)
+    resolved = catalog.resolve(payload.model)
+    provider = str(resolved["provider"])
+    if payload.provider and payload.provider != provider:
+        raise ValidationError("El modelo no pertenece al proveedor indicado.")
+    adapter_type = str(resolved["adapter_type"])
+    if adapter_type == "mock":
+        AuditService(UnitOfWork(session).audit).record(
+            action="ai.provider.credential_tested",
+            actor=user.as_actor(),
+            resource_type="ai_provider",
+            resource_id=provider,
+            new_state={"ok": True, "model": payload.model, "simulated": True},
+        )
         return CredentialTestResponse(
             ok=True,
             message="Adaptador simulado activo. No requiere credenciales.",
             available_models=["mock"],
         )
 
-    stored_key_name = {
-        "genai_lab": "llm.genai_lab_api_key",
-        "gemini": "llm.gemini_api_key",
-        "openai": "llm.openai_api_key",
-    }[provider]
-    api_key = payload.api_key or store.get(stored_key_name, "")
-    if not api_key and provider == "genai_lab":
-        api_key = store.get("llm.api_key", "")
-    if provider == "genai_lab":
-        base_url = payload.base_url or store.get("llm.base_url", DEFAULT_GENAI_LAB_BASE_URL)
-        adapter = OpenAICompatibleAdapter(api_key=api_key, model=payload.model, base_url=base_url)
-    elif provider == "gemini":
+    api_key = payload.api_key or str(resolved["api_key"])
+    if adapter_type in {"genai_lab", "openai_compatible"}:
+        base_url = payload.base_url or str(resolved["base_url"])
+        adapter = OpenAICompatibleAdapter(
+            api_key=api_key,
+            model=payload.model,
+            base_url=base_url,
+            provider_name=provider,
+            allow_unlisted_models=provider != "genai_lab",
+        )
+    elif adapter_type == "gemini":
         adapter = GeminiAdapter(api_key=api_key, model=payload.model)
     else:
         adapter = OpenAIAdapter(api_key=api_key, model=payload.model)
     ok, message = adapter.verify_credentials()
-    if ok and provider in {"genai_lab", "gemini"}:
+    if ok and adapter_type in {"genai_lab", "openai_compatible", "gemini"}:
         try:
             probe = adapter.generate_json(
                 system_instruction="Responde con un objeto json válido.",
@@ -351,6 +550,15 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
             message = (
                 f"La clave es válida, pero el modelo seleccionado no pudo generar: {str(exc)[:300]}"
             )
+    if ok:
+        catalog.mark_verified(provider)
+    AuditService(UnitOfWork(session).audit).record(
+        action="ai.provider.credential_tested",
+        actor=user.as_actor(),
+        resource_type="ai_provider",
+        resource_id=provider,
+        new_state={"ok": ok, "model": payload.model, "simulated": False},
+    )
     return CredentialTestResponse(
         ok=ok, message=message, available_models=adapter.list_models() if ok else []
     )
@@ -361,9 +569,153 @@ def test_credentials(payload: CredentialTestRequest, store: StoreDep) -> Credent
     tags=["configuración"],
     dependencies=[Depends(requires(Permission.SETTINGS_READ))],
 )
-def list_models(store: StoreDep) -> dict[str, list[str]]:
+def list_models(session: SessionDep) -> dict[str, list[str]]:
     """Catálogo único; el proveedor y la credencial se resuelven internamente."""
-    return {"models": list(SELECTABLE_LLM_MODELS)}
+    return {"models": AIModelCatalogStore(session).selectable_models()}
+
+
+@app.get(
+    f"{API_PREFIX}/config/providers",
+    tags=["configuración"],
+    dependencies=[Depends(requires(Permission.SETTINGS_READ))],
+)
+def list_providers(session: SessionDep) -> dict[str, object]:
+    return {"providers": AIModelCatalogStore(session).list_public()}
+
+
+@app.post(
+    f"{API_PREFIX}/config/providers",
+    tags=["configuración"],
+    dependencies=[Depends(requires_settings_write)],
+)
+def create_provider(
+    payload: AIProviderCreateRequest, session: SessionDep, user: CurrentUserDep
+) -> dict[str, object]:
+    created = AIModelCatalogStore(session).create_provider(
+        provider_id=payload.provider_id,
+        display_name=payload.display_name,
+        base_url=payload.base_url,
+        created_by=user.user_id,
+    )
+    AuditService(UnitOfWork(session).audit).record(
+        action="ai.provider.created",
+        actor=user.as_actor(),
+        resource_type="ai_provider",
+        resource_id=str(created["id"]),
+        new_state=created,
+    )
+    return created
+
+
+@app.patch(
+    f"{API_PREFIX}/config/providers/{{provider_id}}",
+    tags=["configuración"],
+    dependencies=[Depends(requires_settings_write)],
+)
+def update_provider(
+    provider_id: str,
+    payload: AIProviderUpdateRequest,
+    session: SessionDep,
+    user: CurrentUserDep,
+) -> dict[str, object]:
+    updated = AIModelCatalogStore(session).update_provider(
+        provider_id,
+        expected_version=payload.expected_version,
+        display_name=payload.display_name,
+        base_url=payload.base_url,
+        is_enabled=payload.is_enabled,
+    )
+    AuditService(UnitOfWork(session).audit).record(
+        action="ai.provider.updated",
+        actor=user.as_actor(),
+        resource_type="ai_provider",
+        resource_id=provider_id,
+        new_state=updated,
+    )
+    return updated
+
+
+@app.post(
+    f"{API_PREFIX}/config/providers/{{provider_id}}/credential",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["configuración"],
+    dependencies=[Depends(requires_settings_write)],
+)
+def set_provider_credential(
+    provider_id: str,
+    payload: AIProviderCredentialRequest,
+    session: SessionDep,
+    user: CurrentUserDep,
+) -> None:
+    AIModelCatalogStore(session).set_credential(
+        provider_id, payload.credential, expected_version=payload.expected_version
+    )
+    AuditService(UnitOfWork(session).audit).record(
+        action="ai.provider.credential_updated",
+        actor=user.as_actor(),
+        resource_type="ai_provider",
+        resource_id=provider_id,
+        new_state={"credential_is_set": True},
+    )
+
+
+@app.post(
+    f"{API_PREFIX}/config/providers/{{provider_id}}/models",
+    tags=["configuración"],
+    dependencies=[Depends(requires_settings_write)],
+)
+def create_provider_model(
+    provider_id: str,
+    payload: AIModelCreateRequest,
+    session: SessionDep,
+    user: CurrentUserDep,
+) -> dict[str, object]:
+    created = AIModelCatalogStore(session).add_model(
+        provider_id,
+        model_id=payload.model_id,
+        display_name=payload.display_name,
+        capabilities=payload.capabilities,
+        input_price=payload.input_price_per_million,
+        output_price=payload.output_price_per_million,
+        created_by=user.user_id,
+    )
+    AuditService(UnitOfWork(session).audit).record(
+        action="ai.model.created",
+        actor=user.as_actor(),
+        resource_type="ai_model",
+        resource_id=str(created["id"]),
+        new_state=created,
+    )
+    return created
+
+
+@app.patch(
+    f"{API_PREFIX}/config/models/{{model_id}}",
+    tags=["configuración"],
+    dependencies=[Depends(requires_settings_write)],
+)
+def update_provider_model(
+    model_id: str,
+    payload: AIModelUpdateRequest,
+    session: SessionDep,
+    user: CurrentUserDep,
+) -> dict[str, object]:
+    updated = AIModelCatalogStore(session).update_model(
+        model_id,
+        expected_version=payload.expected_version,
+        display_name=payload.display_name,
+        is_enabled=payload.is_enabled,
+        input_price=payload.input_price_per_million,
+        output_price=payload.output_price_per_million,
+    )
+    AuditService(UnitOfWork(session).audit).record(
+        action="ai.model.updated",
+        actor=user.as_actor(),
+        resource_type="ai_model",
+        resource_id=str(updated["id"]),
+        new_state=updated,
+    )
+    return updated
 
 
 # ── Agente ───────────────────────────────────────────────────────────────────

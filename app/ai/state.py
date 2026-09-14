@@ -13,7 +13,7 @@ que hable con el modelo tiene permiso para leerlo.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, TypedDict
 
 from app.ai.guardrails.bias_detector import BiasReport
@@ -116,6 +116,7 @@ class WorkflowState(TypedDict, total=False):
     # ── Observabilidad ───────────────────────────────────────────────────────
     node_timings: dict[str, float]
     node_sequence: list[str]
+    node_runs: list[dict[str, Any]]
     token_usage: TokenUsage
     budget_exhausted: bool
     errors: list[NodeError]
@@ -180,6 +181,7 @@ def initial_state(
         proposed_actions=[],
         node_timings={},
         node_sequence=[],
+        node_runs=[],
         token_usage=TokenUsage(),
         budget_exhausted=False,
         errors=[],
@@ -217,6 +219,7 @@ def state_summary(state: WorkflowState) -> dict[str, Any]:
         "workflow_run_id": state.get("workflow_run_id", ""),
         "application_id": state.get("application_id", ""),
         "nodes_executed": list(state.get("node_sequence", [])),
+        "node_runs": list(state.get("node_runs", [])),
         "injection_detected": state.get("injection_detected", False),
         "injection_severity": state.get("injection_severity", "info"),
         "pii_redactions": state.get("pii_redaction_count", 0),
@@ -241,6 +244,11 @@ def state_summary(state: WorkflowState) -> dict[str, Any]:
 
 
 __all__ = [
-    "NodeError", "WorkflowState", "add_error", "add_proposed_action",
-    "add_review_reason", "initial_state", "state_summary",
+    "NodeError",
+    "WorkflowState",
+    "add_error",
+    "add_proposed_action",
+    "add_review_reason",
+    "initial_state",
+    "state_summary",
 ]

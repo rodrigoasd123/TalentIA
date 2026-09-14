@@ -113,19 +113,56 @@ def _record(state: dict[str, Any]) -> dict[str, Any]:
 
 def _aggregate(state: dict[str, Any]) -> dict[str, Any]:
     rows = [r for r in state["results"] if r["model"] == state["model"]]
+    latencies = sorted(float(r["latency_seconds"]) for r in rows)
+    provider, input_price, output_price = _model_metadata(state["store"], state["model"])
+    prompt_tokens = sum(int(r["prompt_tokens"]) for r in rows)
+    completion_tokens = sum(int(r["completion_tokens"]) for r in rows)
+    estimated_cost = None
+    if input_price is not None and output_price is not None:
+        estimated_cost = round(
+            (prompt_tokens * input_price + completion_tokens * output_price) / 1_000_000,
+            8,
+        )
     summary = {
         "model": state["model"],
-        "provider": provider_for_model(state["model"]),
+        "provider": provider,
         "quality": round(sum(r["quality"] for r in rows) / len(rows), 4),
         "success_rate": round(sum(not r["error"] for r in rows) / len(rows), 4),
+        "errors": sum(bool(r["error"]) for r in rows),
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
         "total_tokens": sum(r["total_tokens"] for r in rows),
         "avg_latency_seconds": round(sum(r["latency_seconds"] for r in rows) / len(rows), 4),
+        "p50_latency_seconds": round(_percentile(latencies, 50), 4),
+        "p95_latency_seconds": round(_percentile(latencies, 95), 4),
+        "estimated_cost_usd": estimated_cost,
         "suite_version": SUITE_VERSION,
         "suite_hash": state["suite_hash"],
     }
+    summary["mlflow_run_id"] = MLFLOW_TRACKER.record_benchmark_summary(summary)
     state.setdefault("summaries", []).append(summary)
-    MLFLOW_TRACKER.record_benchmark_summary(summary)
     return state
+
+
+def _percentile(values: list[float], percentile: int) -> float:
+    if not values:
+        return 0.0
+    index = min(len(values) - 1, int((len(values) - 1) * percentile / 100))
+    return values[index]
+
+
+def _model_metadata(store: Any, model: str) -> tuple[str, float | None, float | None]:
+    try:
+        from app.infrastructure.llm.catalog_store import AIModelCatalogStore
+
+        resolved = AIModelCatalogStore(store._session).resolve(model)
+        return (
+            str(resolved["provider"]),
+            resolved["input_price"],
+            resolved["output_price"],
+        )
+    except Exception:
+        return provider_for_model(model), None, None
 
 
 def _rank(state: dict[str, Any]) -> dict[str, Any]:

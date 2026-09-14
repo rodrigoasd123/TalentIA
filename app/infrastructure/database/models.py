@@ -13,6 +13,7 @@ depender de que la aplicación se acuerde de comprobarla.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import ClassVar
 
 from sqlalchemy import (
     Boolean,
@@ -37,7 +38,7 @@ def utcnow() -> datetime:
 class Base(DeclarativeBase):
     """Base declarativa. ``JSON`` se traduce a JSONB en PostgreSQL."""
 
-    type_annotation_map = {dict: JSON, list: JSON}
+    type_annotation_map: ClassVar[dict[type, type[JSON]]] = {dict: JSON, list: JSON}
 
 
 class TimestampMixin:
@@ -68,6 +69,41 @@ class RuntimeSettingModel(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
     updated_by: Mapped[str] = mapped_column(String(64), default="")
+
+
+class AIProviderConfigModel(Base, TimestampMixin):
+    """Proveedor administrable; la credencial siempre se guarda cifrada."""
+
+    __tablename__ = "ai_providers"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    display_name: Mapped[str] = mapped_column(String(120))
+    adapter_type: Mapped[str] = mapped_column(String(32), default="openai_compatible")
+    base_url: Mapped[str] = mapped_column(String(500), default="")
+    encrypted_credential: Mapped[str] = mapped_column(Text, default="")
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(64), default="system")
+
+
+class AIModelConfigModel(Base, TimestampMixin):
+    """Modelo remoto exacto asociado a un proveedor administrable."""
+
+    __tablename__ = "ai_models"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    provider_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("ai_providers.id", ondelete="RESTRICT"), index=True
+    )
+    model_id: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(160))
+    capabilities: Mapped[list] = mapped_column(JSON, default=list)
+    input_price_per_million: Mapped[float | None] = mapped_column(Float, nullable=True)
+    output_price_per_million: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by: Mapped[str] = mapped_column(String(64), default="system")
 
 
 # ── Identidad ────────────────────────────────────────────────────────────────
@@ -360,6 +396,8 @@ class WorkflowRunModel(Base, TimestampMixin):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     node_timings: Mapped[dict] = mapped_column(JSON, default=dict)
+    node_runs: Mapped[list] = mapped_column(JSON, default=list)
+    mlflow_run_id: Mapped[str] = mapped_column(String(64), default="")
     token_usage: Mapped[dict] = mapped_column(JSON, default=dict)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     error: Mapped[str] = mapped_column(Text, default="")
@@ -449,17 +487,68 @@ class AIUsageLogModel(Base, TimestampMixin):
     success: Mapped[bool] = mapped_column(Boolean, default=True)
     error_message: Mapped[str] = mapped_column(Text, default="")
 
+
+class ModelBenchmarkRunModel(Base, TimestampMixin):
+    """Resumen metadata-only de una comparación gobernada de modelos."""
+
+    __tablename__ = "model_benchmark_runs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    started_by: Mapped[str] = mapped_column(String(64), index=True)
+    suite_version: Mapped[str] = mapped_column(String(64), index=True)
+    suite_hash: Mapped[str] = mapped_column(String(64))
+    graph_name: Mapped[str] = mapped_column(String(64))
+    graph_version: Mapped[str] = mapped_column(String(32))
+    baseline_model: Mapped[str] = mapped_column(String(160), index=True)
+    status: Mapped[str] = mapped_column(String(24), default="completed", index=True)
+    ranking: Mapped[list] = mapped_column(JSON, default=list)
+    results: Mapped[list] = mapped_column(JSON, default=list)
+    mlflow_run_id: Mapped[str] = mapped_column(String(64), default="")
+
+
 ALL_MODELS = (
-    RuntimeSettingModel, UserModel, JobModel, CandidateModel, ResumeModel,
-    ApplicationModel, EvaluationModel, HumanReviewModel, EmailTemplateModel,
-    EmailModel, AuditEventModel, WorkflowRunModel, ImportBatchModel,
-    ImportRowModel, ImportMappingTemplateModel, AIUsageLogModel,
+    RuntimeSettingModel,
+    AIProviderConfigModel,
+    AIModelConfigModel,
+    UserModel,
+    JobModel,
+    CandidateModel,
+    ResumeModel,
+    ApplicationModel,
+    EvaluationModel,
+    HumanReviewModel,
+    EmailTemplateModel,
+    EmailModel,
+    AuditEventModel,
+    WorkflowRunModel,
+    ImportBatchModel,
+    ImportRowModel,
+    ImportMappingTemplateModel,
+    AIUsageLogModel,
+    ModelBenchmarkRunModel,
 )
 
 __all__ = [
-    "ALL_MODELS", "ApplicationModel", "AuditEventModel", "Base", "CandidateModel",
-    "EmailModel", "EmailTemplateModel", "EvaluationModel", "HumanReviewModel",
-    "JobModel", "ResumeModel", "RuntimeSettingModel", "UserModel",
-    "WorkflowRunModel", "ImportBatchModel", "ImportRowModel",
-    "ImportMappingTemplateModel", "AIUsageLogModel", "utcnow",
+    "ALL_MODELS",
+    "AIModelConfigModel",
+    "AIProviderConfigModel",
+    "AIUsageLogModel",
+    "ApplicationModel",
+    "AuditEventModel",
+    "Base",
+    "CandidateModel",
+    "EmailModel",
+    "EmailTemplateModel",
+    "EvaluationModel",
+    "HumanReviewModel",
+    "ImportBatchModel",
+    "ImportMappingTemplateModel",
+    "ImportRowModel",
+    "JobModel",
+    "ModelBenchmarkRunModel",
+    "ResumeModel",
+    "RuntimeSettingModel",
+    "UserModel",
+    "WorkflowRunModel",
+    "utcnow",
 ]

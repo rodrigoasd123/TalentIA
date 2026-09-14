@@ -197,7 +197,7 @@ class SqlCandidateRepository(BaseRepository):
             stmt = stmt.where(CandidateModel.id > cursor)
         return [m.candidate_to_entity(x) for x in self.session.scalars(stmt)]
 
-    def find_potential_duplicates(self, candidate: Candidate) -> list[Candidate]:
+    def find_potential_duplicates(self, candidate: Candidate) -> list[Candidate]:  # noqa: C901
         """Busca coincidencias por correo, teléfono o documento.
 
         Devuelve candidatos, **no fusiona nada**. Fusionar automáticamente dos
@@ -704,6 +704,8 @@ class SqlWorkflowRepository(BaseRepository):
         model.status = run.status.value
         model.finished_at = run.finished_at
         model.node_timings = dict(run.node_timings)
+        model.node_runs = list(run.node_runs)
+        model.mlflow_run_id = run.mlflow_run_id
         model.token_usage = dict(run.token_usage)
         model.cost_usd = run.cost_usd
         model.error = run.error

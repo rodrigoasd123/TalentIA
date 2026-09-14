@@ -51,6 +51,7 @@ class Node(ABC):
     def execute(self, state: WorkflowState) -> WorkflowState:
         """Ejecuta el nodo con cronometraje, reintentos y registro de errores."""
         started = time.perf_counter()
+        usage_before = self._usage_snapshot(state)
         attempt = 0
         last_error: Exception | None = None
 
@@ -58,9 +59,9 @@ class Node(ABC):
             attempt += 1
             try:
                 result = self.run(state)
-                self._record(result, started, attempt, succeeded=True)
+                self._record(result, started, attempt, succeeded=True, usage_before=usage_before)
                 return result
-            except Exception as exc:  # noqa: BLE001 — se reclasifica más abajo
+            except Exception as exc:
                 last_error = exc
                 recoverable = self._is_recoverable(exc)
                 logger.warning(
@@ -86,7 +87,14 @@ class Node(ABC):
             ),
         )
         state = self.on_failure(state, last_error)
-        self._record(state, started, attempt, succeeded=False)
+        self._record(
+            state,
+            started,
+            attempt,
+            succeeded=False,
+            usage_before=usage_before,
+            error_type=type(last_error).__name__,
+        )
         return state
 
     def on_failure(self, state: WorkflowState, error: Exception) -> WorkflowState:
@@ -99,12 +107,35 @@ class Node(ABC):
         return state
 
     def _record(
-        self, state: WorkflowState, started: float, attempt: int, *, succeeded: bool
+        self,
+        state: WorkflowState,
+        started: float,
+        attempt: int,
+        *,
+        succeeded: bool,
+        usage_before: tuple[int, int, int],
+        error_type: str = "",
     ) -> None:
         elapsed = time.perf_counter() - started
         state.setdefault("node_timings", {})[self.spec.name] = round(elapsed, 4)
         sequence = state.setdefault("node_sequence", [])
         sequence.append(self.spec.name if succeeded else f"{self.spec.name}!")
+        usage = self._usage_snapshot(state)
+        state.setdefault("node_runs", []).append(
+            {
+                "sequence": len(sequence),
+                "node": self.spec.name,
+                "version": self.spec.version,
+                "status": "completed" if succeeded else "failed",
+                "attempts": attempt,
+                "duration_seconds": round(elapsed, 4),
+                "deterministic": self.spec.is_deterministic,
+                "prompt_tokens": max(0, usage[0] - usage_before[0]),
+                "completion_tokens": max(0, usage[1] - usage_before[1]),
+                "total_tokens": max(0, usage[2] - usage_before[2]),
+                "error_type": error_type,
+            }
+        )
         logger.info(
             "Nodo ejecutado",
             node=self.spec.name,
@@ -114,6 +145,13 @@ class Node(ABC):
             succeeded=succeeded,
             deterministic=self.spec.is_deterministic,
         )
+
+    @staticmethod
+    def _usage_snapshot(state: WorkflowState) -> tuple[int, int, int]:
+        usage = state.get("token_usage")
+        if usage is None:
+            return (0, 0, 0)
+        return (usage.prompt_tokens, usage.completion_tokens, usage.total_tokens)
 
     @staticmethod
     def _is_recoverable(error: Exception) -> bool:
@@ -144,7 +182,7 @@ class FunctionNode(Node):
     beneficio.
     """
 
-    def __init__(self, spec: NodeSpec, fn) -> None:  # noqa: ANN001
+    def __init__(self, spec: NodeSpec, fn) -> None:
         self.spec = spec
         self._fn = fn
 

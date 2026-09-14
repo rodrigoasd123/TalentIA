@@ -190,8 +190,82 @@ class TalentIAApiClient:
     def list_models(self) -> list[str]:
         return self._request("GET", f"{API_PREFIX}/config/models").get("models", [])
 
+    def list_providers(self) -> list[dict[str, Any]]:
+        return self._request("GET", f"{API_PREFIX}/config/providers").get("providers", [])
+
+    def create_provider(self, provider_id: str, display_name: str, base_url: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{API_PREFIX}/config/providers",
+            json={
+                "provider_id": provider_id,
+                "display_name": display_name,
+                "base_url": base_url,
+            },
+        )
+
+    def update_provider(
+        self, provider_id: str, *, expected_version: int, **changes: Any
+    ) -> dict[str, Any]:
+        return self._request(
+            "PATCH",
+            f"{API_PREFIX}/config/providers/{provider_id}",
+            json={"expected_version": expected_version, **changes},
+        )
+
+    def set_provider_credential(
+        self, provider_id: str, credential: str, *, expected_version: int
+    ) -> None:
+        self._request(
+            "POST",
+            f"{API_PREFIX}/config/providers/{provider_id}/credential",
+            json={"credential": credential, "expected_version": expected_version},
+        )
+
+    def create_provider_model(
+        self,
+        provider_id: str,
+        *,
+        model_id: str,
+        display_name: str,
+        input_price_per_million: float | None,
+        output_price_per_million: float | None,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{API_PREFIX}/config/providers/{provider_id}/models",
+            json={
+                "model_id": model_id,
+                "display_name": display_name,
+                "capabilities": ["generation"],
+                "input_price_per_million": input_price_per_million,
+                "output_price_per_million": output_price_per_million,
+            },
+        )
+
+    def update_provider_model(
+        self, model_row_id: str, *, expected_version: int, **changes: Any
+    ) -> dict[str, Any]:
+        return self._request(
+            "PATCH",
+            f"{API_PREFIX}/config/models/{model_row_id}",
+            json={"expected_version": expected_version, **changes},
+        )
+
     def llm_observability(self) -> dict[str, Any]:
         return self._request("GET", f"{API_PREFIX}/observability/llm")
+
+    def observed_processes(self, *, limit: int = 50, status: str = "") -> dict[str, Any]:
+        params: dict[str, Any] = {"limit": limit}
+        if status:
+            params["status"] = status
+        return self._request("GET", f"{API_PREFIX}/observability/processes", params=params)
+
+    def observed_process(self, run_id: str) -> dict[str, Any]:
+        return self._request("GET", f"{API_PREFIX}/observability/processes/{run_id}")
+
+    def model_benchmarks(self, *, limit: int = 25) -> dict[str, Any]:
+        return self._request("GET", f"{API_PREFIX}/benchmarks/models", params={"limit": limit})
 
     def benchmark_models(
         self, *, models: list[str], baseline_model: str, confirmed: bool
@@ -332,8 +406,12 @@ class TalentIAApiClient:
         return self._request("GET", f"{API_PREFIX}/applications/{application_id}/360")
 
     def apply_resume_prefill(
-        self, application_id: str, *, expected_version: int,
-        technical_knowledge: str | None = None, availability: str | None = None,
+        self,
+        application_id: str,
+        *,
+        expected_version: int,
+        technical_knowledge: str | None = None,
+        availability: str | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"expected_version": expected_version}
         if technical_knowledge is not None:
@@ -519,9 +597,7 @@ class TalentIAApiClient:
         }
         return self._request("GET", f"{API_PREFIX}/reports/vendor-exclusions", params=params)
 
-    def vendor_exclusions_csv(
-        self, *, job_id: str | None = None, source: str | None = None
-    ) -> str:
+    def vendor_exclusions_csv(self, *, job_id: str | None = None, source: str | None = None) -> str:
         params = {
             key: value for key, value in {"job_id": job_id, "source": source}.items() if value
         }

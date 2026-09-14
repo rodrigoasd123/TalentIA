@@ -5,3 +5,10 @@
 - [x] **T-025-003** Limitar ejecución y exponer UI/API. `[FR-025-004, NFR-025-001, SEC-025-002]`
 - [x] **T-025-004** Asegurar MLflow metadata-only. `[SEC-025-001]`
 - [x] **T-025-005** Verificar con dobles y registrar evidencia. `[AC-025-001..004]`
+
+## Refinamiento R1 aprobado
+
+- [x] **T-025-006** Persistir histórico metadata-only y métricas ampliadas. `[FR-025-005..009, SEC-025-004]`
+- [x] **T-025-007** Exponer histórico paginado y detalle protegido. `[FR-025-005..007, SEC-025-003]`
+- [x] **T-025-008** Integrar indicadores comparativos y enlaces seguros en el panel. `[FR-025-006..009, NFR-025-004]`
+- [x] **T-025-009** Verificar reproducibilidad, privacidad, RBAC y compatibilidad. `[AC-025-005..008]`

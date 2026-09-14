@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.ai.graphs.evaluation_graph import GRAPH_NAME, GRAPH_VERSION, build_evaluation_graph
+from app.ai.nodes.deterministic import ScoreCalculationNode
 from app.ai.prompts.registry import get_prompt_registry
 from app.ai.state import WorkflowState, initial_state, state_summary
 from app.core.config import get_settings
@@ -39,7 +40,6 @@ from app.domain.entities import (
 from app.domain.enums import Recommendation, ReviewReason, Severity, WorkflowStatus
 from app.domain.ports import LLMPort
 from app.domain.value_objects import ProposedAction, Score
-from app.ai.nodes.deterministic import ScoreCalculationNode
 
 logger = get_logger(__name__)
 
@@ -103,9 +103,7 @@ class EvaluationResult:
             failed = [r for r in self.evaluation.hard_filter_results if not r.passed]
             if failed:
                 lines.append(
-                    "Requisitos no cumplidos: "
-                    + "; ".join(f.filter_label for f in failed)
-                    + "."
+                    "Requisitos no cumplidos: " + "; ".join(f.filter_label for f in failed) + "."
                 )
             else:
                 lines.append("Cumple todos los requisitos obligatorios.")
@@ -207,7 +205,7 @@ class VeraAgent:
             try:
                 final_state = self._graph.invoke(state)
                 run.status = WorkflowStatus.COMPLETED
-            except Exception as exc:  # noqa: BLE001 — se registra y se degrada
+            except Exception as exc:
                 logger.exception(
                     "El grafo falló de forma irrecuperable",
                     application_id=request.application_id,
@@ -224,6 +222,7 @@ class VeraAgent:
         usage: TokenUsage = final_state.get("token_usage") or TokenUsage()
         run.finished_at = datetime.now(UTC)
         run.node_timings = dict(final_state.get("node_timings", {}))
+        run.node_runs = list(final_state.get("node_runs", []))
         run.token_usage = usage.to_dict()
         run.cost_usd = round(usage.estimated_cost_usd, 6)
         if final_state.get("requires_human_review") and run.status is WorkflowStatus.COMPLETED:
@@ -231,6 +230,13 @@ class VeraAgent:
 
         evaluation = self._build_evaluation(request, final_state, run)
         self._record_metrics(evaluation, run, timing.get("elapsed_seconds", 0.0))
+        from app.infrastructure.observability.mlflow_tracker import MLFLOW_TRACKER
+
+        run.mlflow_run_id = MLFLOW_TRACKER.record_workflow_trace(
+            run,
+            provider=str(getattr(self.llm, "provider", "unknown")),
+            model=self.llm.model_name,
+        )
 
         return EvaluationResult(
             evaluation=evaluation,
@@ -307,13 +313,17 @@ class VeraAgent:
             total_score=(outcome.total if outcome else Score(value=0.0)),
             recommendation=(outcome.recommendation if outcome else Recommendation.REVIEW),
             missing_requirements=(
-                list(evaluation_output.missing_requirements) if evaluation_output else
-                [r.filter_label for r in state.get("filter_results", []) if not r.passed]
+                list(evaluation_output.missing_requirements)
+                if evaluation_output
+                else [r.filter_label for r in state.get("filter_results", []) if not r.passed]
             ),
             strengths=list(evaluation_output.strengths) if evaluation_output else [],
             gaps=list(evaluation_output.gaps) if evaluation_output else [],
-            summary=(evaluation_output.summary if evaluation_output else
-                     (outcome.explanation if outcome else "Evaluación no completada")),
+            summary=(
+                evaluation_output.summary
+                if evaluation_output
+                else (outcome.explanation if outcome else "Evaluación no completada")
+            ),
             bias_audit=bias_audit,
             evidence_verification_rate=(
                 round(evidence_report.verification_rate, 4) if evidence_report else 0.0
@@ -362,6 +372,10 @@ class VeraAgent:
 
 
 __all__ = [
-    "AGENT_FULL_NAME", "AGENT_NAME", "AGENT_VERSION", "EvaluationRequest",
-    "EvaluationResult", "VeraAgent",
+    "AGENT_FULL_NAME",
+    "AGENT_NAME",
+    "AGENT_VERSION",
+    "EvaluationRequest",
+    "EvaluationResult",
+    "VeraAgent",
 ]
