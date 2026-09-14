@@ -1,64 +1,70 @@
 ---
 id: SPEC-017
-titulo: Rediseño integral del frontend TalentIA
-estado: BORRADOR
+titulo: Rediseño visual corporativo del frontend TalentIA
+estado: VERIFICANDO
 responsable_producto: Usuario
 creado: 2026-09-10
-actualizado: 2026-09-10
+actualizado: 2026-09-14
 ---
 
-# SPEC-017 — Rediseño integral del frontend TalentIA
+# SPEC-017 — Rediseño visual corporativo del frontend TalentIA
 
 ## Problema
 
-El frontend Streamlit actual expone las capacidades principales, pero conserva nombres, navegación y patrones visuales surgidos durante la consolidación. No existe aún evidencia completa de responsive, accesibilidad, consistencia de estados ni una identidad única de TalentIA.
+La interfaz web funciona, pero presenta una jerarquía visual básica, patrones inconsistentes entre páginas y una adaptación móvil que oculta navegación y sesión. Esto dificulta escanear tablas, reconocer estados y completar formularios operativos con confianza.
 
 ## Resultado esperado
 
-Una experiencia empresarial coherente llamada TalentIA que reutilice los endpoints y flujos existentes, centralice estilos, sesión, permisos y errores, y funcione de extremo a extremo en escritorio, tablet y móvil.
+Una experiencia corporativa, clara y consistente para el ATS TalentIA, construida sobre el frontend existente y ejecutable mediante el mismo proceso Python. La mejora no cambia datos, permisos, rutas, formularios ni reglas del producto.
 
-## Alcance propuesto
+## Decisiones aprobadas
 
-- Renombrar la experiencia visible a TalentIA.
-- Sistema visual común, navegación por rol y componentes reutilizables.
-- Login, dashboard, vacantes, candidatos/ingreso, importación histórica, evaluación, revisión, pipeline, Candidate 360, agente, auditoría y configuración.
-- Estados de carga, proceso, éxito, validación, conexión, vacío, sesión expirada, acceso denegado, deshabilitado y conflicto de versión.
-- Accesibilidad por teclado, foco visible, contraste WCAG AA y diseño responsive.
-- Botones y controles legibles permanentemente, sin depender de hover.
-- Separación entre estilos, API, sesión/permisos, estado y presentación.
+- Se conserva FastAPI con plantillas Jinja2.
+- Se conservan Bootstrap y HTMX servidos localmente, junto con CSS y JavaScript vanilla.
+- El diseño es desktop-first y usable en tablet y móvil.
+- La interfaz actual se mejora en el mismo flujo; no se crea una aplicación paralela.
+- No se incorpora Node, npm, TypeScript, bundlers, frameworks ni servicios frontend.
+
+## Alcance
+
+- Sistema de diseño centralizado mediante variables CSS para color, tipografía, espacio, bordes, sombras, foco y estados.
+- Shell corporativo con barra lateral, navegación agrupada, página activa, cabecera, contexto de sesión y modo manual.
+- Dashboard con jerarquía, accesos directos y exclusivamente datos reales ya entregados por el backend.
+- Tablas, buscadores, fichas, formularios, estados, alertas, vacíos, evaluaciones y progreso con patrones consistentes.
+- Login alineado con la identidad visual del producto.
+- Responsive sin ocultar capacidades esenciales, navegación por teclado y foco visible.
+- Pruebas estructurales del HTML y del sistema de diseño, además de la regresión existente.
 
 ## Fuera de alcance
 
-- Cambiar reglas del backend, esquema de datos o contratos sin refinamiento explícito.
-- Implementar endpoints ficticios, autenticación nueva, LinkedIn automático o correo real.
-- Retirar el frontend heredado antes de verificar la nueva experiencia.
+- Backend, API, persistencia, modelos, servicios, autenticación, autorización o reglas de negocio.
+- Rutas, URL, nombres/IDs de campos, variables, bucles, condiciones, atributos HTMX o contratos existentes.
+- Métricas inventadas, datos simulados o nuevas capacidades funcionales.
+- Nuevas dependencias o herramientas obligatorias de construcción.
 
-## Requisitos propuestos
+## Requisitos
 
-- **FR-017-001:** toda identidad visible debe usar TalentIA, salvo referencias técnicas históricas.
-- **FR-017-002:** la navegación debe mostrar exclusivamente páginas y acciones autorizadas para el rol activo.
-- **FR-017-003:** cada flujo principal debe representar estados normales, vacíos y fallidos sin perder datos recuperables.
-- **FR-017-004:** el frontend debe consumir exclusivamente la API y no duplicar reglas de negocio.
-- **FR-017-005:** los flujos complejos deben dividirse en pasos revisables con confirmación para acciones sensibles.
-- **NFR-017-001:** escritorio, laptop, tablet y móvil deben ser utilizables sin scroll anidado innecesario.
-- **NFR-017-002:** navegación por teclado, foco, etiquetas, contraste y comunicación no basada solo en color.
-- **SEC-017-001:** no almacenar o mostrar contraseñas, JWT, API keys, PII no autorizada ni trazas internas.
-- **SEC-017-002:** contenido de CV y respuestas no debe insertarse como HTML no confiable.
+- **FR-017-001:** todas las páginas deben compartir una identidad visual TalentIA coherente.
+- **FR-017-002:** la navegación debe conservar destinos existentes, indicar la sección activa y seguir disponible en resoluciones reducidas.
+- **FR-017-003:** dashboard, listados, detalle, formularios y estados deben tener jerarquía y componentes consistentes.
+- **FR-017-004:** el dashboard debe mostrar solo información real disponible en su contexto actual.
+- **FR-017-005:** todos los contratos de formularios, HTMX y plantillas deben conservarse.
+- **NFR-017-001:** la interfaz debe ser usable desde 390 px sin scroll horizontal de página; las tablas pueden desplazarse dentro de su contenedor.
+- **NFR-017-002:** debe existir foco visible, enlace para saltar al contenido, etiquetas accesibles y estados que no dependan solo del color.
+- **NFR-017-003:** los recursos deben permanecer locales y el arranque debe seguir siendo exclusivamente Python.
+- **NFR-017-004:** la mejora no debe añadir solicitudes de red, fuentes remotas ni dependencias de ejecución.
+- **SEC-017-001:** no se expondrán secretos, tokens, trazas internas ni PII adicional.
+- **SEC-017-002:** los datos no confiables seguirán renderizándose con el escape de Jinja, nunca como HTML sin sanitizar.
 
-## Dependencias
+## Compatibilidad y rollback
 
-SPEC-005 a SPEC-016 son las fuentes funcionales. FastAPI en `http://127.0.0.1:8000` sigue siendo la autoridad de datos y permisos.
+Los cambios se limitan a plantillas, CSS y pruebas. El rollback consiste en revertir esos archivos; no requiere migración ni transformación de datos. La regresión web y backend debe permanecer verde.
 
-## Preguntas abiertas antes de planificar
+## Aprobación
 
-- Confirmar si se mantiene Streamlit o se autoriza migración de framework.
-- Confirmar prioridad entre responsive móvil y densidad operativa de escritorio.
-- Confirmar si el frontend nuevo reemplaza al actual tras verificación o convive durante una transición.
-
-## Puerta de aprobación
-
-Esta spec no autoriza cambios de frontend. Requiere refinamiento de las preguntas abiertas y aprobación explícita antes de generar plan o tareas.
+El usuario aprobó explícitamente el rediseño completo el 2026-09-14 bajo la condición de no romper el código ni el flujo. Esa aprobación resuelve las preguntas del borrador anterior y autoriza planificación e implementación dentro de este alcance.
 
 ## Historial
 
-- 2026-09-10: borrador creado a partir del prompt UX/UI adaptado a TalentIA; implementación no autorizada.
+- 2026-09-10: borrador inicial.
+- 2026-09-14: refinada y aprobada para implementación visual sobre el stack existente.

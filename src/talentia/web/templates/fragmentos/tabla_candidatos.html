@@ -5,11 +5,11 @@
     {% for candidato in candidatos %}
       <tr>
         <td><strong><a href="/candidatos/{{ candidato.id }}">{{ candidato.nombres }} {{ candidato.apellidos }}</a></strong><small>{{ candidato.correo or 'Sin correo' }}</small></td>
-        <td><span class="estado">{{ candidato.estado.value }}</span></td>
+        <td><span class="estado estado-{{ candidato.estado.value | lower | replace(' ', '_') }}">{{ candidato.estado.value }}</span></td>
         <td>{{ candidato.perfil_solicitado or 'Sin perfil' }}</td>
         <td>{{ candidato.fuente or 'Sin fuente' }}</td>
         <td>{{ candidato.version }}</td>
-        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/candidatos/{{ candidato.id }}#editar-candidato">✏️ Editar</a></td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/candidatos/{{ candidato.id }}#editar-candidato">Editar</a></td>
       </tr>
     {% else %}
       <tr><td colspan="6" class="vacio">No hay resultados.</td></tr>

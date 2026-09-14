@@ -1,18 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Inicio | TalentIA{% endblock %}
-{% block heading %}Inicio{% endblock %}
+{% block heading %}Panel de talento{% endblock %}
+{% block breadcrumb %}Resumen{% endblock %}
+{% block subtitle %}Visibilidad operativa del proceso de seleccion y sus revisiones.{% endblock %}
 {% block content %}
+<section class="hero-inicio" aria-labelledby="bienvenida-talentia">
+  <div>
+    <span class="sobrelinea">ESPACIO DE TRABAJO</span>
+    <h2 id="bienvenida-talentia">Convierte evidencia en decisiones de talento mejor informadas.</h2>
+    <p>Consulta la base general, gestiona perfiles y supervisa evaluaciones asistidas manteniendo siempre la decision final en manos del equipo.</p>
+    <div class="acciones-hero">
+      <a class="btn btn-primary" href="/candidatos/nuevo">Registrar candidato</a>
+      <a class="btn btn-outline-light" href="/evaluaciones/nueva">Cargar CV y evaluar</a>
+    </div>
+  </div>
+  <div class="panel-confianza" aria-label="Principios operativos">
+    <div><i aria-hidden="true">✓</i><span>Evidencia navegable</span></div>
+    <div><i aria-hidden="true">✓</i><span>Revision humana obligatoria</span></div>
+    <div><i aria-hidden="true">✓</i><span>Trazabilidad por proceso</span></div>
+  </div>
+</section>
 <section class="banda-metricas" aria-label="Resumen">
   <div><span>Candidatos recientes</span><strong>{{ candidatos | length }}</strong></div>
   <div><span>Proveedor IA</span><strong>{% if modo_manual %}No configurado{% else %}Activo{% endif %}</strong></div>
-  <div><span>Revision</span><strong>Humana</strong></div>
+  <div><span>Decision final</span><strong>Humana</strong></div>
 </section>
 <section class="seccion">
   <div class="titulo-seccion">
     <h2>Actividad reciente</h2>
-    <a class="btn btn-sm btn-primary" href="/candidatos">Ver base general</a>
+    <a class="btn btn-sm btn-outline-primary" href="/candidatos">Ver base general</a>
   </div>
   {% include "fragmentos/tabla_candidatos.html" %}
 </section>
 {% endblock %}
-

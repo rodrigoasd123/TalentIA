@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Base general | TalentIA{% endblock %}
 {% block heading %}Base general de candidatos{% endblock %}
+{% block breadcrumb %}Candidatos{% endblock %}
+{% block subtitle %}Busca, consulta y mantiene actualizada la informacion de cada candidatura.{% endblock %}
 {% block content %}
 <section class="barra-herramientas">
   <form hx-get="/fragmentos/candidatos" hx-target="#tabla-candidatos" hx-trigger="input changed delay:300ms, submit" class="busqueda">
@@ -8,7 +10,7 @@
     <input class="form-control" id="q" name="q" value="{{ consulta }}" placeholder="Nombre, correo o documento">
     <button class="btn btn-primary" type="submit">Buscar</button>
   </form>
-  <a class="btn btn-primary" href="/candidatos/nuevo">Nuevo candidato</a>
+  <a class="btn btn-primary" href="/candidatos/nuevo">+ Nuevo candidato</a>
 </section>
 <section class="seccion" id="tabla-candidatos">
   {% include "fragmentos/tabla_candidatos.html" %}

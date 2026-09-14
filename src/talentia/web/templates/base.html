@@ -3,61 +3,76 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102a43">
   <title>{% block title %}TalentIA{% endblock %}</title>
   <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
   <link rel="stylesheet" href="/static/css/aplicacion.css">
   <script src="/static/vendor/htmx.min.js" defer></script>
 </head>
 <body>
+  {% set ruta_actual = request.url.path %}
+  <a class="saltar-contenido" href="#contenido-principal">Saltar al contenido</a>
   <div class="estructura">
     <aside class="barra-lateral">
-      <a class="marca" href="/" aria-label="TalentIA">
-        <img src="/static/img/talentia-logo.png" alt="TalentIA">
-      </a>
+      <div class="cabecera-lateral">
+        <a class="marca" href="/" aria-label="TalentIA, ir al inicio">
+          <img src="/static/img/talentia-logo.png" alt="TalentIA">
+        </a>
+        <span class="descriptor-marca">Talent acquisition workspace</span>
+      </div>
       <nav aria-label="Navegacion principal">
         <div class="grupo-nav">
           <span>Operacion</span>
-          <a href="/">Inicio</a>
-          <a href="/candidatos">Base general</a>
-          <a href="/modulo/perfiles">Perfiles</a>
-          <a href="/modulo/postulaciones">Postulaciones</a>
-          <a href="/modulo/documentos">CV y precarga</a>
+          <a href="/" class="{% if ruta_actual == '/' %}activo{% endif %}" {% if ruta_actual == '/' %}aria-current="page"{% endif %}><i aria-hidden="true">⌂</i>Inicio</a>
+          <a href="/candidatos" class="{% if ruta_actual.startswith('/candidatos') %}activo{% endif %}" {% if ruta_actual.startswith('/candidatos') %}aria-current="page"{% endif %}><i aria-hidden="true">●</i>Base general</a>
+          <a href="/modulo/perfiles" class="{% if ruta_actual.startswith('/modulo/perfiles') or ruta_actual.startswith('/perfiles') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/perfiles') or ruta_actual.startswith('/perfiles') %}aria-current="page"{% endif %}><i aria-hidden="true">◇</i>Perfiles</a>
+          <a href="/modulo/postulaciones" class="{% if ruta_actual.startswith('/modulo/postulaciones') or ruta_actual.startswith('/postulaciones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/postulaciones') or ruta_actual.startswith('/postulaciones') %}aria-current="page"{% endif %}><i aria-hidden="true">↗</i>Postulaciones</a>
+          <a href="/modulo/documentos" class="{% if ruta_actual.startswith('/modulo/documentos') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/documentos') %}aria-current="page"{% endif %}><i aria-hidden="true">▤</i>CV y precarga</a>
         </div>
         <div class="grupo-nav">
           <span>Seguimiento</span>
-          <a href="/modulo/evaluaciones">Evaluaciones</a>
-          <a href="/modulo/revisiones">Revision humana</a>
-          <a href="/modulo/trabajos">Trabajos</a>
+          <a href="/modulo/evaluaciones" class="{% if ruta_actual.startswith('/modulo/evaluaciones') or ruta_actual.startswith('/evaluaciones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/evaluaciones') or ruta_actual.startswith('/evaluaciones') %}aria-current="page"{% endif %}><i aria-hidden="true">✓</i>Evaluaciones</a>
+          <a href="/modulo/revisiones" class="{% if ruta_actual.startswith('/modulo/revisiones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/revisiones') %}aria-current="page"{% endif %}><i aria-hidden="true">◎</i>Revision humana</a>
+          <a href="/modulo/trabajos" class="{% if ruta_actual.startswith('/modulo/trabajos') or ruta_actual.startswith('/trabajos') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/trabajos') or ruta_actual.startswith('/trabajos') %}aria-current="page"{% endif %}><i aria-hidden="true">↻</i>Trabajos</a>
         </div>
         <div class="grupo-nav">
           <span>Control</span>
-          <a href="/modulo/lotes">Lotes</a>
-          <a href="/modulo/excolaboradores">Ex-TCS</a>
-          <a href="/modulo/exclusiones">Exclusiones</a>
-          <a href="/modulo/metricas">Metricas</a>
-          <a href="/modulo/usuarios">Usuarios</a>
+          <a href="/modulo/lotes" class="{% if ruta_actual.startswith('/modulo/lotes') or ruta_actual.startswith('/lotes') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/lotes') or ruta_actual.startswith('/lotes') %}aria-current="page"{% endif %}><i aria-hidden="true">▦</i>Lotes</a>
+          <a href="/modulo/excolaboradores" class="{% if ruta_actual.startswith('/modulo/excolaboradores') or ruta_actual.startswith('/excolaboradores') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/excolaboradores') or ruta_actual.startswith('/excolaboradores') %}aria-current="page"{% endif %}><i aria-hidden="true">◫</i>Ex-TCS</a>
+          <a href="/modulo/exclusiones" class="{% if ruta_actual.startswith('/modulo/exclusiones') or ruta_actual.startswith('/exclusiones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/exclusiones') or ruta_actual.startswith('/exclusiones') %}aria-current="page"{% endif %}><i aria-hidden="true">⊘</i>Exclusiones</a>
+          <a href="/modulo/metricas" class="{% if ruta_actual.startswith('/modulo/metricas') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/metricas') %}aria-current="page"{% endif %}><i aria-hidden="true">▥</i>Metricas</a>
+          <a href="/modulo/usuarios" class="{% if ruta_actual.startswith('/modulo/usuarios') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/usuarios') %}aria-current="page"{% endif %}><i aria-hidden="true">⚙</i>Usuarios</a>
         </div>
       </nav>
       <div class="sesion">
-        <strong>{{ usuario.correo }}</strong>
-        <span>{{ usuario.roles | join(', ') }}</span>
+        <div class="avatar" aria-hidden="true">{{ usuario.correo[:1] | upper }}</div>
+        <div class="datos-sesion">
+          <strong>{{ usuario.correo }}</strong>
+          <span>{{ usuario.roles | join(', ') }}</span>
+        </div>
         <form method="post" action="/logout">
           <input type="hidden" name="csrf" value="{{ csrf }}">
           <button class="btn btn-sm btn-outline-secondary w-100" type="submit">Cerrar sesion</button>
         </form>
       </div>
     </aside>
-    <main class="contenido">
+    <main class="contenido" id="contenido-principal" tabindex="-1">
       <header class="encabezado">
         <div>
-          <span class="sobrelinea">TALENTIA</span>
+          <nav class="migas" aria-label="Ruta de navegacion"><a href="/">TalentIA</a><span aria-hidden="true">/</span><span>{% block breadcrumb %}Operacion{% endblock %}</span></nav>
           <h1>{% block heading %}Inicio{% endblock %}</h1>
+          <p class="subtitulo-pagina">{% block subtitle %}Gestion de talento asistida, trazable y bajo control humano.{% endblock %}</p>
         </div>
-        {% if modo_manual %}<span class="estado estado-manual">Modo manual</span>{% endif %}
+        <div class="indicadores-cabecera">
+          {% if modo_manual %}<span class="estado estado-manual"><i aria-hidden="true"></i>Modo manual</span>{% endif %}
+          <span class="identidad-cabecera" title="Sesion activa">{{ usuario.correo[:1] | upper }}</span>
+        </div>
       </header>
-      {% block content %}{% endblock %}
+      <div class="cuerpo-pagina">
+        {% block content %}{% endblock %}
+      </div>
+      <footer class="pie-pagina"><span>TalentIA</span><span>Las sugerencias asistidas requieren revision humana.</span></footer>
     </main>
   </div>
 </body>
 </html>
-

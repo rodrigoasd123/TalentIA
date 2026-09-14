@@ -3,24 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071a2f">
   <title>Acceso | TalentIA</title>
   <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
   <link rel="stylesheet" href="/static/css/aplicacion.css">
 </head>
 <body class="pagina-acceso">
-  <main class="acceso">
-    <img src="/static/img/talentia-logo.png" alt="TalentIA" class="logo-acceso">
-    <h1>Acceso al piloto</h1>
-    {% if modo_manual %}<p class="estado estado-manual">Modo manual</p>{% endif %}
-    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
-    <form method="post" action="/login" class="formulario-acceso">
-      <label class="form-label" for="correo">Correo</label>
-      <input class="form-control" id="correo" name="correo" type="email" autocomplete="username" required>
-      <label class="form-label" for="contrasena">Contrasena</label>
-      <input class="form-control" id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
-      <button class="btn btn-primary w-100" type="submit">Ingresar</button>
-    </form>
+  <main class="contenedor-acceso">
+    <section class="presentacion-acceso" aria-label="Presentacion de TalentIA">
+      <div>
+        <span class="sobrelinea">PLATAFORMA DE TALENTO</span>
+        <h1>Decisiones de seleccion con evidencia y control humano.</h1>
+        <p>Centraliza candidatos, evaluaciones y trazabilidad en un espacio seguro para tu equipo de reclutamiento.</p>
+      </div>
+    </section>
+    <section class="acceso" aria-labelledby="titulo-acceso">
+      <img src="/static/img/talentia-logo.png" alt="TalentIA" class="logo-acceso">
+      <h2 id="titulo-acceso">Bienvenido de nuevo</h2>
+      <p>Ingresa con tus credenciales para continuar.</p>
+      {% if modo_manual %}<p class="estado estado-manual"><i aria-hidden="true"></i>Modo manual</p>{% endif %}
+      {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" action="/login" class="formulario-acceso">
+        <label class="form-label" for="correo">Correo</label>
+        <input class="form-control" id="correo" name="correo" type="email" autocomplete="username" placeholder="nombre@empresa.com" required>
+        <label class="form-label" for="contrasena">Contrasena</label>
+        <input class="form-control" id="contrasena" name="contrasena" type="password" autocomplete="current-password" placeholder="Ingresa tu contrasena" required>
+        <button class="btn btn-primary w-100" type="submit">Ingresar a TalentIA</button>
+      </form>
+      <div class="seguridad-acceso"><i aria-hidden="true">●</i><span>Acceso protegido y actividad trazable</span></div>
+    </section>
   </main>
 </body>
 </html>
-
