@@ -13,6 +13,7 @@ __pycache__/
 .pytest_cache/
 .pytest-tmp/
 .pytest-tmp*/
+.test-tmp*/
 .pytest-lab/
 .lab-tmp/
 .lab-logs/
@@ -22,11 +23,13 @@ data/*.db
 data/cache/
 vera.db*
 talentia.db*
+talentia_greenfield.db*
 .talentia-backups/
 *.db-shm
 *.db-wal
 *.sqlite3
-storage/
+/storage/
+backups/
 
 # Environment credentials
 .env*

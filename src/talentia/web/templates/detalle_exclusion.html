@@ -1,0 +1,4 @@
+{% extends "base.html" %}
+{% block title %}Reporte de exclusiones | TalentIA{% endblock %}
+{% block heading %}Reporte de exclusiones{% endblock %}
+{% block content %}<section class="seccion"><div class="titulo-seccion"><h2>Resultado minimizado</h2><span class="estado">{{ reporte.entradas | length }} registros</span></div><p>Integridad SHA-256: <code>{{ reporte.hash_contenido }}</code></p><a class="btn btn-primary" href="/api/v1/exclusion-reports/{{ reporte.id }}/download">Descargar CSV</a><div class="tabla-responsive mt-3"><table class="table"><thead><tr><th>Documento</th><th>Motivo generico</th></tr></thead><tbody>{% for entrada in reporte.entradas %}<tr><td>{{ entrada.documento }}</td><td>{{ entrada.motivo_generico }}</td></tr>{% else %}<tr><td colspan="2" class="vacio">No hay exclusiones confirmadas con las reglas aprobadas.</td></tr>{% endfor %}</tbody></table></div></section>{% endblock %}

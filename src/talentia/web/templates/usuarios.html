@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Usuarios y acceso | TalentIA{% endblock %}
+{% block heading %}Usuarios y acceso{% endblock %}
+{% block content %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Asignaciones actuales</h2><span class="estado">Solo administradores</span></div>
+  <div class="tabla-responsive"><table class="table"><thead><tr><th>Usuario</th><th>Roles</th><th>Clientes</th></tr></thead><tbody>
+  {% for item in accesos.usuarios %}<tr><td><strong>{{ item.nombre }}</strong><small>{{ item.correo }}</small></td><td>{{ item.roles | join(', ') or '-' }}</td><td>{{ item.clientes | join(', ') or '-' }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="rejilla-acceso">
+  <form method="post" action="/modulo/usuarios/rol" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><h2>Modificar rol</h2>
+    <label>Usuario<select class="form-select" name="usuario_id">{% for item in accesos.usuarios %}<option value="{{ item.id }}">{{ item.correo }}</option>{% endfor %}</select></label>
+    <label>Rol<select class="form-select" name="rol">{% for rol in accesos.roles %}<option>{{ rol }}</option>{% endfor %}</select></label>
+    <label>Accion<select class="form-select" name="accion"><option value="asignar">Asignar</option><option value="retirar">Retirar</option></select></label>
+    <button class="btn btn-primary" type="submit">Aplicar rol</button>
+  </form>
+  <form method="post" action="/modulo/usuarios/cliente" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><h2>Modificar cliente</h2>
+    <label>Usuario<select class="form-select" name="usuario_id">{% for item in accesos.usuarios %}<option value="{{ item.id }}">{{ item.correo }}</option>{% endfor %}</select></label>
+    <label>Cliente<select class="form-select" name="cliente_id">{% for cliente in accesos.clientes %}<option value="{{ cliente.id }}">{{ cliente.nombre }}</option>{% endfor %}</select></label>
+    <label>Accion<select class="form-select" name="accion"><option value="asignar">Asignar</option><option value="retirar">Retirar</option></select></label>
+    <button class="btn btn-primary" type="submit">Aplicar cliente</button>
+  </form>
+</section>
+{% endblock %}

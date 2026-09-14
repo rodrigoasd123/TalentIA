@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Inicio | TalentIA{% endblock %}
+{% block heading %}Inicio{% endblock %}
+{% block content %}
+<section class="banda-metricas" aria-label="Resumen">
+  <div><span>Candidatos recientes</span><strong>{{ candidatos | length }}</strong></div>
+  <div><span>Proveedor IA</span><strong>{% if modo_manual %}No configurado{% else %}Activo{% endif %}</strong></div>
+  <div><span>Revision</span><strong>Humana</strong></div>
+</section>
+<section class="seccion">
+  <div class="titulo-seccion">
+    <h2>Actividad reciente</h2>
+    <a class="btn btn-sm btn-primary" href="/candidatos">Ver base general</a>
+  </div>
+  {% include "fragmentos/tabla_candidatos.html" %}
+</section>
+{% endblock %}
+

@@ -1,0 +1,28 @@
+<div id="estado-trabajo" class="estado-trabajo" aria-live="polite"
+  {% if trabajo.estado in ['pendiente', 'reservado'] %}
+    hx-get="/fragmentos/trabajos/{{ trabajo.id }}" hx-trigger="load delay:1s" hx-swap="outerHTML"
+  {% endif %}>
+  {% if trabajo.estado == 'pendiente' %}
+    <span class="estado estado-pendiente">Pendiente</span>
+    <p>La evaluacion esta en cola y conserva sus datos para el siguiente intento.</p>
+    <span class="htmx-indicator">Actualizando progreso…</span>
+  {% elif trabajo.estado == 'reservado' %}
+    <span class="estado estado-cargando">Procesando</span>
+    <p>AG-02 y AG-03 estan procesando el documento con checkpoints durables.</p>
+    <span class="htmx-indicator">Actualizando progreso…</span>
+  {% elif trabajo.estado == 'fallido' %}
+    <span class="estado estado-error">Error</span>
+    <p>No se pudo completar el trabajo. Codigo seguro: {{ trabajo.error or 'error_no_especificado' }}.</p>
+  {% elif trabajo.estado == 'completado' and trabajo.resultado and trabajo.resultado.evaluacion_id %}
+    {% if trabajo.resultado.estado == 'revision_requerida' %}
+      <span class="estado estado-revision">Revision humana requerida</span>
+    {% else %}
+      <span class="estado estado-completado">Completado</span>
+    {% endif %}
+    <p>La sugerencia esta disponible y no constituye una decision final.</p>
+    <a class="btn btn-primary" href="/evaluaciones/{{ trabajo.resultado.evaluacion_id }}">Revisar evaluacion y evidencia</a>
+  {% else %}
+    <span class="estado estado-completado">Completado</span>
+    <p>El trabajo finalizo sin una evaluacion navegable.</p>
+  {% endif %}
+</div>

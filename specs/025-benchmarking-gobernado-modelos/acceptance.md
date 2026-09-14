@@ -41,3 +41,47 @@ Entonces usa dobles, datos sintéticos y cero llamadas externas
 ```
 
 **Evidencia (2026-09-12):** suite sintética versionada y sin red; pruebas de ranking, quality gate y ocultación de respuestas incluidas en 310 passed.
+
+## Refinamiento R1 aprobado y verificado
+
+### AC-025-005 — Histórico e indicadores comparables
+
+**Cubre:** FR-025-005, FR-025-006, FR-025-007, NFR-025-003
+
+```gherkin
+Dadas varias ejecuciones persistidas con modelos y suites diferentes
+Cuando el administrador filtra y abre una comparación
+Entonces ve procedencia, versiones, calidad, errores, p50/p95, tokens de entrada/salida y costo
+Y el ranking se reproduce a partir de los mismos resultados
+```
+
+### AC-025-006 — Sin activación automática
+
+**Cubre:** FR-025-008
+
+```gherkin
+Dado que un modelo obtiene el mejor indicador del benchmark
+Cuando finaliza la comparación
+Entonces el panel puede destacarlo con las reglas aplicadas
+Pero la configuración activa permanece sin cambios
+```
+
+### AC-025-007 — MLflow opcional y enlace seguro
+
+**Cubre:** FR-025-009, NFR-025-004, SEC-025-003
+
+```gherkin
+Dada una ejecución registrada
+Cuando MLflow está disponible el backend entrega un enlace seguro a su run
+Y cuando no está disponible el histórico local continúa visible sin enlace
+```
+
+### AC-025-008 — Benchmark sin contenido sensible
+
+**Cubre:** SEC-025-004
+
+```gherkin
+Dado un benchmark ejecutado desde el panel
+Cuando se revisan API, SQLite, logs y MLflow
+Entonces no aparecen prompts, respuestas ni contenido de los casos sintéticos
+```

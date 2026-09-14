@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Cargar CV y evaluar | TalentIA{% endblock %}
+{% block heading %}Cargar CV e iniciar evaluacion{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }} Los demas datos se conservaron; seleccione nuevamente el archivo.</div>{% endif %}
+<form method="post" action="/evaluaciones/nueva" enctype="multipart/form-data" class="seccion formulario-operativo">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="clave_idempotencia" value="{{ clave_idempotencia }}">
+  <div class="rejilla-formulario">
+    <label class="ancho-completo">Postulacion
+      <select name="postulacion_id" required>
+        <option value="">Seleccione</option>
+        {% for postulacion in opciones.postulaciones %}<option value="{{ postulacion.id }}" {% if datos.postulacion_id == postulacion.id %}selected{% endif %}>{{ postulacion.candidato }} · {{ postulacion.perfil_codigo }} v{{ postulacion.version_numero }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="ancho-completo">CV en PDF o DOCX
+      <input name="archivo" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+    </label>
+  </div>
+  <p class="ayuda">Al enviar, TalentIA almacena el CV de forma privada, crea un trabajo durable y abre su progreso. La IA solo genera sugerencias.</p>
+  <div class="acciones-formulario">
+    <a class="btn btn-outline-secondary" href="/modulo/documentos">Cancelar</a>
+    <button class="btn btn-primary" type="submit">Cargar e iniciar evaluacion</button>
+  </div>
+</form>
+{% endblock %}

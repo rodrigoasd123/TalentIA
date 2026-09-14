@@ -29,3 +29,21 @@
 - [x] Todos los requisitos obligatorios están cubiertos.
 - [x] No quedan bloqueantes dentro del laboratorio.
 - [x] Los fallos de sesión y autorización cierran el acceso.
+
+## Refinamiento greenfield — 2026-09-14
+
+- [x] **T-006-005 — Retirar credenciales previsibles**
+  - Cubre: FR-006-005, AC-006-004
+  - Archivos: `src/talentia/bootstrap.py`, `scripts/seed_greenfield.py`, `.env.example`
+- [x] **T-006-006 — Aplicar política y bloqueo persistente**
+  - Cubre: FR-006-006, FR-006-008, AC-006-005, AC-006-007
+  - Archivos: seguridad, servicio, repositorio y configuración
+- [x] **T-006-007 — Revocar y validar sesiones**
+  - Cubre: FR-006-007, FR-006-009, AC-006-006
+  - Archivos: API, web, dominio y persistencia
+- [x] **T-006-008 — Migrar SQLite reversiblemente**
+  - Cubre: AC-006-008
+  - Archivo: `migrations_greenfield/versions/0004_seguridad_acceso.py`
+- [x] **T-006-009 — Cerrar verificación local y remota**
+  - Cubre: todos los criterios nuevos
+  - Evidencia: suite, lint, tipos, scanner, upgrade/downgrade y CI remoto

@@ -2,9 +2,9 @@
 id: SPEC-013
 titulo: Auditoría y trazabilidad de decisiones
 estado: VERIFICADO
-tipo: VISTA_DERIVADA
+tipo: ESPECIFICACION_ACTIVA
 origen: SPEC-004
-actualizado: 2026-09-10
+actualizado: 2026-09-14
 ---
 
 # SPEC-013 — Auditoría y trazabilidad de decisiones
@@ -38,3 +38,11 @@ SIEM externo, firma digital certificada, retención productiva, WORM y correlaci
 ## Historial
 
 - 2026-09-10: extraída de SPEC-004 como vista funcional, sin cambio de comportamiento.
+
+## Refinamiento greenfield aprobado — 2026-09-14
+
+- **FR-013-004:** la traza 360 de una persona integra eventos de su ficha, postulaciones,
+  documentos y evaluaciones relacionadas.
+- **FR-013-005:** cada fila muestra actor/sistema, fecha, recurso, detalle y correlación, y admite
+  filtro exacto por tipo y fecha inicial desde API.
+- La orden de ejecutar `PENDIENTES_IMPLEMENTACION_GREENFIELD.md` aprueba alcance y plan.

@@ -2,9 +2,9 @@
 id: SPEC-006
 titulo: Identidad, sesión y control de acceso
 estado: VERIFICADO
-tipo: VISTA_DERIVADA
-origen: SPEC-004
-actualizado: 2026-09-10
+tipo: ESPECIFICACION_ACTIVA
+origen: SPEC-004, SPEC-030
+actualizado: 2026-09-14
 ---
 
 # SPEC-006 — Identidad, sesión y control de acceso
@@ -15,11 +15,11 @@ Garantizar que cada operación de TalentIA identifique al actor y aplique permis
 
 ## Alcance vigente
 
-- Inicio de sesión, access token, refresh token, cierre de sesión y consulta de sesión.
-- Roles `ADMIN`, `RECRUITER`, `HIRING_MANAGER`, `INTERVIEWER` y `AUDITOR`.
+- Inicio de sesión firmado, cierre con revocación y cambio de contraseña.
+- Roles del dominio greenfield definidos en `modules/access/domain/modelos.py`.
 - Autorización por permiso en endpoints; denegación por defecto.
-- Contraseñas Argon2id, rotación de refresh token y revocación de familia.
-- Sesión limitada de laboratorio exclusivamente en `development`.
+- Contraseñas derivadas con scrypt, bloqueo persistente y revocación mediante versión de sesión.
+- Provisión inicial exclusivamente mediante variables de entorno.
 
 ## Fuera de alcance
 
@@ -34,12 +34,42 @@ SSO/OIDC, aprovisionamiento corporativo, MFA, multitenancy productivo y recupera
 
 ## Implementación y evidencia
 
-`app/api/dependencies.py`, rutas `/api/v1/auth/*`, `app/infrastructure/security/` y `tests/ats/test_security_endpoints.py`. Verificación original: SPEC-004 AC-006, AC-007 y AC-013.
+La evidencia heredada procede de SPEC-004. El runtime vigente se implementa en
+`src/talentia/platform/security/`, rutas `/api/v1/auth/*`, repositorio SQLAlchemy y
+`tests/greenfield/test_seguridad.py`.
 
 ## Brechas conocidas
 
-No apto para despliegue compartido hasta incorporar SSO/MFA, gobierno de cuentas y aislamiento organizacional.
+SSO/MFA y recuperación autoservicio siguen pendientes para producción. El piloto sí aplica
+aislamiento por cliente, RBAC, bloqueo y revocación persistente.
 
 ## Historial
 
 - 2026-09-10: extraída de SPEC-004 como vista funcional, sin cambio de comportamiento.
+- 2026-09-14: refinamiento greenfield aprobado al ordenar la ejecución completa de
+  `PENDIENTES_IMPLEMENTACION_GREENFIELD.md`.
+
+## Refinamiento greenfield aprobado
+
+El runtime oficial `src/talentia` debe provisionar exclusivamente la cuenta administradora
+declarada mediante entorno, sin usuarios ni claves de laboratorio. Las contraseñas deben aplicar
+longitud y complejidad, caducar de forma configurable y rechazar credenciales comprometidas
+conocidas. Los intentos fallidos se persisten y bloquean temporalmente la cuenta. Cada token
+incluye una versión de sesión contrastada contra SQLite; logout, cambio de contraseña y cambios de
+roles o clientes invalidan sesiones anteriores.
+
+### Requisitos nuevos
+
+- **FR-006-005:** el arranque no crea cuentas previsibles y exige el par completo de variables de
+  provisión; piloto sin usuario inicial falla cerrado.
+- **FR-006-006:** cinco fallos consecutivos por defecto bloquean temporalmente la cuenta y todos
+  los intentos quedan auditados sin registrar correo en claro.
+- **FR-006-007:** logout y cambio de contraseña revocan los tokens emitidos; las sesiones vencidas,
+  de usuarios inactivos o con versión antigua fallan cerradas.
+- **FR-006-008:** la contraseña tiene mínimo 14 caracteres, mayúscula, minúscula, número y símbolo,
+  rechaza la clave de laboratorio conocida y caduca en un plazo configurable.
+- **FR-006-009:** cambios de rol o alcance invalidan sesiones previas para impedir permisos obsoletos.
+
+### Fuera de alcance del refinamiento
+
+SSO, MFA y recuperación autoservicio continúan fuera del piloto y son requisitos de producción.

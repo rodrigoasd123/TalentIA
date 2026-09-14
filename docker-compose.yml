@@ -1,31 +1,17 @@
 services:
-  api:
+  talentia:
     build: .
     environment:
-      TALENTIA_DATABASE_URL: sqlite:////data/talentia.db
-      TALENTIA_IMPORT_STORAGE_PATH: /data/imports
-      TALENTIA_STORAGE_PATH: /data/storage
-      TALENTIA_API_HOST: 0.0.0.0
+      TALENTIA_ENV: piloto
+      TALENTIA_GREENFIELD_DATABASE_URL: sqlite:////data/talentia.db
+      TALENTIA_DOCUMENT_STORAGE: /data/documentos
+      TALENTIA_SESSION_SECRET: ${TALENTIA_SESSION_SECRET:?configure TALENTIA_SESSION_SECRET}
+      TALENTIA_ADMIN_EMAIL: ${TALENTIA_ADMIN_EMAIL:?configure TALENTIA_ADMIN_EMAIL}
+      TALENTIA_ADMIN_PASSWORD: ${TALENTIA_ADMIN_PASSWORD:?configure TALENTIA_ADMIN_PASSWORD}
     ports:
       - "8000:8000"
     volumes:
       - talentia-data:/data
-
-  ui:
-    build: .
-    command:
-      - python
-      - -m
-      - streamlit
-      - run
-      - ats_frontend/streamlit_app.py
-      - --server.address=0.0.0.0
-    environment:
-      TALENTIA_API_BASE_URL: http://api:8000
-    ports:
-      - "8501:8501"
-    depends_on:
-      - api
 
 volumes:
   talentia-data:

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Trabajo {{ trabajo.id }} | TalentIA{% endblock %}
+{% block heading %}Progreso de evaluacion{% endblock %}
+{% block content %}
+<section class="seccion" aria-labelledby="progreso-trabajo">
+  <div class="titulo-seccion"><h2 id="progreso-trabajo">Trabajo {{ trabajo.id }}</h2></div>
+  {% include "fragmentos/estado_trabajo.html" %}
+</section>
+{% endblock %}

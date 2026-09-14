@@ -1,5 +1,9 @@
 # Contexto del proyecto — TalentIA
 
+> **Documento historico.** Desde SPEC-031 el unico runtime oficial vive en `src/talentia`, usa
+> FastAPI/Jinja2/HTMX y arranca con `python -m uvicorn talentia.main:app`. Las rutas heredadas
+> mencionadas debajo se conservan solo como trazabilidad y no son instrucciones vigentes.
+
 > Estado: contexto inicial observado el 2026-08-20. Los campos marcados como `POR CONFIRMAR` no se deducen de forma fiable del repositorio.
 ## Actualización operativa TCS — SPEC-023 a SPEC-029 (2026-09-12)
 
@@ -27,7 +31,7 @@ Esta sección prevalece sobre las descripciones iniciales que entren en conflict
 - **Arquitectura:** `app/domain` contiene reglas puras; `app/application` casos de uso y unidad de trabajo; `app/infrastructure` SQLite, documentos, seguridad y proveedores; `app/api` expone FastAPI; `ats_frontend` consume la API sin ejecutar reglas de negocio.
 - **Gobierno de IA:** el modelo propone dimensiones estructuradas; los filtros, total, estados y acciones autorizadas se calculan en backend. El sistema rechaza instrucciones incrustadas, retira PII antes del proveedor y conserva evidencia/auditoría.
 - **Persistencia:** SQLite local para el ATS y caché FAISS/SQLite con TTL de 24 horas para el analizador heredado. `.env`, claves, bases, almacenamiento y temporales están excluidos de Git.
-- **Operación:** `python scripts/seed.py --reset`; API con `python -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000`; interfaz con `python -m streamlit run ats_frontend/streamlit_app.py`.
+- **Operacion vigente:** `python -m uvicorn talentia.main:app --host 127.0.0.1 --port 8000`.
 - **Evidencia:** 256 pruebas aprobadas, seed reproducible, smoke de API/Streamlit y escáner de publicación aprobados. CI ejecuta escáner y pytest.
 - **Límites vigentes:** laboratorio local y datos ficticios; SQLite y sesión de desarrollo no son aptos para producción multiusuario; Gmail permanece en borrador/DRY_RUN; no existe RSC, scraping ni automatización de LinkedIn; no cargar CV reales ni desplegar como servicio compartido sin revisión legal, de privacidad y seguridad.
 
@@ -183,13 +187,13 @@ python -m pip install -r requirements.txt
 ### Ejecutar el flujo principal
 
 ```powershell
-python -m streamlit run frontend/streamlit_postulacion.py
+Comando retirado por SPEC-031; consultar el historial Git si se necesita evidencia.
 ```
 
 ### Ejecutar el flujo heredado
 
 ```powershell
-python -m streamlit run streamlit_postulacion.py
+Comando retirado por SPEC-031; consultar el historial Git si se necesita evidencia.
 ```
 
 Este segundo comando se deduce del archivo ejecutable, pero no está presentado como ruta principal en `README.md`.
@@ -216,7 +220,8 @@ Resultado observado el 2026-08-20 después de SPEC-003: **41 pruebas aprobadas**
 - **Observabilidad de caché:** métricas agregadas en SQLite local; LangSmith y cualquier telemetría externa están fuera del alcance actual.
 - **Documentos cargados:** fuente de verdad para requisitos y evidencia durante cada ejecución.
 - **Especificaciones de comportamiento:** `specs/000-hr-cv-screening/` verificada y `specs/003-cache-vectorial-respuestas/` en verificación.
-- **Código ejecutable principal:** `frontend/streamlit_postulacion.py` y `backend/` prevalecen ante contradicciones con documentación heredada.
+- **Codigo ejecutable oficial:** `talentia.main:app`; el contenido anterior de esta seccion es
+  exclusivamente historico.
 
 ## 7. Datos sensibles, propietarios y conservación
 

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Revisar lote | TalentIA{% endblock %}
+{% block heading %}Revisar lote{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+<section class="seccion"><div class="titulo-seccion"><h2>Vista previa</h2><span class="estado">{{ lote.estado }}</span></div>
+  <p>{{ lote.filas | length }} filas. Los datos no se incorporan hasta confirmar.</p>
+  {% if lote.estado == 'staging' %}<form method="post" action="/lotes/{{ lote.id }}/mapeo" class="row g-2 mb-4">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="col-md-5"><input class="form-control" name="origen" placeholder="Columna del archivo" required></div>
+    <div class="col-md-5"><select class="form-select" name="destino"><option>nombres</option><option>apellidos</option><option>documento</option><option>correo</option><option>telefono</option><option>elegible_reingreso</option></select></div>
+    <div class="col-md-2"><button class="btn btn-outline-primary" type="submit">Aplicar mapeo</button></div>
+  </form>{% endif %}
+  <div class="tabla-responsive"><table class="table"><thead><tr><th>Fila</th><th>Estado</th><th>Datos y correccion</th><th>Errores</th></tr></thead><tbody>
+  {% for fila in lote.filas %}<tr><td>{{ fila.numero }}</td><td>{{ fila.clasificacion }}</td><td>
+    {% if lote.estado == 'staging' %}<form method="post" action="/lotes/{{ lote.id }}/filas/{{ fila.numero }}" class="row g-1"><input type="hidden" name="csrf" value="{{ csrf }}">
+      {% set campos = ['documento','elegible_reingreso'] if lote.tipo == 'excolaboradores' else ['nombres','apellidos','documento','correo','telefono'] %}
+      {% for campo in campos %}<div class="col"><input class="form-control form-control-sm" name="{{ campo }}" value="{{ fila.datos.get(campo, '') }}" placeholder="{{ campo }}"></div>{% endfor %}
+      <div class="col-auto"><button class="btn btn-sm btn-outline-primary" type="submit">Guardar</button></div></form>
+    {% else %}{{ fila.datos }}{% endif %}
+  </td><td>{{ fila.errores | join('; ') }}</td></tr>{% endfor %}</tbody></table></div>
+  {% if lote.estado == 'staging' %}<div class="d-flex gap-2"><form method="post" action="/lotes/{{ lote.id }}/confirmar"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-primary" type="submit">Confirmar importacion</button></form><form method="post" action="/lotes/{{ lote.id }}/cancelar"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline-danger" type="submit">Cancelar</button></form></div>{% endif %}
+</section>
+{% endblock %}

@@ -20,3 +20,19 @@ Aplicar migración antes de API. MLflow puede desactivarse con variable. Rollbac
 ## Verificación
 
 Dobles MLflow inspeccionan parámetros registrados; pruebas aseguran ausencia de contenido/secretos, persistencia, RBAC y degradación.
+
+## Plan R1 aprobado — Trazas de procesos
+
+1. Enriquecer el estado del grafo con registros metadata-only por nodo: orden, versión, estado,
+   intentos, duración y delta de tokens.
+2. Persistir dichos registros junto al workflow existente mediante una columna JSON reversible,
+   evitando una segunda fuente de verdad.
+3. Registrar en MLflow un run padre por workflow y runs hijos por nodo, sin prompts, respuestas,
+   CV, PII ni mensajes de excepción.
+4. Exponer listados paginados y detalle por workflow usando la persistencia local; incorporar
+   topología derivada del grafo real y enlace seguro a MLflow.
+5. Extender el panel para filtros, totales, desglose de tokens y navegación de nodos.
+6. Probar privacidad, RBAC, degradación de MLflow, persistencia y paginación.
+
+**Rollback R1:** la columna de detalle es aditiva; el endpoint agregado original y los workflows
+previos sin detalle continúan renderizando sus tiempos agregados.

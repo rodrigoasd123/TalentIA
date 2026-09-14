@@ -1,6 +1,6 @@
 # SPEC-026 — Deduplicación de identidad de candidatos
 
-- **Estado:** VERIFIED
+- **Estado:** VERIFICADO (salvo BIZ-004 fuera de alcance)
 - **Fuente:** Documento TCS, agente 1 y orden operativo propuesto.
 
 ## Problema y alcance
@@ -20,3 +20,13 @@ TCS y Adecco verifican manualmente si una persona ya fue contactada, evaluada o 
 ## Fuera de alcance y riesgos
 
 No inferir identidad biométrica ni eliminar registros. Los falsos positivos se mitigan con revisión humana. Sin preguntas bloqueantes.
+
+## Refinamiento greenfield aprobado — 2026-09-14
+
+- La igualdad de documento o correo es una coincidencia exacta y bloquea el alta duplicada.
+- El teléfono normalizado o el nombre normalizado son señales probables: nunca fusionan ni bloquean
+  permanentemente; una persona debe revisar evidencia enmascarada y confirmar que crea una identidad
+  separada.
+- La comparación recorre toda la base del cliente, sin el límite previo de 200 filas.
+- El umbral de similitud aproximada de nombres continúa bloqueado por `BIZ-004`; no se inventa.
+- La orden de ejecutar `PENDIENTES_IMPLEMENTACION_GREENFIELD.md` aprueba este alcance y plan.

@@ -1,133 +1,90 @@
-# TalentIA — selección y análisis documental gobernados
+# TalentIA
 
-TalentIA es una sola aplicación para administrar vacantes, candidatos, CV,
-postulaciones, evaluaciones, revisión humana, pipeline, Candidate 360,
-comunicaciones, importaciones, reportes, auditoría y análisis documental con OCR,
-ranking y consulta RAG basada en evidencia.
+TalentIA es un ATS asistido para el piloto de TCS. Administra candidatos, perfiles,
+postulaciones, documentos, evaluaciones con evidencia, revision humana, lotes de proveedor,
+exclusiones y auditoria. No aprueba, rechaza ni contrata automaticamente.
 
-> Entorno de laboratorio: usa únicamente datos ficticios. No cargues CV reales ni
-> despliegues el sistema como servicio compartido sin aprobación legal, de privacidad
-> y seguridad.
+## Runtime oficial
 
-## Inicio rápido en Windows
+La unica aplicacion mantenida vive en `src/talentia`:
 
-TalentIA requiere Python 3.12. Desde la raíz del repositorio:
+- Backend y web: FastAPI + Jinja2 + HTMX.
+- Persistencia del piloto: SQLite con WAL y migraciones Alembic.
+- Orquestacion: LangGraph para el flujo durable de evaluacion.
+- Ejecucion: Python 3.12. Node.js y Streamlit no son necesarios.
+
+Los documentos de `specs/` y `docs/adr/` anteriores a la consolidacion se conservan
+unicamente como trazabilidad historica.
+
+## Inicio en Windows
+
+Desde la raiz del repositorio:
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m alembic upgrade head
-.\.venv\Scripts\python.exe scripts\seed.py --reset
+.\.venv\Scripts\python.exe -m pip install -e .
+
+$env:TALENTIA_ENV="piloto"
+$env:TALENTIA_SESSION_SECRET="genere-un-secreto-aleatorio-de-al-menos-32-caracteres"
+$env:TALENTIA_ADMIN_EMAIL="admin@su-empresa.com"
+$env:TALENTIA_ADMIN_PASSWORD="Ejemplo-Seguro-2026!"
+
+.\scripts\migrate.ps1
+.\scripts\start_api.ps1
 ```
 
-`seed.py --reset` elimina la base configurada: úsalo exclusivamente con datos
-prescindibles. Inicia la API y la interfaz en terminales separadas:
+Abra `http://127.0.0.1:8000/login`.
+
+Para procesar trabajos de evaluacion, abra otra terminal:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
-.\.venv\Scripts\python.exe -m streamlit run ats_frontend/streamlit_app.py
+.\scripts\start_worker.ps1
 ```
 
-El inicio integrado también levanta MLflow. Su panel queda disponible en
-`http://127.0.0.1:5000` y registra por llamada el modelo, proveedor, tokens,
-latencia y estado, sin almacenar prompts, respuestas ni API keys:
+No active un proveedor LLM ni cargue CV reales sin aprobacion de seguridad, privacidad y legal.
+Sin proveedor, el sistema conserva el flujo manual y deterministico.
+
+La guia completa esta en
+[`docs/INSTALACION_GREENFIELD_WINDOWS.md`](docs/INSTALACION_GREENFIELD_WINDOWS.md).
+
+## Desarrollo y verificacion
 
 ```powershell
-.\scripts\start_lab.ps1
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe scripts\check_repository.py
+.\.venv\Scripts\python.exe scripts\check_brand_identity.py
+.\.venv\Scripts\ruff.exe check src\talentia migrations_greenfield tests\greenfield
+.\.venv\Scripts\ruff.exe format --check src\talentia migrations_greenfield tests\greenfield
+.\.venv\Scripts\mypy.exe src\talentia
+.\.venv\Scripts\python.exe -m pytest -q tests\greenfield --basetemp .pytest-tmp
 ```
 
-Interfaz: `http://localhost:8501`. API: `http://127.0.0.1:8000/docs`.
+## Datos y recuperacion
 
-En laboratorios donde esos puertos suelen estar ocupados, el siguiente script
-aplica migraciones y elige automáticamente puertos libres sin detener procesos
-ajenos:
+- La base predeterminada es `talentia_greenfield.db`; esta excluida de Git.
+- Los CV se almacenan fuera de los estaticos en `storage/greenfield`; tambien esta excluido.
+- `scripts/backup.ps1` y `scripts/restore.ps1` realizan copias verificables sin sobrescribir.
+- `scripts/seed_greenfield.py` genera unicamente datos ficticios para demostracion y nunca crea
+  usuarios ni contrasenas. Las cuentas se provisionan exclusivamente mediante entorno.
+
+## Benchmark opcional
+
+MLflow es una herramienta offline de desarrollo y no una dependencia del piloto:
 
 ```powershell
-.\scripts\start_lab.ps1
+.\.venv\Scripts\python.exe -m pip install -e ".[benchmark]"
+.\.venv\Scripts\python.exe scripts\ejecutar_benchmark_greenfield.py
 ```
 
-## Configuración
+El benchmark debe utilizar etiquetas humanas independientes antes de considerarse evidencia de
+calidad o falso descarte.
 
-Las variables oficiales usan el prefijo `TALENTIA_`. Consulta `.env.example`.
-Durante dos versiones menores se aceptan aliases con prefijo `VERA_`; TalentIA
-siempre tiene prioridad y emite una advertencia que no contiene el valor.
+## Arquitectura y gobierno
 
-Desde **Configuración > Configuración técnica** se puede elegir **GenAI Lab
-(gateway)**, ingresar la URL base del gateway, pegar la API key y seleccionar uno
-de los modelos de generación habilitados. La clave se cifra en la base local y
-nunca vuelve a salir en claro por la API. Los modelos de embeddings y Whisper se
-registran como capacidades del laboratorio, pero no aparecen como evaluadores de
-texto porque sus contratos son distintos.
-
-Los secretos de desarrollo nuevos se guardan en `.talentia_dev_key`. Si existe
-únicamente el archivo de clave heredado, se copia de forma compatible. Si ambos
-archivos difieren, el arranque se detiene.
-
-## Base de datos SQLite
-
-La fuente de verdad es `talentia.db`, gobernada por SQLAlchemy y Alembic. CSV y
-Excel solo sirven para importación histórica y exportación controlada.
-
-Cuando se usa la URL predeterminada:
-
-- sin bases existentes, TalentIA crea `talentia.db`;
-- con solo `talentia.db`, la usa y aplica migraciones pendientes;
-- con solo `vera.db`, crea respaldo y copia verificados mediante SHA-256,
-  `PRAGMA integrity_check`, revisión Alembic y conteos antes de promover una copia
-  atómicamente;
-- con ambas bases, no modifica ninguna y exige seleccionar una ruta explícita con
-  `TALENTIA_DATABASE_URL`.
-
-Los respaldos y sus manifiestos quedan en `.talentia-backups/`. El archivo de origen
-no se elimina automáticamente. Para revertir: detén TalentIA, verifica el SHA-256
-del respaldo indicado en el manifiesto y cópialo a una ruta desocupada; nunca
-sobrescribas una base existente. Después configura esa ruta mediante
-`TALENTIA_DATABASE_URL` y ejecuta `alembic current` antes de iniciar.
-
-Una URL configurada explícitamente nunca se mueve ni renombra automáticamente.
-
-## Operación
-
-1. Crea y aprueba una vacante.
-2. Gestiona la tabla general de candidatos desde **Candidatos**: busca, filtra,
-   selecciona una fila para editarla o registra una persona nueva.
-3. Ejecuta evaluaciones y resuelve revisiones humanas.
-4. Gestiona estados por postulación y vacante desde Pipeline.
-5. Usa **Análisis documental** para comparar PDF, ejecutar OCR local y consultar
-   evidencia RAG dentro de la misma navegación.
-6. Consulta Candidate 360, reportes y auditoría.
-
-La importación CSV/XLSX y la exportación CSV son mecanismos opcionales. La tabla
-general siempre se carga desde FastAPI y persiste sus cambios en SQLite.
-
-El puntaje documental es orientativo. El agente no cambia estados, no envía correos
-y no decide contrataciones.
-
-## Compatibilidad interna
-
-Algunos identificadores heredados permanecen deliberadamente: revisiones Alembic,
-eventos históricos, nombres internos de adaptadores, emisor JWT temporal y el salt
-criptográfico usado para descifrar secretos existentes. No representan productos
-separados y no deben renombrarse destruyendo trazabilidad o compatibilidad.
-
-El entrypoint documental anterior se conserva temporalmente como rollback técnico
-no enlazado. La navegación y operación ordinaria se realizan exclusivamente desde
-`ats_frontend/streamlit_app.py`.
-
-## Brechas conocidas
-
-El piloto no implementa todavía cifrado de todas las columnas PII en reposo,
-política corporativa de retención/eliminación ni backups operativos administrados.
-SQLite y la sesión de desarrollo no son adecuados para producción multiusuario.
-
-## Pruebas
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q --basetemp .pytest-tmp
-.\.venv\Scripts\ruff.exe check app ats_frontend tests
-.\.venv\Scripts\mypy.exe
-```
-
-La especificación vigente de consolidación está en
-`specs/019-consolidacion-definitiva-talentia/`.
+- Arquitectura: [`docs/architecture.md`](docs/architecture.md)
+- API: [`docs/api.md`](docs/api.md)
+- Seguridad: [`docs/security.md`](docs/security.md)
+- Runbook: [`docs/pilot_runbook.md`](docs/pilot_runbook.md)
+- Constitucion SDD: [`docs/sdd/constitucion.md`](docs/sdd/constitucion.md)
+- Consolidacion actual: [`specs/031-consolidacion-runtime-greenfield/`](specs/031-consolidacion-runtime-greenfield/)

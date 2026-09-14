@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TalentIA{% endblock %}</title>
+  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/css/aplicacion.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+</head>
+<body>
+  <div class="estructura">
+    <aside class="barra-lateral">
+      <a class="marca" href="/" aria-label="TalentIA">
+        <img src="/static/img/talentia-logo.png" alt="TalentIA">
+      </a>
+      <nav aria-label="Navegacion principal">
+        <div class="grupo-nav">
+          <span>Operacion</span>
+          <a href="/">Inicio</a>
+          <a href="/candidatos">Base general</a>
+          <a href="/modulo/perfiles">Perfiles</a>
+          <a href="/modulo/postulaciones">Postulaciones</a>
+          <a href="/modulo/documentos">CV y precarga</a>
+        </div>
+        <div class="grupo-nav">
+          <span>Seguimiento</span>
+          <a href="/modulo/evaluaciones">Evaluaciones</a>
+          <a href="/modulo/revisiones">Revision humana</a>
+          <a href="/modulo/trabajos">Trabajos</a>
+        </div>
+        <div class="grupo-nav">
+          <span>Control</span>
+          <a href="/modulo/lotes">Lotes</a>
+          <a href="/modulo/excolaboradores">Ex-TCS</a>
+          <a href="/modulo/exclusiones">Exclusiones</a>
+          <a href="/modulo/metricas">Metricas</a>
+          <a href="/modulo/usuarios">Usuarios</a>
+        </div>
+      </nav>
+      <div class="sesion">
+        <strong>{{ usuario.correo }}</strong>
+        <span>{{ usuario.roles | join(', ') }}</span>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn btn-sm btn-outline-secondary w-100" type="submit">Cerrar sesion</button>
+        </form>
+      </div>
+    </aside>
+    <main class="contenido">
+      <header class="encabezado">
+        <div>
+          <span class="sobrelinea">TALENTIA</span>
+          <h1>{% block heading %}Inicio{% endblock %}</h1>
+        </div>
+        {% if modo_manual %}<span class="estado estado-manual">Modo manual</span>{% endif %}
+      </header>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>
+

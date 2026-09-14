@@ -1,0 +1,1 @@
+"""Capas compartidas de TalentIA."""

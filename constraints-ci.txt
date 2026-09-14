@@ -1,0 +1,16 @@
+# Resolucion reproducible para los extras de verificacion en GitHub Actions.
+# Este archivo no forma parte del runtime del piloto ni instala dependencias por si mismo.
+fastapi==0.141.1
+starlette==1.6.0
+langgraph==0.2.76
+langchain-core==0.3.86
+langsmith==0.12.4
+mlflow==3.16.0
+mlflow-skinny==3.16.0
+mlflow-tracing==3.16.0
+packaging==25.0
+protobuf==6.33.6
+opentelemetry-api==1.44.0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-semantic-conventions==0.65b0

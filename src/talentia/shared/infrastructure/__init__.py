@@ -1,0 +1,1 @@
+"""Implementaciones compartidas de infraestructura."""
