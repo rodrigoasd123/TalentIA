@@ -26,6 +26,24 @@ error. No se persisten textos de CV, secretos ni identificadores personales en t
 eliminacion automatica permanece deshabilitada hasta que TCS resuelva `BIZ-007`; no debe aplicarse una
 ventana de retencion inferida.
 
+## Linea base de rendimiento
+
+Con la API iniciada, ejecutar:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\medir_rendimiento_piloto.py --solicitudes 50 --concurrencia 5
+```
+
+El comando no conserva cuerpos, cabeceras ni cookies. Registre el JSON junto con fecha, hardware,
+revision Git y configuracion de concurrencia. Un resultado sin errores sirve como smoke tecnico; los
+presupuestos de aceptacion deben definirse con carga representativa de TCS.
+
+## Docker opcional
+
+La imagen declara `/app/src` como ruta del paquete. Cuando Docker este disponible, configurar las
+variables requeridas y ejecutar `docker compose up --build`; verificar `/health`, login y un trabajo
+sintetico. La operacion normal del piloto no depende de Docker.
+
 ## Limites
 
 Piloto local, datos ficticios y un unico equipo. No desplegar como servicio compartido hasta
