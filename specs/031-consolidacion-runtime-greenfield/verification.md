@@ -64,3 +64,6 @@ Estado: `VERIFICANDO`; pendiente confirmar CI remoto verde para declarar `VERIFI
 - El segundo run remoto `34819155375` volvio a fallar solo en `pip check`, pese a que la misma
   resolucion aprobo en el entorno limpio local. Se aislo el job completo en un `venv` nuevo para
   eliminar paquetes globales del runner como variable; queda pendiente confirmar el siguiente run.
+- Los runs `34820901707` y `34820987079` aprobaron instalación y `pip check` dentro del entorno
+  aislado. El escáner detectó el entorno al estar dentro del checkout; se movió a `RUNNER_TEMP` para
+  que solo los archivos del producto formen parte de la inspección.
