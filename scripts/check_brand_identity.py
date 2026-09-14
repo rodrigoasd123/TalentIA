@@ -7,12 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VISIBLE_TARGETS = (
-    ROOT / "ats_frontend",
-    ROOT / "app" / "api",
+    ROOT / "src" / "talentia" / "web",
     ROOT / "README.md",
-    ROOT / "MANUAL_USUARIO.md",
-    ROOT / "scripts" / "run_demo.py",
-    ROOT / "scripts" / "seed.py",
 )
 LEGACY_BRAND = re.compile(
     r"\b(?:VERA(?: ATS)?(?![_.-])|PostulaIA|PostulAI)\b", re.IGNORECASE
