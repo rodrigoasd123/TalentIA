@@ -1,7 +1,7 @@
 ---
 id: SPEC-032
 titulo: Cierre de operabilidad y evidencia de rubrica
-estado: VERIFICANDO
+estado: VERIFICADO
 responsable_producto: Rodrigo
 creado: 2026-09-14
 actualizado: 2026-09-14
