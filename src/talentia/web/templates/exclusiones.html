@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Exclusiones y Vetados TCS | TalentIA{% endblock %}
+{% block heading %}Exclusiones y Cumplimiento (AG-05){% endblock %}
+{% block breadcrumb %}Exclusiones{% endblock %}
+{% block subtitle %}Registro centralizado de vetos disciplinarios, inhabilitaciones ético-legales y períodos de carencia reglamentarios (cooling-off).{% endblock %}
+
+{% block content %}
+<section class="seccion modulo-operativo">
+  <div class="titulo-seccion">
+    <div>
+      <h2>Registros actuales de Excluidos y Vetados</h2>
+      <span class="subtitulo-seccion text-muted">Supervisión gobernada de idoneidad ética, períodos de enfriamiento y vetos permanentes</span>
+    </div>
+    <div class="acciones-cabecera">
+      <span class="badge bg-danger fs-6">{{ vetados | length }} restricciones</span>
+      <a class="btn btn-outline-danger btn-sm" href="/descargas/vetados.csv" download>⬇ Descargar CSV Vetados</a>
+      <a class="btn btn-outline-secondary btn-sm" href="/descargas/reporte_exclusiones_ag05.csv" download>⬇ Reporte AG-05 Proveedor</a>
+      <a class="btn btn-primary btn-sm" href="/exclusiones/nueva">Crear reporte oficial</a>
+    </div>
+  </div>
+
+  <!-- Métricas Rápidas -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3 bg-light">
+        <div class="text-muted small">Total Restricciones</div>
+        <div class="fs-4 fw-bold text-dark">{{ vetados | length }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3 bg-light">
+        <div class="text-muted small">Vetos Permanentes</div>
+        <div class="fs-4 fw-bold text-danger">{{ total_permanentes }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3 bg-light">
+        <div class="text-muted small">Inhabilitación Ética / BGC</div>
+        <div class="fs-4 fw-bold text-warning">{{ total_eticas }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3 bg-light">
+        <div class="text-muted small">Carencias (Cooling-off)</div>
+        <div class="fs-4 fw-bold text-info">{{ total_carencias }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Buscador rápido en vivo -->
+  <div class="mb-3">
+    <input type="text" id="buscador-vetados" class="form-control form-control-lg" placeholder="🔍 Filtrar en tiempo real por DNI, persona, tipo de restricción, motivo de descarte o responsable..." onkeyup="filtrarVetados()">
+  </div>
+
+  <div class="tabla-responsive">
+    <table class="table table-hover align-middle" id="tabla-vetados">
+      <thead class="table-light">
+        <tr>
+          <th>DNI</th>
+          <th>Candidato / Persona</th>
+          <th>Fecha Evento</th>
+          <th>Tipo de Restricción</th>
+          <th>Motivo Específico del Descarte / Veto</th>
+          <th>Vigencia</th>
+          <th>Fin de Veto</th>
+          <th>Estado</th>
+          <th>Responsable</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vetados %}
+        <tr>
+          <td><code class="fw-bold text-danger">{{ v.documento }}</code></td>
+          <td><strong>{{ v.nombres }} {{ v.apellidos }}</strong></td>
+          <td>{{ v.fecha_evento }}</td>
+          <td>
+            {% if 'Permanente' in v.tipo_restriccion %}
+              <span class="badge bg-danger">{{ v.tipo_restriccion }}</span>
+            {% elif 'Carencia' in v.tipo_restriccion %}
+              <span class="badge bg-info text-dark">{{ v.tipo_restriccion }}</span>
+            {% elif 'Integridad' in v.tipo_restriccion or 'BGC' in v.tipo_restriccion %}
+              <span class="badge bg-dark">{{ v.tipo_restriccion }}</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">{{ v.tipo_restriccion }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="fw-semibold text-dark">{{ v.motivo_descarte }}</div>
+            {% if v.observaciones_legales %}
+            <small class="text-muted d-block">{{ v.observaciones_legales }}</small>
+            {% endif %}
+          </td>
+          <td>
+            {% if v.vigencia_meses == '999' or v.vigencia_meses == 999 %}
+              <span class="badge bg-secondary">Indefinida</span>
+            {% else %}
+              {{ v.vigencia_meses }} meses
+            {% endif %}
+          </td>
+          <td>{{ v.fecha_fin_veto }}</td>
+          <td>
+            {% if v.estado_restriccion == 'Permanente' %}
+              <span class="badge bg-danger">Permanente</span>
+            {% elif v.estado_restriccion == 'Activa' %}
+              <span class="badge bg-warning text-dark">Activa</span>
+            {% else %}
+              <span class="badge bg-secondary">Vencida</span>
+            {% endif %}
+          </td>
+          <td><small class="text-muted">{{ v.responsable_registro }}</small></td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" class="vacio text-center py-4">No hay exclusiones registradas en el alcance actual.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+function filtrarVetados() {
+  const query = document.getElementById('buscador-vetados').value.toLowerCase();
+  const rows = document.querySelectorAll('#tabla-vetados tbody tr');
+  rows.forEach(row => {
+    const text = row.innerText.toLowerCase();
+    row.style.display = text.includes(query) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

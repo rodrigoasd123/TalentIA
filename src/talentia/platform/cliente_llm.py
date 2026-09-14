@@ -68,8 +68,16 @@ class ClienteLLM:
 
     @staticmethod
     def _json(texto: str) -> dict[str, object]:
+        limpio = texto.strip()
+        if limpio.startswith("```"):
+            lineas = limpio.splitlines()
+            if lineas[0].startswith("```"):
+                lineas = lineas[1:]
+            if lineas and lineas[-1].startswith("```"):
+                lineas = lineas[:-1]
+            limpio = "\n".join(lineas).strip()
         try:
-            resultado = json.loads(texto.strip())
+            resultado = json.loads(limpio)
         except json.JSONDecodeError as error:
             raise ProveedorLLMError("respuesta_json_invalida") from error
         if not isinstance(resultado, dict) or not isinstance(resultado.get("requisitos"), list):
@@ -90,12 +98,18 @@ class ClienteLLM:
             raise ProveedorLLMError("credencial_no_configurada")
         prompt = self._prompt(texto_sanitizado, requisitos)
         if ajustes.proveedor == "openai":
-            cuerpo = {
+            cuerpo: dict[str, object] = {
                 "model": ajustes.modelo,
                 "input": prompt,
-                "temperature": ajustes.temperatura,
-                "max_output_tokens": ajustes.tokens_maximos,
+                "max_output_tokens": max(16, ajustes.tokens_maximos),
             }
+            if not (
+                ajustes.modelo.startswith(("o1", "o3", "o4", "gpt-5"))
+                or "luna" in ajustes.modelo
+                or "sol" in ajustes.modelo
+                or "terra" in ajustes.modelo
+            ):
+                cuerpo["temperature"] = ajustes.temperatura
             solicitud = Request(
                 "https://api.openai.com/v1/responses",
                 data=json.dumps(cuerpo).encode(),
@@ -110,7 +124,7 @@ class ClienteLLM:
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
                     "temperature": ajustes.temperatura,
-                    "maxOutputTokens": ajustes.tokens_maximos,
+                    "maxOutputTokens": max(2048, ajustes.tokens_maximos),
                     "responseMimeType": "application/json",
                 },
             }

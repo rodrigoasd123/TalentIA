@@ -1,0 +1,26 @@
+﻿documento,elegible_reingreso,nombres,apellidos,cargo_desempenado,motivo_salida,fecha_salida
+45871234,SI,Carlos Alberto,Mendoza Ramos,Desarrollador Backend Senior (Python / Cloud),Renuncia voluntaria por mejor oferta salarial,2023-11-30
+46982345,SI,Lucía Mariana,Vargas Silva,Analista QA Automation Senior,Mutuo disenso al cierre del proyecto de automatización,2023-05-15
+47123456,SI,Diego Alonso,Alarcón Castro,Data Engineer / Cloud Architect,Renuncia voluntaria por reubicación al extranjero (Europa),2024-02-28
+48234567,SI,Valeria Sofía,Gutiérrez Peña,Tech Lead / Arquitecta Microservicios,Renuncia voluntaria para asumir jefatura en cliente final,2022-10-31
+49345678,NO,Martín Gonzalo,Rojas Paredes,Desarrollador Java / Spring Boot,Despido justificado por falta grave (Abandono injustificado),2023-01-15
+50456789,SI,Andrea Nicole,Flores Quiroz,Frontend Developer (React / TypeScript),Término de contrato por culminación de fase de desarrollo,2023-09-30
+51567890,NO,Jorge Luis,Navarro Salgado,Ingeniero DevOps / SRE,No superación de período de prueba (Bajo rendimiento técnico),2023-05-01
+52678901,SI,Mariana Paz,Salazar Benítez,Scrum Master / Agile Coach,Renuncia voluntaria por maestría a tiempo completo,2023-12-15
+53789012,SI,Sebastián David,Herrera Medina,Consultor SAP ABAP / FI,Renuncia voluntaria por emprendimiento personal,2022-08-30
+54890123,NO,Camila Andrea,Cáceres Torres,Analista de Seguridad de la Información,Despido justificado por violación del código de ética y seguridad,2023-04-10
+10234567,SI,Fernando Javier,Vásquez Ortiz,Desarrollador Fullstack (.NET / Angular),Renuncia voluntaria por mejores expectativas salariales,2021-12-20
+21345678,SI,Patricia Elena,Montesinos Barreda,Product Owner / Business Analyst,Renuncia voluntaria,2023-03-31
+32456789,SI,Roberto Carlos,Paredes Cueva,Administrador de Base de Datos Oracle,Renuncia por cambio de sector profesional,2021-06-30
+43567890,NO,Renato Andrés,Chávez Zúñiga,Desarrollador Mobile Flutter / Android,Renuncia tempestiva sin cumplir preaviso legal,2022-07-15
+54678901,SI,Gabriela Lucía,Morales Rivas,Diseñadora UX/UI Lead,Renuncia voluntaria para laborar en el extranjero,2023-08-15
+65789012,SI,Manuel Alejandro,Tello Huamán,Desarrollador Python / Django / FastAPI,Mutuo disenso por conclusión de etapa de servicio,2023-10-31
+76890123,SI,Claudia Roxana,Fernández Tapia,Ingeniera de Datos Azure / Synapse,Renuncia voluntaria,2023-11-15
+87901234,SI,César Augusto,Palacios Delgado,Arquitecto de Soluciones Cloud AWS,Renuncia voluntaria para asumir cargo gerencial,2022-12-31
+98012345,NO,Katia Milagros,Gálvez Quintana,Analista QA Funcional y de Regresión,Bajo rendimiento en evaluaciones de desempeño,2023-01-31
+12903456,SI,Víctor Raúl,Cárdenas Lozano,Especialista en Redes y Telecomunicaciones,Renuncia voluntaria,2021-09-30
+23014567,SI,Milagros Janet,Sotomayor Vega,Consultora de Procesos / RPA UiPath,Renuncia voluntaria,2023-06-30
+34125678,NO,Javier Eduardo,Villalobos Ruiz,Ingeniero de Ciberseguridad / Pentesting,Conflicto de interés comprobado (Servicios a cliente competidor),2022-04-15
+45236789,SI,Rocío del Pilar,Pinedo Cáceres,Scrum Master,Término de proyecto y mutuo acuerdo,2023-12-31
+56347890,SI,Ángel Gabriel,Montenegro Díaz,Desarrollador C++ / Sistemas Embebidos,Renuncia voluntaria por cambio de residencia a Arequipa,2022-05-31
+67458901,SI,Evelyn Tatiana,Zúñiga Cornejo,Líder de Testing y Calidad de Software,Renuncia voluntaria por crecimiento profesional,2023-10-15

@@ -38,7 +38,7 @@ def ejecutar_online() -> None:
     )
     with motor.connect() as conexion:
         if conexion.dialect.name == "sqlite":
-            conexion.exec_driver_sql("PRAGMA foreign_keys=ON")
+            conexion.exec_driver_sql("PRAGMA foreign_keys=OFF")
         context.configure(connection=conexion, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()

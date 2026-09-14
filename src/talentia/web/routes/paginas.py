@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from dataclasses import asdict
 from datetime import date
 from decimal import Decimal
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import Annotated, cast
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
@@ -17,6 +18,7 @@ from talentia.platform.security.contrasenas import FirmadorSesion, nuevo_csrf
 from talentia.shared.application.errores import (
     EntradaInvalidaError,
     NoAutorizadoError,
+    NoEncontradoError,
     TalentIAError,
 )
 from talentia.shared.domain.modelos import UsuarioActual, nuevo_id
@@ -936,6 +938,113 @@ def detalle_exclusion(request: Request, reporte_id: str) -> Response:
         name="detalle_exclusion.html",
         context=_contexto(request, usuario, reporte=reporte),
     )
+
+
+# ---------------------------------------------------------------------------
+# Rutas dedicadas: Ex-TCS y Exclusiones con datos enriquecidos
+# ---------------------------------------------------------------------------
+
+_CSV_EXCOLAB = (
+    Path(__file__).resolve().parents[4]
+    / "descargas_talento/03_Excolaboradores_TCS/excolaboradores_tcs_simulados.csv"
+)
+_CSV_VETADOS = (
+    Path(__file__).resolve().parents[4]
+    / "descargas_talento/04_Vetados_y_Exclusiones_TCS/vetados_excluidos_tcs_simulados.csv"
+)
+_CSV_REPORTE_AG05 = (
+    Path(__file__).resolve().parents[4]
+    / "descargas_talento/04_Vetados_y_Exclusiones_TCS/reporte_exclusiones_oficial_tcs.csv"
+)
+
+
+def _leer_csv(ruta: Path) -> list[dict[str, str]]:
+    if not ruta.exists():
+        return []
+    with ruta.open(encoding="utf-8-sig", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+@router.get("/modulo/excolaboradores", response_class=HTMLResponse)
+def modulo_excolaboradores(request: Request) -> Response:
+    usuario = _usuario(request)
+    excolaboradores = _leer_csv(_CSV_EXCOLAB)
+    total_elegibles = sum(1 for ex in excolaboradores if str(ex.get("elegible_reingreso", "")).upper() == "SI")
+    total_no_elegibles = len(excolaboradores) - total_elegibles
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="excolaboradores.html",
+        context=_contexto(
+            request,
+            usuario,
+            excolaboradores=excolaboradores,
+            total_elegibles=total_elegibles,
+            total_no_elegibles=total_no_elegibles,
+        ),
+    )
+
+
+@router.get("/modulo/exclusiones", response_class=HTMLResponse)
+def modulo_exclusiones(request: Request) -> Response:
+    usuario = _usuario(request)
+    vetados = _leer_csv(_CSV_VETADOS)
+    total_permanentes = sum(1 for v in vetados if v.get("estado_restriccion") == "Permanente")
+    total_eticas = sum(
+        1 for v in vetados
+        if "Ético" in str(v.get("tipo_restriccion", "")) or "Ética" in str(v.get("tipo_restriccion", ""))
+        or "BGC" in str(v.get("tipo_restriccion", "")) or "Integridad" in str(v.get("tipo_restriccion", ""))
+        or "Inhabilitaci" in str(v.get("tipo_restriccion", ""))
+    )
+    total_carencias = sum(1 for v in vetados if "Carencia" in str(v.get("tipo_restriccion", "")))
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="exclusiones.html",
+        context=_contexto(
+            request,
+            usuario,
+            vetados=vetados,
+            total_permanentes=total_permanentes,
+            total_eticas=total_eticas,
+            total_carencias=total_carencias,
+        ),
+    )
+
+
+@router.get("/descargas/excolaboradores.csv")
+def descargar_excolaboradores(request: Request) -> Response:
+    _usuario(request)
+    if not _CSV_EXCOLAB.exists():
+        raise NoEncontradoError("Archivo CSV de excolaboradores no encontrado")
+    return FileResponse(
+        path=str(_CSV_EXCOLAB),
+        media_type="text/csv; charset=utf-8",
+        filename="excolaboradores_tcs_simulados.csv",
+    )
+
+
+@router.get("/descargas/vetados.csv")
+def descargar_vetados(request: Request) -> Response:
+    _usuario(request)
+    if not _CSV_VETADOS.exists():
+        raise NoEncontradoError("Archivo CSV de vetados no encontrado")
+    return FileResponse(
+        path=str(_CSV_VETADOS),
+        media_type="text/csv; charset=utf-8",
+        filename="vetados_excluidos_tcs_simulados.csv",
+    )
+
+
+@router.get("/descargas/reporte_exclusiones_ag05.csv")
+def descargar_reporte_ag05(request: Request) -> Response:
+    _usuario(request)
+    if not _CSV_REPORTE_AG05.exists():
+        raise NoEncontradoError("Archivo CSV de reporte AG-05 no encontrado")
+    return FileResponse(
+        path=str(_CSV_REPORTE_AG05),
+        media_type="text/csv; charset=utf-8",
+        filename="reporte_exclusiones_oficial_tcs.csv",
+    )
+
 
 
 @router.get("/modulo/{modulo}", response_class=HTMLResponse)

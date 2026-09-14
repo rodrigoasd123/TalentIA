@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Excolaboradores TCS | TalentIA{% endblock %}
+{% block heading %}Excolaboradores TCS{% endblock %}
+{% block breadcrumb %}Excolaboradores{% endblock %}
+{% block subtitle %}Base histórica de excolaboradores de Tata Consultancy Services, fechas de contratación y elegibilidad de reingreso.{% endblock %}
+
+{% block content %}
+<section class="seccion modulo-operativo">
+  <div class="titulo-seccion">
+    <div>
+      <h2>Registros actuales de Excolaboradores</h2>
+      <span class="subtitulo-seccion text-muted">Historial contractual oficial y validación de políticas de recontratación TCS</span>
+    </div>
+    <div class="acciones-cabecera">
+      <span class="badge bg-primary fs-6">{{ excolaboradores | length }} colaboradores</span>
+      <a class="btn btn-outline-primary btn-sm" href="/descargas/excolaboradores.csv" download>⬇ Descargar CSV Completo</a>
+      <a class="btn btn-primary btn-sm" href="/lotes/nuevo">Importar lote</a>
+    </div>
+  </div>
+
+  <!-- Métricas Rápidas -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3 bg-light">
+        <div class="text-muted small">Total Excolaboradores Registrados</div>
+        <div class="fs-4 fw-bold text-dark">{{ excolaboradores | length }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3 bg-light">
+        <div class="text-muted small">Elegibles para Reingreso (SI)</div>
+        <div class="fs-4 fw-bold text-success">{{ total_elegibles }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3 bg-light">
+        <div class="text-muted small">No Elegibles / Bloqueados (NO)</div>
+        <div class="fs-4 fw-bold text-danger">{{ total_no_elegibles }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Buscador rápido en vivo -->
+  <div class="mb-3">
+    <input type="text" id="buscador-excolab" class="form-control form-control-lg" placeholder="🔍 Filtrar en tiempo real por DNI, nombres, cargo, proyecto o motivo de salida..." onkeyup="filtrarExcolab()">
+  </div>
+
+  <div class="tabla-responsive">
+    <table class="table table-hover align-middle" id="tabla-excolab">
+      <thead class="table-light">
+        <tr>
+          <th>DNI</th>
+          <th>Colaborador</th>
+          <th>Cargo desempeñado</th>
+          <th>Proyecto / Cliente</th>
+          <th>Fecha Ingreso</th>
+          <th>Fecha Salida</th>
+          <th>Permanencia</th>
+          <th>Motivo de Salida</th>
+          <th>Desempeño</th>
+          <th>Elegible</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ex in excolaboradores %}
+        <tr>
+          <td><code class="fw-bold text-primary">{{ ex.documento }}</code></td>
+          <td><strong>{{ ex.nombres }} {{ ex.apellidos }}</strong></td>
+          <td>{{ ex.cargo_desempenado }}</td>
+          <td><span class="badge bg-secondary">{{ ex.area_o_proyecto }}</span></td>
+          <td>{{ ex.fecha_ingreso }}</td>
+          <td>{{ ex.fecha_salida }}</td>
+          <td>{{ ex.tiempo_permanencia_meses }} meses</td>
+          <td>
+            <div>{{ ex.motivo_salida }}</div>
+            {% if ex.observaciones_rrhh %}
+            <small class="text-muted d-block">{{ ex.observaciones_rrhh }}</small>
+            {% endif %}
+          </td>
+          <td>{{ ex.calificacion_desempeno }}</td>
+          <td>
+            {% if ex.elegible_reingreso == 'SI' or ex.elegible_reingreso == 'True' or ex.elegible_reingreso is true %}
+              <span class="badge bg-success">Elegible (SI)</span>
+            {% else %}
+              <span class="badge bg-danger">No Elegible (NO)</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="vacio text-center py-4">No hay excolaboradores registrados en el alcance actual.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+function filtrarExcolab() {
+  const query = document.getElementById('buscador-excolab').value.toLowerCase();
+  const rows = document.querySelectorAll('#tabla-excolab tbody tr');
+  rows.forEach(row => {
+    const text = row.innerText.toLowerCase();
+    row.style.display = text.includes(query) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}
