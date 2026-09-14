@@ -248,8 +248,10 @@ def traza_candidato(
     usuario: UsuarioDep,
     servicio_actual: ServicioDep,
     limit: int = 50,
+    tipo: str | None = None,
+    desde: datetime | None = None,
 ) -> dict[str, object]:
-    return servicio_actual.traza_candidato(usuario, candidato_id, limit)
+    return servicio_actual.traza_candidato(usuario, candidato_id, limit, tipo, desde)
 
 
 @router.post("/candidates/{candidato_id}/resumes", status_code=201)

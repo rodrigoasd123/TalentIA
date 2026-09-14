@@ -10,7 +10,7 @@ from decimal import Decimal
 from types import TracebackType
 from typing import Any
 
-from sqlalchemy import delete, func, or_, select, true, update
+from sqlalchemy import and_, delete, func, or_, select, true, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -444,19 +444,71 @@ class RepositorioSqlalchemy:
         self.sesion.flush()
         return evento_id
 
-    def traza_candidato(self, candidato_id: str, limite: int) -> list[dict[str, object]]:
+    def traza_candidato(
+        self,
+        candidato_id: str,
+        limite: int,
+        tipo: str | None = None,
+        desde: datetime | None = None,
+    ) -> list[dict[str, object]]:
+        postulaciones = list(
+            self.sesion.scalars(
+                select(PostulacionModelo.id).where(PostulacionModelo.candidato_id == candidato_id)
+            )
+        )
+        documentos = list(
+            self.sesion.scalars(
+                select(DocumentoCandidatoModelo.id).where(
+                    DocumentoCandidatoModelo.candidato_id == candidato_id
+                )
+            )
+        )
+        evaluaciones = (
+            list(
+                self.sesion.scalars(
+                    select(EvaluacionModelo.id).where(
+                        EvaluacionModelo.postulacion_id.in_(postulaciones)
+                    )
+                )
+            )
+            if postulaciones
+            else []
+        )
+        relaciones = [
+            and_(
+                EventoAuditoriaModelo.recurso_tipo == "candidato",
+                EventoAuditoriaModelo.recurso_id == candidato_id,
+            )
+        ]
+        for recurso_tipo, ids in (
+            ("postulacion", postulaciones),
+            ("documento", documentos),
+            ("evaluacion", evaluaciones),
+        ):
+            if ids:
+                relaciones.append(
+                    and_(
+                        EventoAuditoriaModelo.recurso_tipo == recurso_tipo,
+                        EventoAuditoriaModelo.recurso_id.in_(ids),
+                    )
+                )
+        consulta = select(EventoAuditoriaModelo).where(or_(*relaciones))
+        if tipo:
+            consulta = consulta.where(EventoAuditoriaModelo.accion == tipo)
+        if desde:
+            consulta = consulta.where(EventoAuditoriaModelo.ocurrido_en >= desde)
         eventos = self.sesion.scalars(
-            select(EventoCandidatoModelo)
-            .where(EventoCandidatoModelo.candidato_id == candidato_id)
-            .order_by(EventoCandidatoModelo.ocurrido_en.desc())
-            .limit(limite)
+            consulta.order_by(EventoAuditoriaModelo.ocurrido_en.desc()).limit(limite)
         )
         return [
             {
-                "tipo": evento.tipo,
+                "tipo": evento.accion,
                 "actor_id": evento.actor_id,
                 "detalle": evento.detalle,
                 "ocurrido_en": evento.ocurrido_en,
+                "correlacion_id": evento.correlacion_id,
+                "recurso_tipo": evento.recurso_tipo,
+                "recurso_id": evento.recurso_id,
             }
             for evento in eventos
         ]

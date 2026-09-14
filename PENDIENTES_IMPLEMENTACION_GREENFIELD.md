@@ -31,6 +31,8 @@ Progreso del 2026-09-14: el bloque 1 fue implementado y verificado localmente me
 refinamiento de SPEC-006. Queda sujeto a CI remoto verde antes de considerarlo cerrado.
 El bloque 2 permanece bloqueado por `BIZ-009`. El bloque 3 (AG-01) fue implementado localmente
 salvo la similitud configurable de nombres, bloqueada expresamente por `BIZ-004`.
+Los bloques 4 (AG-02) y 5 (AG-03) ya estaban cubiertos por SPEC-030 y sus pruebas; OCR concreto es
+opcional y el fallback manual está implementado. El bloque 6 (traza AG-04) fue ampliado localmente.
 
 ### 1. Seguridad e inicializacion
 

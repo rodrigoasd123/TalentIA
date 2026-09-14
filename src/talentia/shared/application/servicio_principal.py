@@ -499,11 +499,18 @@ class ServicioTalentIA:
         )
 
     def traza_candidato(
-        self, usuario: UsuarioActual, candidato_id: str, limite: int = 50
+        self,
+        usuario: UsuarioActual,
+        candidato_id: str,
+        limite: int = 50,
+        tipo: str | None = None,
+        desde: datetime | None = None,
     ) -> dict[str, object]:
         candidato = self.obtener_candidato(usuario, candidato_id, nuevo_id())
         with self._fabrica() as unidad:
-            eventos = unidad.datos.traza_candidato(candidato_id, min(limite, 100))
+            eventos = unidad.datos.traza_candidato(
+                candidato_id, min(limite, 100), tipo=tipo, desde=desde
+            )
         resumen = (
             f"{candidato.nombre_completo}: estado {candidato.estado.value}; {len(eventos)} eventos"
         )

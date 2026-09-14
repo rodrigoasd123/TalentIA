@@ -45,3 +45,9 @@ Consulta de solo lectura por permiso. Manipulación o hueco rompe verificación.
 ## Aprobación
 
 - [x] Plan retrospectivo aprobado por la persona responsable el 2026-09-10.
+
+## Refinamiento greenfield 2026-09-14
+
+Resolver primero los IDs de postulaciones, documentos y evaluaciones de la persona y consultar una
+sola línea temporal sobre `audit_events`. Mantener aislamiento mediante la validación de cliente
+previa del caso de uso. Exponer filtros opcionales en API y enriquecer la tabla web, sin copiar PII.

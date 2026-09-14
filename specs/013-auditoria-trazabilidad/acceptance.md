@@ -17,3 +17,8 @@ Modificar o eliminar un evento rompe la verificación de integridad.
 La historia de una postulación se devuelve cronológicamente sin mezclar eventos de otra postulación e incluye procedencia de IA.
 
 **Evidencia:** pruebas de decision trail y procedencia.
+
+## AC-013-004 — Línea de tiempo 360
+
+Tras crear postulación, documento y evaluación, la traza del candidato contiene los cuatro tipos
+de recurso, conserva correlación y permite filtrar una acción sin mezclar otras personas.

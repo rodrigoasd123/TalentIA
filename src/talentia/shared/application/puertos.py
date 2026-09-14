@@ -65,7 +65,13 @@ class DatosTalentIA(Protocol):
         correlacion_id: str,
     ) -> str: ...
 
-    def traza_candidato(self, candidato_id: str, limite: int) -> list[dict[str, object]]: ...
+    def traza_candidato(
+        self,
+        candidato_id: str,
+        limite: int,
+        tipo: str | None = None,
+        desde: datetime | None = None,
+    ) -> list[dict[str, object]]: ...
 
     def crear_perfil(self, datos: dict[str, object]) -> dict[str, object]: ...
 

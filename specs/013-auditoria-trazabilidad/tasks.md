@@ -26,3 +26,7 @@
 - [x] Todos los requisitos obligatorios están cubiertos.
 - [x] No quedan bloqueantes del laboratorio.
 - [x] La manipulación resulta detectable y no existe borrado de negocio.
+
+- [x] **T-013-005 — Integrar recursos relacionados en la traza 360.** `[FR-013-004]`
+- [x] **T-013-006 — Exponer correlación, detalle y filtros.** `[FR-013-005, AC-013-004]`
+- [ ] **T-013-007 — Ejecutar regresión y confirmar CI remoto.**

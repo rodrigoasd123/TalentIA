@@ -43,5 +43,5 @@
     </div>
   </form>
 </section>
-<section class="seccion"><div class="titulo-seccion"><h2>Trazabilidad</h2><span class="estado">{{ eventos | length }} eventos</span></div><div class="tabla-responsive"><table class="table"><thead><tr><th>Evento</th><th>Actor</th><th>Fecha</th></tr></thead><tbody>{% for evento in eventos %}<tr><td>{{ evento.tipo }}</td><td>{{ evento.actor_id }}</td><td>{{ evento.ocurrido_en }}</td></tr>{% else %}<tr><td colspan="3" class="vacio">Sin eventos.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="seccion"><div class="titulo-seccion"><h2>Trazabilidad</h2><span class="estado">{{ eventos | length }} eventos</span></div><div class="tabla-responsive"><table class="table"><thead><tr><th>Evento</th><th>Recurso</th><th>Actor</th><th>Fecha</th><th>Correlacion</th><th>Detalle</th></tr></thead><tbody>{% for evento in eventos %}<tr><td>{{ evento.tipo }}</td><td>{{ evento.recurso_tipo }}</td><td>{{ evento.actor_id or 'sistema' }}</td><td>{{ evento.ocurrido_en }}</td><td><code>{{ evento.correlacion_id }}</code></td><td>{{ evento.detalle }}</td></tr>{% else %}<tr><td colspan="6" class="vacio">Sin eventos.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endblock %}

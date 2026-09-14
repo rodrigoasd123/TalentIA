@@ -16,6 +16,7 @@ from talentia.shared.infrastructure.base_datos import FabricaSesiones, crear_mot
 from talentia.shared.infrastructure.modelos_orm import (
     CorreccionCampoModelo,
     EventoAuditoriaModelo,
+    PostulacionModelo,
     TrabajoAgenteModelo,
 )
 
@@ -430,3 +431,33 @@ def test_revision_puede_rechazar_sugerencia_con_justificacion(cliente_api) -> No
     )
     assert respuesta.status_code == 200
     assert respuesta.json()["estado"] == "rechazada"
+
+
+def test_traza_candidato_integra_flujo_y_correlacion(cliente_api) -> None:
+    trabajo_id = _preparar_evaluacion(cliente_api, sufijo="TRACE")
+    fabrica = FabricaSesiones(crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}"))
+    assert procesar_siguiente(fabrica) == trabajo_id
+    with fabrica.sesion() as sesion:
+        trabajo = sesion.get(TrabajoAgenteModelo, trabajo_id)
+        assert trabajo is not None
+        postulacion_id = str(trabajo.carga["postulacion_id"])
+        postulacion = sesion.get(PostulacionModelo, postulacion_id)
+        assert postulacion is not None
+        candidato_id = postulacion.candidato_id
+    traza = cliente_api["cliente"].get(
+        f"/api/v1/candidates/{candidato_id}/trace", headers=cliente_api["cabeceras"]
+    )
+    assert traza.status_code == 200
+    eventos = traza.json()["eventos"]
+    tipos_recurso = {evento["recurso_tipo"] for evento in eventos}
+    assert {"candidato", "postulacion", "documento", "evaluacion"} <= tipos_recurso
+    assert all(evento["correlacion_id"] for evento in eventos)
+    filtrada = (
+        cliente_api["cliente"]
+        .get(
+            f"/api/v1/candidates/{candidato_id}/trace?tipo=evaluacion.creada",
+            headers=cliente_api["cabeceras"],
+        )
+        .json()["eventos"]
+    )
+    assert filtrada and {evento["tipo"] for evento in filtrada} == {"evaluacion.creada"}
