@@ -30,6 +30,7 @@ Este mapa distribuye la línea base consolidada por capacidad sin modificar el a
 | Precarga de ficha desde CV | SPEC-027 | Agente 2 del documento operativo TCS |
 | Exclusiones para proveedor/Adecco | SPEC-028 | Agente 5 del documento operativo TCS |
 | Métricas de impacto operativo | SPEC-029 | Validación del piloto descrito por TCS |
+| Operabilidad, CI y medición del piloto | SPEC-032 | Cierre técnico verificable de la rúbrica |
 
 ## Reglas de mantenimiento
 
@@ -40,3 +41,4 @@ Este mapa distribuye la línea base consolidada por capacidad sin modificar el a
 - Sus planes y tareas reconstruyen retrospectivamente la trazabilidad de SPEC-004/005; no representan una segunda implementación ni cambios de comportamiento.
 - Todo cambio futuro debe refinar la spec propietaria y añadir requisitos/criterios nuevos sin renumerar los heredados.
 - `SPEC-017` permanece en borrador hasta aprobación explícita; no autoriza modificar el frontend.
+- `SPEC-032` está verificada y archivada; sus límites externos permanecen registrados en su evidencia.

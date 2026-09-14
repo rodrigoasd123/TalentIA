@@ -45,6 +45,8 @@ Consulta primero el [mapa funcional](./MAPA_FUNCIONAL.md), que define la spec pr
 ## Consolidación histórica
 
 - [`SPEC-004`](./archive/004-consolidacion-ats-piloto/spec.md): Consolidación inicial como TalentIA ATS piloto gobernado (verificada y archivada).
+- [`SPEC-032`](./archive/032-cierre-operabilidad-rubrica/spec.md): Cierre de operabilidad,
+  vigencia de CI y medición reproducible del piloto (verificada y archivada).
 
 ## Contexto y gobierno
 
