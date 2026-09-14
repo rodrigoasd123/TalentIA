@@ -18,6 +18,9 @@ Estado: `VERIFICANDO`; pendiente confirmar CI remoto verde para declarar `VERIFI
 - Punto de partida: `f6dfef1221eef9033f6cc035e7726f9e7b9ea666`; contiene el tag de respaldo
   `backup/greenfield-before-consolidation-20260914`.
 - CI inicial: fallo en Ruff por 55 hallazgos de formato en `scripts/seed_greenfield.py`.
+- Primer CI de verificacion: controles estaticos y migracion aprobaron; 14 pruebas que ejercitan
+  LangGraph/MLflow fallaron porque el job no instalaba los extras opcionales. El job de desarrollo
+  se ajusto a `.[dev,graph,benchmark]` sin cambiar las dependencias del piloto.
 - El script se normalizo; Ruff completo aprobo y 89 archivos cumplen formato.
 - La documentacion SDD antigua quedo rotulada como historica y sin comandos ejecutables de
   Streamlit o `app.api.main:app`.
