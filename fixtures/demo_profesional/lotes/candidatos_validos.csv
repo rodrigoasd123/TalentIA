@@ -1,0 +1,6 @@
+nombres,apellidos,tipo_documento,documento,correo,telefono
+Amalia,Rivera Demo,DNI,DEMOLV001,amalia.rivera@example.test,+51900000101
+Bruno,Castro Demo,DNI,DEMOLV002,bruno.castro@example.test,+51900000102
+Clara,Mejia Demo,CE,DEMOLV003,clara.mejia@example.test,+51900000103
+Diego,Valle Demo,DNI,DEMOLV004,diego.valle@example.test,+51900000104
+Eva,Navarro Demo,CE,DEMOLV005,eva.navarro@example.test,+51900000105

@@ -1,0 +1,6 @@
+nombre,apellido,tipo_doc,numero_documento,email,telefono
+Fabian,Lagos Demo,DNI,DEMOLC001,fabian.lagos@example.test,+51900000201
+Gabriela,,DNI,DEMOLC002,gabriela.campos@example.test,+51900000202
+Hugo,Silva Demo,DNI,DEMOLC003,correo-invalido,+51900000203
+Irene,Rojas Demo,DNI,DEMOLC004,irene.rojas@example.test,+51900000204
+Ivan,Rojas Copia,DNI,DEMOLC004,ivan.rojas@example.test,+51900000205

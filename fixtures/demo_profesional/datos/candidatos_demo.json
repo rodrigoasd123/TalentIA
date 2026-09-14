@@ -1,0 +1,64 @@
+{
+  "cliente_codigo": "TCS",
+  "nota": "Todos los registros son ficticios y existen solo para la demostracion.",
+  "candidatos": [
+    {
+      "alias": "referencia_duplicado_seed",
+      "nombres": "Carlos",
+      "apellidos": "Mendoza Ramos",
+      "tipo_documento": "DNI",
+      "documento": "45871234",
+      "correo": "carlos.duplicado@example.test",
+      "fuente": "Demo interna",
+      "uso": "Intentar el alta despues de ejecutar seed_greenfield.py. El documento activa coincidencia exacta."
+    },
+    {
+      "alias": "flujo_apto",
+      "nombres": "Lucia",
+      "apellidos": "Paredes Demo",
+      "tipo_documento": "DNI",
+      "documento": "DEMOAPTO01",
+      "correo": "lucia.apto@example.test",
+      "ubicacion": "Lima Demo",
+      "fuente": "Adecco Demo",
+      "reclutador": "Reclutador Demo",
+      "perfil_solicitado": "Desarrollador Backend Python Demo",
+      "conocimiento_tecnico": "Python, FastAPI, SQL, PostgreSQL, Docker e ingles B2",
+      "disponibilidad": "Inmediata",
+      "expectativa_salarial": 10000,
+      "ctc_rol": 10500,
+      "etiquetas": ["demo", "backend", "python"],
+      "cv": "../cvs/CV_APTO_DEMO.docx"
+    },
+    {
+      "alias": "flujo_parcial",
+      "nombres": "Mateo",
+      "apellidos": "Salas Demo",
+      "tipo_documento": "DNI",
+      "documento": "DEMOPARC01",
+      "correo": "mateo.parcial@example.test",
+      "fuente": "Referido Demo",
+      "cv": "../cvs/CV_PARCIAL_DEMO.docx"
+    },
+    {
+      "alias": "sin_evidencia",
+      "nombres": "Elena",
+      "apellidos": "Campos Demo",
+      "tipo_documento": "CE",
+      "documento": "DEMOSINE01",
+      "correo": "elena.sin.evidencia@example.test",
+      "fuente": "Portal Demo",
+      "cv": "../cvs/CV_SIN_EVIDENCIA_DEMO.docx"
+    },
+    {
+      "alias": "prompt_injection",
+      "nombres": "Nora",
+      "apellidos": "Vega Demo",
+      "tipo_documento": "CE",
+      "documento": "DEMOINY001",
+      "correo": "nora.inyeccion@example.test",
+      "fuente": "Prueba de seguridad",
+      "cv": "../cvs/CV_PROMPT_INJECTION_DEMO.docx"
+    }
+  ]
+}

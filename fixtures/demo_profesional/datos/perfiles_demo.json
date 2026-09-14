@@ -1,0 +1,46 @@
+{
+  "perfil": {
+    "cliente_codigo": "TCS",
+    "codigo": "DEV-BACKEND-PY-DEMO",
+    "titulo": "Desarrollador Backend Python Demo",
+    "activo": true
+  },
+  "version": {
+    "numero_esperado": 1,
+    "ctc": 10500.0,
+    "publicado": true,
+    "requisitos_texto": "PYTHON | Experiencia con Python | obligatorio | 3\nFASTAPI | Experiencia con FastAPI | obligatorio | 3\nSQL | Conocimientos de SQL o PostgreSQL | obligatorio | 2\nDOCKER | Experiencia con Docker | opcional | 1\nINGLES | Nivel de ingles B2 | opcional | 1",
+    "requisitos": [
+      {
+        "codigo": "PYTHON",
+        "descripcion": "Experiencia con Python",
+        "obligatorio": true,
+        "peso": 3
+      },
+      {
+        "codigo": "FASTAPI",
+        "descripcion": "Experiencia con FastAPI",
+        "obligatorio": true,
+        "peso": 3
+      },
+      {
+        "codigo": "SQL",
+        "descripcion": "Conocimientos de SQL o PostgreSQL",
+        "obligatorio": true,
+        "peso": 2
+      },
+      {
+        "codigo": "DOCKER",
+        "descripcion": "Experiencia con Docker",
+        "obligatorio": false,
+        "peso": 1
+      },
+      {
+        "codigo": "INGLES",
+        "descripcion": "Nivel de ingles B2",
+        "obligatorio": false,
+        "peso": 1
+      }
+    ]
+  }
+}
