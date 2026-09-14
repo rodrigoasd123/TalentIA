@@ -93,7 +93,6 @@ class ClienteLLM:
             cuerpo = {
                 "model": ajustes.modelo,
                 "input": prompt,
-                "temperature": ajustes.temperatura,
                 "max_output_tokens": ajustes.tokens_maximos,
             }
             solicitud = Request(
@@ -109,7 +108,6 @@ class ClienteLLM:
             cuerpo = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
-                    "temperature": ajustes.temperatura,
                     "maxOutputTokens": ajustes.tokens_maximos,
                     "responseMimeType": "application/json",
                 },

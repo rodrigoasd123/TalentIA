@@ -35,6 +35,10 @@ MODELOS_OPENAI_GRATUITOS = (
     "o4-mini",
 )
 MODELOS_OPENAI_AVANZADOS = (
+    "gpt-5.6-luna",
+    "gpt-5.6-terra",
+    "gpt-5.6-sol",
+    "gpt-6-astra",
     "gpt-4o",
     "gpt-4.1",
     "gpt-5",
@@ -44,7 +48,17 @@ MODELOS_OPENAI_AVANZADOS = (
     "o1",
     "o3",
 )
-MODELOS_GEMINI = ("gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro")
+MODELOS_GEMINI = (
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+)
 MODELOS_POR_PROVEEDOR = {
     "openai": frozenset((*MODELOS_OPENAI_GRATUITOS, *MODELOS_OPENAI_AVANZADOS)),
     "gemini": frozenset(MODELOS_GEMINI),
@@ -238,7 +252,7 @@ class GestorConfiguracionIA:
             cuerpo = {
                 "model": ajustes.modelo,
                 "input": "Responde solamente OK.",
-                "max_output_tokens": 8,
+                "max_output_tokens": 64,
             }
             return Request(
                 "https://api.openai.com/v1/responses",
@@ -251,7 +265,7 @@ class GestorConfiguracionIA:
             )
         cuerpo = {
             "contents": [{"parts": [{"text": "Responde solamente OK."}]}],
-            "generationConfig": {"maxOutputTokens": 8, "temperature": 0},
+            "generationConfig": {"maxOutputTokens": 64, "temperature": 0},
         }
         return Request(  # noqa: S310 - URL HTTPS fija con modelo de lista permitida
             (

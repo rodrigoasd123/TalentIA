@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from talentia.ai.workflows.nodos_evaluacion import ContextoNodosEvaluacion
 from talentia.modules.recruitment.domain.modelos import RequisitoPerfil
 from talentia.platform.cliente_llm import ClienteLLM, RespuestaLLM
+from talentia.platform.configuracion_ia import MODELOS_GEMINI, MODELOS_POR_PROVEEDOR
 from talentia.platform.observabilidad.mlflow_tracker import TrazaWorkflowMLflow
 from talentia.shared.infrastructure.base_datos import crear_motor
 from talentia.shared.infrastructure.modelos_orm import ConfiguracionIAModelo
@@ -26,6 +27,11 @@ def _login_web(cliente_api: dict[str, object]) -> tuple[object, str]:
     assert token is not None
     csrf = str(cliente.app.state.firmador.leer(token)["csrf"])
     return cliente, csrf
+
+
+def test_catalogo_incluye_modelos_actuales_solicitados() -> None:
+    assert "gemini-3.6-flash" in MODELOS_GEMINI
+    assert "gpt-5.6-luna" in MODELOS_POR_PROVEEDOR["openai"]
 
 
 def test_panel_es_exclusivo_de_administracion_y_badge_global(cliente_api) -> None:
@@ -207,6 +213,46 @@ def test_cliente_llm_registra_uso_sin_enviar_pii_cruda(cliente_api, monkeypatch)
     cuerpo = solicitudes[0].data.decode()
     assert "persona@ejemplo.test" not in cuerpo
     assert "gemini-clave-prueba" not in cuerpo
+
+
+def test_cliente_llm_openai_omite_temperatura_incompatible(cliente_api, monkeypatch) -> None:
+    gestor = cliente_api["cliente"].app.state.gestor_configuracion_ia
+    gestor.guardar(
+        proveedor="openai",
+        modelo="gpt-5.6-luna",
+        temperatura=0,
+        tokens_maximos=128,
+        api_key="openai-clave-prueba",
+        version=1,
+    )
+    solicitudes = []
+
+    class Respuesta:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self, _limite: int) -> bytes:
+            return json.dumps(
+                {
+                    "output_text": json.dumps({"requisitos": []}),
+                    "usage": {"input_tokens": 12, "output_tokens": 4},
+                }
+            ).encode()
+
+    def responder(solicitud, **_kwargs):
+        solicitudes.append(solicitud)
+        return Respuesta()
+
+    monkeypatch.setattr("talentia.platform.cliente_llm.urlopen", responder)
+    resultado = ClienteLLM(gestor).evaluar("Documento ficticio", (("PY", "Python"),))
+
+    assert resultado is not None
+    cuerpo = json.loads(solicitudes[0].data.decode())
+    assert cuerpo["model"] == "gpt-5.6-luna"
+    assert "temperature" not in cuerpo
 
 
 def test_configuracion_rechaza_csrf_y_modelo_de_otro_proveedor(cliente_api) -> None:
