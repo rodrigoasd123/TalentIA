@@ -969,7 +969,10 @@ def _leer_csv(ruta: Path) -> list[dict[str, str]]:
 def modulo_excolaboradores(request: Request) -> Response:
     usuario = _usuario(request)
     excolaboradores = _leer_csv(_CSV_EXCOLAB)
-    total_elegibles = sum(1 for ex in excolaboradores if str(ex.get("elegible_reingreso", "")).upper() == "SI")
+    elegible_val = "SI"
+    total_elegibles = sum(
+        1 for ex in excolaboradores if str(ex.get("elegible_reingreso", "")).upper() == elegible_val
+    )
     total_no_elegibles = len(excolaboradores) - total_elegibles
     return PLANTILLAS.TemplateResponse(
         request=request,
@@ -989,11 +992,9 @@ def modulo_exclusiones(request: Request) -> Response:
     usuario = _usuario(request)
     vetados = _leer_csv(_CSV_VETADOS)
     total_permanentes = sum(1 for v in vetados if v.get("estado_restriccion") == "Permanente")
+    _tipos_eticos = {"Ético", "Ética", "BGC", "Integridad", "Inhabilitaci"}
     total_eticas = sum(
-        1 for v in vetados
-        if "Ético" in str(v.get("tipo_restriccion", "")) or "Ética" in str(v.get("tipo_restriccion", ""))
-        or "BGC" in str(v.get("tipo_restriccion", "")) or "Integridad" in str(v.get("tipo_restriccion", ""))
-        or "Inhabilitaci" in str(v.get("tipo_restriccion", ""))
+        1 for v in vetados if any(t in str(v.get("tipo_restriccion", "")) for t in _tipos_eticos)
     )
     total_carencias = sum(1 for v in vetados if "Carencia" in str(v.get("tipo_restriccion", "")))
     return PLANTILLAS.TemplateResponse(
@@ -1044,7 +1045,6 @@ def descargar_reporte_ag05(request: Request) -> Response:
         media_type="text/csv; charset=utf-8",
         filename="reporte_exclusiones_oficial_tcs.csv",
     )
-
 
 
 @router.get("/modulo/{modulo}", response_class=HTMLResponse)
