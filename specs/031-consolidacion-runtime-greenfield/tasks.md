@@ -12,19 +12,19 @@
   - Verificacion: imports y archivos versionados enumerados
   - Dependencias: T-001
 
-- [ ] **T-003 — Retirar consumidores heredados**
+- [x] **T-003 — Retirar consumidores heredados**
   - Cubre: FR-001, FR-002, SEC-002, AC-001, AC-002
   - Archivos: arboles y scripts clasificados REMOVE
   - Verificacion: busqueda global sin imports/entrypoints activos
   - Dependencias: T-002
 
-- [ ] **T-004 — Normalizar runtime y documentacion**
+- [x] **T-004 — Normalizar runtime y documentacion**
   - Cubre: FR-001, FR-003, NFR-001, NFR-002, AC-001, AC-003
   - Archivos: `pyproject.toml`, `requirements.txt`, `Dockerfile`, CI, README y scripts
   - Verificacion: controles declarados en el plan
   - Dependencias: T-003
 
-- [ ] **T-005 — Ejecutar regresion y documentar evidencia**
+- [x] **T-005 — Ejecutar regresion y documentar evidencia**
   - Cubre: FR-004, NFR-002, AC-004
   - Archivos: `verification.md`
   - Verificacion: suite y migracion desde cero
@@ -32,6 +32,6 @@
 
 ## Puertas de salida
 
-- [ ] Todos los requisitos obligatorios estan cubiertos.
+- [x] Todos los requisitos obligatorios estan cubiertos.
 - [x] No quedan bloqueantes de alcance.
 - [x] Existe estrategia para fallos y reversion.

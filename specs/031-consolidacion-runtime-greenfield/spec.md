@@ -1,7 +1,7 @@
 ---
 id: SPEC-031
 titulo: Consolidacion del runtime greenfield
-estado: IMPLEMENTANDO
+estado: VERIFICANDO
 responsable_producto: Rodrigo
 creado: 2026-09-14
 actualizado: 2026-09-14
