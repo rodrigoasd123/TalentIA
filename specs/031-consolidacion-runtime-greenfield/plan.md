@@ -57,3 +57,5 @@ Navegador -> FastAPI/Jinja2/HTMX -> ServicioTalentIA -> UoW SQLAlchemy -> SQLite
   MLflow en dependencias del piloto.
 - Verificar la misma resolucion en un entorno Python 3.12 limpio y exigir `pip check` antes del
   resto de puertas.
+- Ejecutar todas las puertas del runner Windows dentro de un `venv` recien creado para impedir que
+  paquetes globales o restaurados fuera del proyecto alteren el resultado de `pip check`.

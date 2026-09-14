@@ -61,3 +61,6 @@ Estado: `VERIFICANDO`; pendiente confirmar CI remoto verde para declarar `VERIFI
   `pip check` sin dependencias rotas.
 - Regresion local posterior: `81 passed, 2 warnings en 162.62 s`; Ruff y formato aprobados sobre
   89 archivos; mypy aprobo 65 archivos; identidad aprobada; escaner seguro con 347 archivos.
+- El segundo run remoto `34819155375` volvio a fallar solo en `pip check`, pese a que la misma
+  resolucion aprobo en el entorno limpio local. Se aislo el job completo en un `venv` nuevo para
+  eliminar paquetes globales del runner como variable; queda pendiente confirmar el siguiente run.
