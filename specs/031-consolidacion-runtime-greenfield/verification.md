@@ -44,3 +44,20 @@ Estado: `VERIFICANDO`; pendiente confirmar CI remoto verde para declarar `VERIFI
 - Starlette/AnyIO y LangGraph emiten dos deprecaciones en el entorno de desarrollo que conserva el
   extra `graph`; no afectan al runtime limpio. Se revisaran mediante actualizacion controlada.
 - SPEC-031 no cierra brechas funcionales de la rubrica; se implementan en specs posteriores.
+
+## Refinamiento de CI — 2026-09-14
+
+- El run remoto `34817364409` fallo exclusivamente en `python -m pip check`; los pasos siguientes
+  quedaron omitidos.
+- La API publica de GitHub no expone el texto del log sin autenticacion, pero si confirma el paso
+  y codigo de salida. La interfaz publica solo muestra `Process completed with exit code 1`.
+- Una reproduccion Python 3.12 limpia instalo `.[dev,graph,benchmark]` y aprobo `pip check`, lo que
+  identifica una resolucion transitoria/no fijada, no un fallo del runtime base.
+- Se agregaron restricciones exclusivas de CI para estabilizar las versiones opcionales ya
+  verificadas. Falta confirmar el nuevo workflow remoto antes de marcar T-006 y SPEC-031 como
+  verificados.
+- Entorno temporal Python 3.12 con
+  `pip install -c constraints-ci.txt -e ".[dev,graph,benchmark]"`: instalacion aprobada y
+  `pip check` sin dependencias rotas.
+- Regresion local posterior: `81 passed, 2 warnings en 162.62 s`; Ruff y formato aprobados sobre
+  89 archivos; mypy aprobo 65 archivos; identidad aprobada; escaner seguro con 347 archivos.

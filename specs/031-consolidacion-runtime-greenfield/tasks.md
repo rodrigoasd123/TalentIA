@@ -30,6 +30,12 @@
   - Verificacion: suite y migracion desde cero
   - Dependencias: T-004
 
+- [ ] **T-006 — Estabilizar extras opcionales en CI**
+  - Cubre: FR-003, NFR-001, NFR-002, AC-003, AC-004
+  - Archivos: `constraints-ci.txt`, `.github/workflows/ci.yml`, `verification.md`
+  - Verificacion: instalacion Python 3.12 limpia, `pip check` y workflow remoto verde
+  - Dependencias: T-005
+
 ## Puertas de salida
 
 - [x] Todos los requisitos obligatorios estan cubiertos.

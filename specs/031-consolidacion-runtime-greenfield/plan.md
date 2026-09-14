@@ -48,3 +48,12 @@ Navegador -> FastAPI/Jinja2/HTMX -> ServicioTalentIA -> UoW SQLAlchemy -> SQLite
 ## Aprobacion
 
 - [x] Plan aprobado por la persona responsable mediante el encargo del 2026-09-14.
+
+## Refinamiento CI reproducible aprobado — 2026-09-14
+
+- Mantener rangos compatibles en `pyproject.toml` para consumidores del paquete.
+- Resolver los extras opcionales de verificacion con `constraints-ci.txt` en GitHub Actions.
+- Las restricciones de CI no se instalan en el runtime base ni convierten LangGraph, LangSmith o
+  MLflow en dependencias del piloto.
+- Verificar la misma resolucion en un entorno Python 3.12 limpio y exigir `pip check` antes del
+  resto de puertas.
