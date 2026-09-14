@@ -42,6 +42,27 @@ Para procesar trabajos de evaluacion, abra otra terminal:
 .\scripts\start_worker.ps1
 ```
 
+### Contenedor opcional
+
+Docker no es necesario en la computadora del piloto. Si esta disponible, la imagen usa el mismo
+runtime `src/talentia` y recibe todos los secretos mediante variables de entorno:
+
+```powershell
+docker compose up --build
+```
+
+### Linea base de rendimiento
+
+Con la API iniciada, el siguiente comando realiza solicitudes HTTP acotadas a `/health`, descarta
+los cuerpos y reporta conteos, errores, promedio, p50 y p95 en JSON:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\medir_rendimiento_piloto.py --solicitudes 50 --concurrencia 5
+```
+
+Un error HTTP o de conexion produce codigo de salida distinto de cero. Este resultado es una linea
+base tecnica; no representa un SLA de TCS sin hardware y carga corporativos representativos.
+
 No active un proveedor LLM ni cargue CV reales sin aprobacion de seguridad, privacidad y legal.
 Sin proveedor, el sistema conserva el flujo manual y deterministico.
 
@@ -87,4 +108,5 @@ calidad o falso descarte.
 - Seguridad: [`docs/security.md`](docs/security.md)
 - Runbook: [`docs/pilot_runbook.md`](docs/pilot_runbook.md)
 - Constitucion SDD: [`docs/sdd/constitucion.md`](docs/sdd/constitucion.md)
-- Consolidacion actual: [`specs/031-consolidacion-runtime-greenfield/`](specs/031-consolidacion-runtime-greenfield/)
+- Consolidacion del runtime: [`specs/031-consolidacion-runtime-greenfield/`](specs/031-consolidacion-runtime-greenfield/)
+- Cierre de operabilidad: [`specs/032-cierre-operabilidad-rubrica/`](specs/032-cierre-operabilidad-rubrica/)

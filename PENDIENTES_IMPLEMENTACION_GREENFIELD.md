@@ -1,4 +1,4 @@
-# Pendientes de implementacion de TalentIA
+# Estado de cierre y pendientes externos de TalentIA
 
 Fecha: 2026-09-14
 Referencia: prompt de continuidad greenfield adjunto por el usuario.
@@ -6,10 +6,9 @@ Referencia: prompt de continuidad greenfield adjunto por el usuario.
 ## Estado actual
 
 - Repositorio: `rodrigoasd123/TalentIA`.
-- Rama de trabajo: `codex/greenfield-rubrica-100`.
-- HEAD local y remoto: `f304fa5 fix(ci): install optional verification extras`.
-- La consolidacion inicial de runtime (SPEC-031) fue ajustada localmente, pero aun no debe marcarse como verificada: el workflow remoto de GitHub Actions sigue fallando en `pip check`.
-- CI fallido: [run 34816292576](https://github.com/rodrigoasd123/TalentIA/actions/runs/34816292576).
+- Rama principal: `main`, promovida desde `codex/greenfield-rubrica-100` mediante PR #3.
+- La consolidacion del runtime (SPEC-031) esta verificada y cerrada.
+- CI de `main` verde: [run 34829499030](https://github.com/rodrigoasd123/TalentIA/actions/runs/34829499030).
 
 ## Evidencia ejecutada
 
@@ -23,18 +22,16 @@ Referencia: prompt de continuidad greenfield adjunto por el usuario.
 - Instalacion limpia base: sin LangGraph, LangChain ni MLflow transitivos.
 - Docker no pudo verificarse en esta maquina porque el comando `docker` no esta disponible.
 
-La evidencia local no sustituye una ejecucion verde de CI, UAT humano ni etiquetas independientes para el benchmark.
+La evidencia local y el CI remoto estan verdes. La aceptacion humana de RR. HH., la firma del
+dataset y las decisiones corporativas de TCS continuan siendo puertas externas; no son defectos de
+implementacion que puedan cerrarse por suposicion.
 
-## Trabajo pendiente de implementacion
+## Alcance tecnico implementado y limites externos
 
-Progreso del 2026-09-14: el bloque 1 fue implementado y verificado localmente mediante el
-refinamiento de SPEC-006. Queda sujeto a CI remoto verde antes de considerarlo cerrado.
-El bloque 2 permanece bloqueado por `BIZ-009`. El bloque 3 (AG-01) fue implementado localmente
-salvo la similitud configurable de nombres, bloqueada expresamente por `BIZ-004`.
-Los bloques 4 (AG-02) y 5 (AG-03) ya estaban cubiertos por SPEC-030 y sus pruebas; OCR concreto es
-opcional y el fallback manual está implementado. El bloque 6 (traza AG-04) fue ampliado localmente.
-El bloque 12 fue corregido para usar etiquetas independientes y fallar si no se cargan; la firma
-humana del corpus continúa como puerta externa.
+Los bloques tecnicos autorizados para el piloto fueron implementados por SPEC-030/031 y sus
+refinamientos. SPEC-032 cierra empaquetado, vigencia de CI y medicion reproducible de rendimiento.
+Los puntos siguientes se conservan como referencia historica; la matriz final determina cuales
+estan cerrados y cuales dependen de una decision externa.
 
 ### 1. Seguridad e inicializacion
 
@@ -142,17 +139,19 @@ humana del corpus continúa como puerta externa.
 - Crear cada spec con `spec.md`, `acceptance.md`, `plan.md`, `tasks.md` y `verification.md`, siguiendo el flujo SDD.
 - Usar un commit por bloque, exigir CI verde y abrir PR a `main` solo despues de completar y revisar la evidencia.
 
-## Orden recomendado para continuar
+## Orden de cierre operativo externo
 
-1. Resolver `pip check` en CI y cerrar SPEC-031 con evidencia remota verde.
-2. Crear y ejecutar la especificacion de seguridad e inicializacion.
-3. Implementar estados y reglas de negocio.
-4. Continuar secuencialmente con AG-01 a AG-05 y los bloques restantes.
-5. Ejecutar UAT, benchmark con etiquetas independientes, seguridad y release antes de declarar completitud.
+1. Ejecutar y firmar la UAT funcional con RR. HH. de TCS.
+2. Obtener las decisiones `BIZ-001..010` solo si esas capacidades entraran al piloto.
+3. Validar y firmar humanamente las etiquetas independientes del corpus.
+4. Ejecutar la linea base en hardware y carga representativos y verificar Docker si se usara.
+5. Registrar la aprobacion corporativa de despliegue.
 
 ## Criterio de completitud
 
-No declarar el proyecto como 100% terminado hasta contar con implementacion, pruebas, evidencia en `verification.md`, CI verde, validacion de seguridad, UAT humano y benchmark con etiquetas independientes para cada bloque.
+El alcance tecnico autorizado del piloto esta implementado. No declarar conformidad corporativa o
+productiva al 100 % hasta contar con UAT firmada, decisiones TCS aplicables, validacion humana del
+benchmark, prueba de carga representativa y aprobacion de despliegue.
 
 ## Estado de ejecución — 2026-09-14
 
@@ -171,8 +170,8 @@ No declarar el proyecto como 100% terminado hasta contar con implementacion, pru
 | 11 Observabilidad | Ya implementado/verificado en fase 6 | Operación productiva externa |
 | 12 Benchmark | Etiquetas independientes implementadas | Validación/firma humana del corpus |
 | 13 UX | Flujos greenfield implementados | UAT humana de RR. HH. |
-| 14 Rendimiento | Percentiles y paginación del piloto implementados | Línea base con carga representativa |
-| 15 CI/release | CI aislado y reproducible | Docker no disponible, UAT, revisión y autorización de merge |
+| 14 Rendimiento | Percentiles, paginación y medidor HTTP acotado implementados | Línea base con carga representativa |
+| 15 CI/release | CI Node 24, contrato Docker corregido y verificación reproducible | Build Docker real no ejecutado; UAT y aprobación corporativa |
 
 Los elementos de la tercera columna no se implementan por suposición: requieren decisión humana,
 infraestructura externa o autorización expresa según las reglas del propio documento.

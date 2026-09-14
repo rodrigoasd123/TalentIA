@@ -9,8 +9,8 @@ jobs:
   verificar:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -24,8 +24,8 @@ jobs:
       - run: python -m pip check
       - run: python scripts/check_repository.py
       - run: python scripts/check_brand_identity.py
-      - run: python -m ruff check src/talentia migrations_greenfield tests/greenfield scripts/seed_greenfield.py scripts/ejecutar_benchmark_greenfield.py
-      - run: python -m ruff format --check src/talentia migrations_greenfield tests/greenfield scripts/seed_greenfield.py scripts/ejecutar_benchmark_greenfield.py
+      - run: python -m ruff check src/talentia migrations_greenfield tests/greenfield scripts/seed_greenfield.py scripts/ejecutar_benchmark_greenfield.py scripts/medir_rendimiento_piloto.py
+      - run: python -m ruff format --check src/talentia migrations_greenfield tests/greenfield scripts/seed_greenfield.py scripts/ejecutar_benchmark_greenfield.py scripts/medir_rendimiento_piloto.py
       - run: python -m mypy src/talentia
       - run: python -m alembic -c alembic_greenfield.ini upgrade head
         env:
