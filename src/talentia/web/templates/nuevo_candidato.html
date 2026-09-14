@@ -3,6 +3,14 @@
 {% block heading %}Nuevo candidato{% endblock %}
 {% block content %}
 {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+{% if evidencia_identidad %}
+<section class="tarjeta" aria-labelledby="coincidencias-identidad">
+  <h2 id="coincidencias-identidad">Coincidencias para revision humana</h2>
+  <table><thead><tr><th>Identidad</th><th>Criterio</th><th>Estado</th><th>Fecha</th><th>Reclutador</th></tr></thead>
+    <tbody>{% for item in evidencia_identidad %}<tr><td>{{ item.identidad_enmascarada }}</td><td>{{ item.criterio }}</td><td>{{ item.estado }}</td><td>{{ item.fecha }}</td><td>{{ item.reclutador }}</td></tr>{% endfor %}</tbody>
+  </table>
+</section>
+{% endif %}
 <form method="post" class="formulario-operativo">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="titulo-seccion"><h2>Datos generales</h2><span class="estado">Identidad verificada al guardar</span></div>
@@ -24,6 +32,7 @@
     <label>CTC del rol<input class="form-control" type="number" step="0.01" name="ctc_rol" value="{{ datos.get('ctc_rol', '') }}"></label>
     <label>Etiquetas<input class="form-control" name="etiquetas" value="{{ datos.get('etiquetas', '') }}" placeholder="Python, Lima"></label>
     <label class="ancho-completo">Conocimiento tecnico<textarea class="form-control" name="conocimiento_tecnico" rows="3">{{ datos.get('conocimiento_tecnico', '') }}</textarea></label>
+    <label class="ancho-completo"><input type="checkbox" name="confirmar_posible_duplicado" value="si" {% if datos.get('confirmar_posible_duplicado') == 'si' %}checked{% endif %}> Confirmo que revise las coincidencias probables y deseo crear una identidad separada</label>
   </div>
   <div class="acciones-formulario"><a class="btn btn-outline-secondary" href="/candidatos">Cancelar</a><button class="btn btn-primary" type="submit">Registrar candidato</button></div>
 </form>

@@ -5,3 +5,9 @@
 - **AC-026-003** `[FR-026-002, SEC-026-001]`: dado un rol sin PII, el historial se devuelve enmascarado y auditado.
 
 **Evidencia (2026-09-12):** pruebas por DNI y nombre normalizado, más preflight API con historial enmascarado; suite completa 310 passed.
+
+- **AC-026-004:** una coincidencia telefónica se clasifica probable y exige confirmación humana
+  explícita para crear una identidad separada.
+- **AC-026-005:** una coincidencia situada después de 200 registros se encuentra igualmente.
+- **AC-026-006:** la evidencia visible está enmascarada y muestra criterio, estado, fecha y
+  reclutador; la confirmación queda auditada.

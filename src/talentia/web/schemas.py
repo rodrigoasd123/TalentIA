@@ -62,6 +62,7 @@ class AltaCandidato(Estricto):
     deuda_equifax: Decimal | None = None
     etiquetas: list[str] = Field(default_factory=list)
     preflight_id: str
+    confirmar_posible_duplicado: bool = False
 
 
 class ActualizacionCandidato(Estricto):

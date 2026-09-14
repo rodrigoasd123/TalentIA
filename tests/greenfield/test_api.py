@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from sqlalchemy.orm import Session
+
+from talentia.shared.infrastructure.base_datos import crear_motor
+from talentia.shared.infrastructure.modelos_orm import CandidatoModelo
+
 
 def _alta(cliente_api: dict[str, object]) -> dict[str, object]:
     cliente = cliente_api["cliente"]
@@ -99,8 +104,68 @@ def test_identidad_normaliza_tildes_en_todas_las_capas(cliente_api) -> None:
         },
     )
     assert respuesta.status_code == 200
-    assert respuesta.json()["resultado"] == "bloqueada"
-    assert respuesta.json()["criterio"] == "nombre: BIZ-004 pendiente"
+    assert respuesta.json()["resultado"] == "probable"
+    assert respuesta.json()["criterio"] == "telefono_o_nombre: requiere_decision_humana"
+
+
+def test_telefono_es_probable_y_requiere_confirmacion_humana(cliente_api) -> None:
+    _alta(cliente_api)
+    cliente = cliente_api["cliente"]
+    cabeceras = cliente_api["cabeceras"]
+    identidad = {
+        "cliente_id": cliente_api["cliente_id"],
+        "documento": "DNI-OTRA-IDENTIDAD",
+        "correo": "otra@sintetico.test",
+        "telefono": "+51 900 111 222",
+        "nombre_completo": "Otra Persona",
+    }
+    preflight = cliente.post(
+        "/api/v1/candidates/identity-checks", json=identidad, headers=cabeceras
+    ).json()
+    assert preflight["resultado"] == "probable"
+    assert preflight["evidencia"][0]["criterio"] == "telefono"
+    datos = {
+        "cliente_id": cliente_api["cliente_id"],
+        "nombres": "Otra",
+        "apellidos": "Persona",
+        "documento": "DNI-OTRA-IDENTIDAD",
+        "correo": "otra@sintetico.test",
+        "telefono": "+51 900 111 222",
+        "preflight_id": preflight["preflight_id"],
+    }
+    assert cliente.post("/api/v1/candidates", json=datos, headers=cabeceras).status_code == 409
+    confirmada = cliente.post(
+        "/api/v1/candidates",
+        json={**datos, "confirmar_posible_duplicado": True},
+        headers=cabeceras,
+    )
+    assert confirmada.status_code == 201
+
+
+def test_nombre_se_compara_con_toda_la_base_sin_limite_200(cliente_api) -> None:
+    motor = crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}")
+    with Session(motor) as sesion:
+        for indice in range(205):
+            sesion.add(
+                CandidatoModelo(
+                    id=f"masivo-{indice:04d}",
+                    cliente_id=cliente_api["cliente_id"],
+                    nombres="Objetivo" if indice == 204 else "Persona",
+                    apellidos="Final" if indice == 204 else f"{indice:04d}",
+                    estado="pendiente",
+                )
+            )
+        sesion.commit()
+    respuesta = cliente_api["cliente"].post(
+        "/api/v1/candidates/identity-checks",
+        headers=cliente_api["cabeceras"],
+        json={
+            "cliente_id": cliente_api["cliente_id"],
+            "nombre_completo": "Objetivo Final",
+        },
+    )
+    assert respuesta.status_code == 200
+    assert respuesta.json()["candidato_ids"] == ["masivo-0204"]
 
 
 def test_bgc_equifax_permanecen_bloqueados(cliente_api) -> None:

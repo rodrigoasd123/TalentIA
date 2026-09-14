@@ -267,9 +267,7 @@ class ServicioTalentIA:
                 cliente_id, documento, correo, telefono, nombre
             )
             exactas = [
-                item
-                for item in coincidencias
-                if item["criterio"] in {"documento", "correo", "telefono"}
+                item for item in coincidencias if item["criterio"] in {"documento", "correo"}
             ]
             if exactas:
                 resolucion = ResolucionIdentidad(
@@ -279,8 +277,8 @@ class ServicioTalentIA:
                 )
             elif coincidencias:
                 resolucion = ResolucionIdentidad(
-                    ResultadoIdentidad.BLOQUEADA,
-                    "nombre: BIZ-004 pendiente",
+                    ResultadoIdentidad.PROBABLE,
+                    "telefono_o_nombre: requiere_decision_humana",
                     tuple(str(item["id"]) for item in coincidencias),
                 )
             else:
@@ -298,7 +296,11 @@ class ServicioTalentIA:
                 },
                 correlacion_id=correlacion_id,
             )
-        return {**asdict(resolucion), "preflight_id": _huella_preflight(datos)}
+        return {
+            **asdict(resolucion),
+            "preflight_id": _huella_preflight(datos),
+            "evidencia": coincidencias,
+        }
 
     def registrar_candidato(
         self,
@@ -329,8 +331,16 @@ class ServicioTalentIA:
                 ultimos_nueve_telefono(_texto(datos.get("telefono"))),
                 tokens_nombre(str(identidad["nombre_completo"])),
             )
-            if coincidencias:
+            fuertes = [
+                item for item in coincidencias if item["criterio"] in {"documento", "correo"}
+            ]
+            debiles = [item for item in coincidencias if item["criterio"] in {"telefono", "nombre"}]
+            if fuertes:
                 raise ConflictoError("La identidad coincide con una persona existente")
+            if debiles and not bool(datos.get("confirmar_posible_duplicado")):
+                raise ConflictoError(
+                    "Existe una coincidencia probable; requiere confirmacion humana"
+                )
             candidato = Candidato(
                 cliente_id=cliente_id,
                 nombres=_texto(datos.get("nombres")),
@@ -368,6 +378,19 @@ class ServicioTalentIA:
                 detalle={"campos": sorted(datos), "version": candidato.version},
                 correlacion_id=correlacion_id,
             )
+            if debiles:
+                unidad.datos.registrar_evento(
+                    cliente_id=cliente_id,
+                    actor_id=usuario.id,
+                    accion="identidad.coincidencia_probable_confirmada",
+                    recurso_tipo="candidato",
+                    recurso_id=candidato.id,
+                    detalle={
+                        "criterios": sorted({str(item["criterio"]) for item in debiles}),
+                        "coincidencias": len(debiles),
+                    },
+                    correlacion_id=correlacion_id,
+                )
             return candidato
 
     def buscar_candidatos(

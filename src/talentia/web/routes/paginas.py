@@ -6,7 +6,7 @@ from dataclasses import asdict
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -283,6 +283,7 @@ async def crear_candidato_web(request: Request) -> Response:
         "etiquetas": [
             item.strip() for item in entrada.get("etiquetas", "").split(",") if item.strip()
         ],
+        "confirmar_posible_duplicado": entrada.get("confirmar_posible_duplicado") == "si",
     }
     identidad = {
         "cliente_id": cliente_id,
@@ -291,10 +292,16 @@ async def crear_candidato_web(request: Request) -> Response:
         "telefono": datos["telefono"],
         "nombre_completo": f"{datos['nombres']} {datos['apellidos']}",
     }
+    evidencia_identidad: list[dict[str, object]] = []
     try:
         preflight = request.app.state.servicio.comprobar_identidad(usuario, identidad, nuevo_id())
-        if preflight["resultado"] != "ninguna":
-            raise TalentIAError("Existe una coincidencia; revise la identidad antes de continuar")
+        evidencia_identidad = list(cast(list[dict[str, object]], preflight.get("evidencia", [])))
+        if preflight["resultado"] == "exacta":
+            raise TalentIAError("Existe una identidad exacta; no se creara un duplicado")
+        if preflight["resultado"] == "probable" and not datos["confirmar_posible_duplicado"]:
+            raise TalentIAError(
+                "Existe una coincidencia probable; revise y marque la confirmacion humana"
+            )
         candidato = request.app.state.servicio.registrar_candidato(
             usuario, datos, str(preflight["preflight_id"]), nuevo_id()
         )
@@ -302,7 +309,13 @@ async def crear_candidato_web(request: Request) -> Response:
         return PLANTILLAS.TemplateResponse(
             request=request,
             name="nuevo_candidato.html",
-            context=_contexto(request, usuario, error=str(error), datos=entrada),
+            context=_contexto(
+                request,
+                usuario,
+                error=str(error),
+                datos=entrada,
+                evidencia_identidad=evidencia_identidad,
+            ),
             status_code=422,
         )
     return RedirectResponse(f"/candidatos/{candidato.id}", status_code=303)

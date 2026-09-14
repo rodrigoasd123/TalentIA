@@ -21,6 +21,7 @@ from talentia.modules.candidates.domain.modelos import (
     normalizar_correo,
     normalizar_documento,
     tokens_nombre,
+    ultimos_nueve_telefono,
 )
 from talentia.platform.observabilidad.telemetria import registrar_metrica as persistir_metrica
 from talentia.shared.application.errores import ConflictoError, EntradaInvalidaError
@@ -272,10 +273,8 @@ class RepositorioSqlalchemy:
         if telefono:
             condiciones.append(CandidatoModelo.telefono.endswith(telefono))
         sentencia = select(CandidatoModelo).where(CandidatoModelo.cliente_id == cliente_id)
-        if condiciones:
+        if condiciones and not tokens:
             sentencia = sentencia.where(or_(*condiciones))
-        else:
-            sentencia = sentencia.limit(200)
         encontrados: list[dict[str, object]] = []
         for modelo in self.sesion.scalars(sentencia):
             nombre_tokens = tokens_nombre(f"{modelo.nombres} {modelo.apellidos}")
@@ -284,10 +283,21 @@ class RepositorioSqlalchemy:
                 criterio = "documento"
             elif correo and modelo.correo == correo:
                 criterio = "correo"
-            elif telefono and (modelo.telefono or "").endswith(telefono):
+            elif telefono and ultimos_nueve_telefono(modelo.telefono) == telefono:
                 criterio = "telefono"
             if criterio:
-                encontrados.append({"id": modelo.id, "criterio": criterio})
+                encontrados.append(
+                    {
+                        "id": modelo.id,
+                        "criterio": criterio,
+                        "identidad_enmascarada": " ".join(
+                            f"{parte[:1]}***" for parte in (modelo.nombres, modelo.apellidos)
+                        ),
+                        "estado": modelo.estado,
+                        "reclutador": modelo.reclutador or "sin_asignar",
+                        "fecha": modelo.creado_en.isoformat(),
+                    }
+                )
         return encontrados
 
     def agregar_candidato(self, candidato: Candidato) -> Candidato:

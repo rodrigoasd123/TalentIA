@@ -29,6 +29,8 @@ La evidencia local no sustituye una ejecucion verde de CI, UAT humano ni etiquet
 
 Progreso del 2026-09-14: el bloque 1 fue implementado y verificado localmente mediante el
 refinamiento de SPEC-006. Queda sujeto a CI remoto verde antes de considerarlo cerrado.
+El bloque 2 permanece bloqueado por `BIZ-009`. El bloque 3 (AG-01) fue implementado localmente
+salvo la similitud configurable de nombres, bloqueada expresamente por `BIZ-004`.
 
 ### 1. Seguridad e inicializacion
 
