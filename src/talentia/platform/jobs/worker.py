@@ -13,6 +13,7 @@ from talentia.ai.workflows.procesador_evaluacion import ProcesadorEvaluacion
 from talentia.bootstrap import migrar
 from talentia.config import cargar_configuracion
 from talentia.modules.documents.infrastructure.extractores import extraer_documento
+from talentia.platform.configuracion_ia import GestorConfiguracionIA
 from talentia.platform.observabilidad.telemetria import clasificar_error, registrar_metrica
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.base_datos import FabricaSesiones, crear_motor
@@ -186,8 +187,13 @@ def ejecutar() -> None:
     configuracion = cargar_configuracion()
     migrar(configuracion)
     fabrica = FabricaSesiones(crear_motor(configuracion.url_base_datos))
+    gestor_ia = GestorConfiguracionIA(fabrica, configuracion)
     procesador = ProcesadorEvaluacion(
-        fabrica, extraer_documento, lease_segundos=configuracion.timeout_ia_segundos
+        fabrica,
+        extraer_documento,
+        lease_segundos=configuracion.timeout_ia_segundos,
+        gestor_ia=gestor_ia,
+        mlflow_tracking_uri=configuracion.mlflow_tracking_uri,
     )
     while True:
         if (

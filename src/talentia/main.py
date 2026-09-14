@@ -17,6 +17,7 @@ from talentia.platform.security.contrasenas import FirmadorSesion
 from talentia.shared.application.errores import TalentIAError
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.web.api import router as api_router
+from talentia.web.routes.admin_ia import router as admin_ia_router
 from talentia.web.routes.paginas import router as paginas_router
 
 RUTA_ESTATICOS = Path(__file__).resolve().parent / "web" / "static"
@@ -24,9 +25,10 @@ RUTA_ESTATICOS = Path(__file__).resolve().parent / "web" / "static"
 
 @asynccontextmanager
 async def ciclo_vida(app: FastAPI) -> AsyncIterator[None]:
-    configuracion, servicio = construir_servicio()
+    configuracion, servicio, gestor_ia = construir_servicio()
     app.state.configuracion = configuracion
     app.state.servicio = servicio
+    app.state.gestor_configuracion_ia = gestor_ia
     app.state.firmador = FirmadorSesion(
         configuracion.secreto_sesion, configuracion.tiempo_sesion_minutos
     )
@@ -41,6 +43,7 @@ app = FastAPI(
 )
 app.mount("/static", StaticFiles(directory=RUTA_ESTATICOS), name="static")
 app.include_router(api_router)
+app.include_router(admin_ia_router)
 app.include_router(paginas_router)
 
 

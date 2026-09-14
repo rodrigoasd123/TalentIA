@@ -20,6 +20,7 @@ from talentia.modules.documents.domain.modelos import (
 )
 from talentia.modules.evaluations.domain.modelos import Veredicto
 from talentia.modules.recruitment.domain.modelos import RequisitoPerfil
+from talentia.platform.cliente_llm import ClienteLLM, ProveedorLLMError, RespuestaLLM
 from talentia.shared.infrastructure.base_datos import FabricaSesiones
 from talentia.shared.infrastructure.modelos_orm import (
     DocumentoCandidatoModelo,
@@ -52,6 +53,7 @@ def _entero(valor: object, predeterminado: int = -1) -> int:
 class ContextoNodosEvaluacion:
     fabrica: FabricaSesiones
     extractor: ExtractorDocumento
+    cliente_llm: ClienteLLM | None = None
 
     def _documento(self, estado: EstadoEvaluacion) -> dict[str, str]:
         with self.fabrica.sesion() as sesion:
@@ -220,6 +222,18 @@ class ContextoNodosEvaluacion:
                 salida.update(error="perfil_invalido", revision_requerida=True)
                 return cast(EstadoEvaluacion, salida)
         texto_original = "\n".join(pagina.texto for pagina in self._leer(estado).paginas)
+        if self.cliente_llm is not None:
+            try:
+                limpio = sanitizar(texto_original)
+                sugerencia = self.cliente_llm.evaluar(
+                    limpio.texto,
+                    tuple((item.codigo, item.descripcion) for item in requisitos),
+                )
+            except (SanitizacionError, ProveedorLLMError):
+                salida.update(error="proveedor_ia_no_disponible", revision_requerida=True)
+                return cast(EstadoEvaluacion, salida)
+            if sugerencia is not None:
+                return self._resultado_llm(salida, texto_original, requisitos, sugerencia)
         resultado = evaluar(estado["documento_id"], texto_original, requisitos)
         salida["resultados_requisitos"] = [
             {
@@ -235,6 +249,71 @@ class ContextoNodosEvaluacion:
             str(resultado.puntaje) if resultado.puntaje is not None else None
         )
         salida["revision_requerida"] = resultado.requiere_revision
+        return cast(EstadoEvaluacion, salida)
+
+    @staticmethod
+    def _resultado_llm(
+        salida: dict[str, object],
+        texto_original: str,
+        requisitos: tuple[RequisitoPerfil, ...],
+        respuesta: RespuestaLLM,
+    ) -> EstadoEvaluacion:
+        por_codigo = {
+            str(item.get("codigo")): item for item in respuesta.requisitos if item.get("codigo")
+        }
+        resultados: list[dict[str, object]] = []
+        revision = False
+        documento_id = str(salida["documento_id"])
+        for requisito in requisitos:
+            item = por_codigo.get(requisito.codigo)
+            veredicto = str(item.get("veredicto", "")) if item else ""
+            cita = str(item.get("evidencia", "")).strip() if item else ""
+            if veredicto not in {"coincide", "sin_evidencia", "revision_manual"}:
+                veredicto = "revision_manual"
+            evidencias: list[dict[str, object]] = []
+            if cita:
+                inicio = texto_original.casefold().find(cita.casefold())
+                if inicio >= 0:
+                    fin = inicio + len(cita)
+                    evidencias.append(
+                        asdict(
+                            ReferenciaFuente(
+                                documento_id,
+                                None,
+                                inicio,
+                                fin,
+                                texto_original[inicio:fin],
+                            )
+                        )
+                    )
+                else:
+                    veredicto = "revision_manual"
+            if veredicto == "coincide" and not evidencias:
+                veredicto = "revision_manual"
+            revision = revision or veredicto != "coincide"
+            resultados.append(
+                {
+                    "codigo_requisito": requisito.codigo,
+                    "veredicto": veredicto,
+                    "puntaje": "100" if veredicto == "coincide" else None,
+                    "evidencia": evidencias,
+                    "explicacion": (
+                        "Sugerencia del modelo con evidencia verificada en el CV original."
+                        if evidencias
+                        else "La sugerencia requiere verificacion humana por falta de evidencia."
+                    ),
+                }
+            )
+        coincidencias = sum(1 for item in resultados if item["veredicto"] == "coincide")
+        salida["resultados_requisitos"] = resultados
+        salida["puntaje_documental"] = (
+            str(round(coincidencias * 100 / len(resultados), 2)) if resultados else None
+        )
+        salida["revision_requerida"] = revision
+        salida["proveedor_ia"] = respuesta.proveedor
+        salida["modelo_ia"] = respuesta.modelo
+        salida["prompt_tokens"] = respuesta.prompt_tokens
+        salida["completion_tokens"] = respuesta.completion_tokens
         return cast(EstadoEvaluacion, salida)
 
     def verificar_evidencia_original(self, estado: EstadoEvaluacion) -> EstadoEvaluacion:
@@ -291,8 +370,8 @@ class ContextoNodosEvaluacion:
                         Decimal(puntaje_documental) if puntaje_documental is not None else None
                     ),
                     requiere_revision=bool(estado.get("revision_requerida", True)),
-                    modelo="deterministico-local",
-                    version_prompt="evaluador-v1",
+                    modelo=str(estado.get("modelo_ia", "deterministico-local")),
+                    version_prompt="evaluador-v2-gobernado",
                     simulada=False,
                 )
                 sesion.add(evaluacion)

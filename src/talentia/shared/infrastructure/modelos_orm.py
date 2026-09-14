@@ -366,3 +366,19 @@ class EventoMetricaPilotoModelo(Base):
     unidad: Mapped[str] = mapped_column(String(30))
     dimensiones: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     ocurrido_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
+
+
+class ConfiguracionIAModelo(Base, MarcasTiempo):
+    __tablename__ = "ai_runtime_settings"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default="global")
+    proveedor: Mapped[str] = mapped_column(String(30), default="local")
+    modelo: Mapped[str] = mapped_column(String(100), default="deterministico-local")
+    temperatura: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("0"))
+    tokens_maximos: Mapped[int] = mapped_column(Integer, default=1024)
+    clave_openai_cifrada: Mapped[str | None] = mapped_column(Text)
+    clave_gemini_cifrada: Mapped[str | None] = mapped_column(Text)
+    estado_conexion: Mapped[str] = mapped_column(String(30), default="local")
+    detalle_conexion: Mapped[str] = mapped_column(String(160), default="Procesamiento local")
+    latencia_ms: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    ultima_verificacion_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ultimo_exito_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

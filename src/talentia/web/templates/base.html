@@ -11,6 +11,7 @@
 </head>
 <body>
   {% set ruta_actual = request.url.path %}
+  {% set estado_ia = request.app.state.gestor_configuracion_ia.obtener_publica() %}
   <a class="saltar-contenido" href="#contenido-principal">Saltar al contenido</a>
   <div class="estructura">
     <aside class="barra-lateral">
@@ -42,6 +43,9 @@
           <a href="/modulo/exclusiones" class="{% if ruta_actual.startswith('/modulo/exclusiones') or ruta_actual.startswith('/exclusiones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/exclusiones') or ruta_actual.startswith('/exclusiones') %}aria-current="page"{% endif %}><i aria-hidden="true">⊘</i>Exclusiones</a>
           <a href="/modulo/metricas" class="{% if ruta_actual.startswith('/modulo/metricas') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/metricas') %}aria-current="page"{% endif %}><i aria-hidden="true">▥</i>Metricas</a>
           <a href="/modulo/usuarios" class="{% if ruta_actual.startswith('/modulo/usuarios') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/usuarios') %}aria-current="page"{% endif %}><i aria-hidden="true">⚙</i>Usuarios</a>
+          {% if 'administrador' in usuario.roles %}
+          <a href="/admin/configuracion-ia" class="{% if ruta_actual.startswith('/admin/configuracion-ia') %}activo{% endif %}" {% if ruta_actual.startswith('/admin/configuracion-ia') %}aria-current="page"{% endif %}><i aria-hidden="true">◉</i>Configuracion IA</a>
+          {% endif %}
         </div>
       </nav>
       <div class="sesion">
@@ -64,7 +68,12 @@
           <p class="subtitulo-pagina">{% block subtitle %}Gestion de talento asistida, trazable y bajo control humano.{% endblock %}</p>
         </div>
         <div class="indicadores-cabecera">
-          {% if modo_manual %}<span class="estado estado-manual"><i aria-hidden="true"></i>Modo manual</span>{% endif %}
+          {% set etiqueta_proveedor = {'openai': 'OpenAI', 'gemini': 'Gemini', 'local': 'Modo Local / Deterministico'} %}
+          {% if 'administrador' in usuario.roles %}
+          <a class="estado estado-ia estado-{{ estado_ia.estado }}" href="/admin/configuracion-ia" title="Abrir configuracion de IA"><i aria-hidden="true"></i>IA: {{ etiqueta_proveedor[estado_ia.proveedor] }}{% if estado_ia.proveedor != 'local' %} ({{ estado_ia.modelo }}){% endif %}</a>
+          {% else %}
+          <span class="estado estado-ia estado-{{ estado_ia.estado }}"><i aria-hidden="true"></i>IA: {{ etiqueta_proveedor[estado_ia.proveedor] }}{% if estado_ia.proveedor != 'local' %} ({{ estado_ia.modelo }}){% endif %}</span>
+          {% endif %}
           <span class="identidad-cabecera" title="Sesion activa">{{ usuario.correo[:1] | upper }}</span>
         </div>
       </header>
@@ -74,5 +83,6 @@
       <footer class="pie-pagina"><span>TalentIA</span><span>Las sugerencias asistidas requieren revision humana.</span></footer>
     </main>
   </div>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

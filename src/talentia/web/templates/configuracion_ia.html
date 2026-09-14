@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Configuracion de IA | TalentIA{% endblock %}
+{% block heading %}Panel de configuracion y estado de IA{% endblock %}
+{% block breadcrumb %}Administracion / IA{% endblock %}
+{% block subtitle %}Gestiona proveedores, diagnostica conexiones y abre la observabilidad del piloto.{% endblock %}
+{% block content %}
+{% if guardado %}<div class="alert alert-success" role="status">Configuracion actualizada. El servidor y el worker usaran estos ajustes sin reiniciar.</div>{% endif %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+
+<section class="seccion tarjeta-configuracion" aria-labelledby="titulo-diagnostico">
+  <div class="titulo-seccion">
+    <h2 id="titulo-diagnostico">Diagnostico en tiempo real</h2>
+    <form method="post" action="/admin/configuracion-ia/diagnostico"
+          hx-post="/admin/configuracion-ia/diagnostico"
+          hx-target="#estado-conexion-ia"
+          hx-swap="outerHTML"
+          hx-indicator="#indicador-diagnostico">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-outline-primary" type="submit">Probar conexion ahora</button>
+      <span id="indicador-diagnostico" class="htmx-indicator indicador-carga" role="status">Verificando…</span>
+    </form>
+  </div>
+  {% include "fragmentos/estado_ia.html" %}
+</section>
+
+<form method="post" action="/admin/configuracion-ia" class="seccion formulario-operativo formulario-ia">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="version" value="{{ ajustes_ia.version }}">
+  <div class="titulo-seccion"><h2>Proveedor y modelo</h2><span class="estado">Version {{ ajustes_ia.version }}</span></div>
+  <fieldset class="selector-proveedor">
+    <legend class="visually-hidden">Proveedor de IA</legend>
+    {% for valor, titulo, descripcion in [
+      ('openai', 'OpenAI', 'Modelos GPT y razonamiento'),
+      ('gemini', 'Google Gemini', 'Modelos de Google AI Studio'),
+      ('local', 'Modo Local', 'Procesamiento deterministico sin API')
+    ] %}
+    <label class="opcion-proveedor">
+      <input type="radio" name="proveedor" value="{{ valor }}" {% if ajustes_ia.proveedor == valor %}checked{% endif %} required>
+      <span><strong>{{ titulo }}</strong><small>{{ descripcion }}</small></span>
+    </label>
+    {% endfor %}
+  </fieldset>
+
+  <div class="rejilla-formulario ajustes-modelo">
+    <label>Modelo activo
+      <select name="modelo" id="modelo-ia" required>
+        <optgroup label="OpenAI — catalogo de alto volumen" data-provider="openai">
+          {% for item in modelos_openai_gratuitos %}<option value="{{ item }}" {% if ajustes_ia.modelo == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+        </optgroup>
+        <optgroup label="OpenAI — modelos avanzados" data-provider="openai">
+          {% for item in modelos_openai_avanzados %}<option value="{{ item }}" {% if ajustes_ia.modelo == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+        </optgroup>
+        <optgroup label="Google Gemini — AI Studio" data-provider="gemini">
+          {% for item in modelos_gemini %}<option value="{{ item }}" {% if ajustes_ia.modelo == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+        </optgroup>
+        <optgroup label="Procesamiento local" data-provider="local">
+          <option value="deterministico-local" {% if ajustes_ia.modelo == 'deterministico-local' %}selected{% endif %}>deterministico-local</option>
+        </optgroup>
+      </select>
+      <small>La disponibilidad y cuota reales dependen de la cuenta del proveedor.</small>
+    </label>
+    <label>API Key
+      <span class="campo-secreto">
+        <input id="api-key-ia" type="password" name="api_key" autocomplete="new-password" placeholder="{% if ajustes_ia.clave_configurada %}Clave configurada; deje vacio para conservarla{% else %}Ingrese una clave para el proveedor{% endif %}">
+        <button class="boton-secreto" type="button" data-toggle-secret="api-key-ia" aria-label="Mostrar API Key" aria-pressed="false">Ver</button>
+      </span>
+      <small>{% if ajustes_ia.clave_configurada %}Existe una credencial cifrada para el proveedor activo.{% else %}No hay credencial configurada para el proveedor activo.{% endif %}</small>
+    </label>
+    <label>Temperatura: <output id="valor-temperatura">{{ ajustes_ia.temperatura }}</output>
+      <input id="temperatura-ia" name="temperatura" type="range" min="0" max="1" step="0.1" value="{{ ajustes_ia.temperatura }}">
+      <small>Valores bajos priorizan consistencia y reproducibilidad.</small>
+    </label>
+    <label>Tokens maximos de salida
+      <input name="tokens_maximos" type="number" min="1" max="16384" value="{{ ajustes_ia.tokens_maximos }}" required>
+    </label>
+  </div>
+  <div class="acciones-formulario">
+    <button class="btn btn-primary" type="submit">Guardar configuracion</button>
+  </div>
+</form>
+
+<section class="seccion acceso-mlflow" aria-labelledby="titulo-mlflow">
+  <div>
+    <span class="sobrelinea">OBSERVABILIDAD</span>
+    <h2 id="titulo-mlflow">Trazas, nodos y benchmarking</h2>
+    <p>MLflow conserva solo metadatos operativos: modelos, tiempos, tokens y estados. No registra CV, prompts, respuestas ni claves.</p>
+  </div>
+  {% if ajustes_ia.mlflow_url %}
+  <a class="btn btn-mlflow" href="{{ ajustes_ia.mlflow_url }}" target="_blank" rel="noopener noreferrer">Abrir Dashboard de MLflow ↗</a>
+  {% else %}
+  <span class="estado estado-pendiente">URL de MLflow no disponible</span>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/configuracion_ia.js" defer></script>{% endblock %}

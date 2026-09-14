@@ -1,0 +1,21 @@
+<div id="estado-conexion-ia" class="diagnostico-ia" aria-live="polite">
+  <div class="semaforo-ia semaforo-{{ ajustes_ia.estado }}" aria-hidden="true"></div>
+  <div>
+    {% if ajustes_ia.estado == 'activo' %}
+      <strong>ACTIVO Y CONECTADO</strong>
+    {% elif ajustes_ia.estado == 'error' %}
+      <strong>ERROR DE CONEXION</strong>
+    {% elif ajustes_ia.estado == 'pendiente' %}
+      <strong>PENDIENTE DE VERIFICACION</strong>
+    {% else %}
+      <strong>MODO LOCAL / MANUAL</strong>
+    {% endif %}
+    <p>{{ ajustes_ia.detalle }}</p>
+  </div>
+  <dl class="detalle-diagnostico">
+    <div><dt>Proveedor</dt><dd>{{ ajustes_ia.proveedor | title }}</dd></div>
+    <div><dt>Modelo</dt><dd>{{ ajustes_ia.modelo }}</dd></div>
+    <div><dt>Ultima latencia</dt><dd>{{ (ajustes_ia.latencia_ms | round(1) ~ ' ms') if ajustes_ia.latencia_ms is not none else 'Sin datos' }}</dd></div>
+    <div><dt>Ultimo exito</dt><dd>{{ ajustes_ia.ultimo_exito_en or 'Sin verificaciones exitosas' }}</dd></div>
+  </dl>
+</div>

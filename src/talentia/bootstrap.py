@@ -14,6 +14,7 @@ from talentia.config import Ambiente, Configuracion, cargar_configuracion
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL, Rol
 from talentia.modules.documents.infrastructure.extractores import extraer_documento
 from talentia.modules.providers.infrastructure.lector_lotes import leer_filas
+from talentia.platform.configuracion_ia import GestorConfiguracionIA
 from talentia.platform.document_store.local import AlmacenLocal
 from talentia.platform.security.contrasenas import hash_contrasena
 from talentia.shared.application.puertos import FabricaUnidadTrabajo
@@ -84,7 +85,7 @@ def preparar_acceso(configuracion: Configuracion, fabrica: FabricaSesiones) -> N
             )
 
 
-def construir_servicio() -> tuple[Configuracion, ServicioTalentIA]:
+def construir_servicio() -> tuple[Configuracion, ServicioTalentIA, GestorConfiguracionIA]:
     configuracion = cargar_configuracion()
     migrar(configuracion)
     motor = crear_motor(configuracion.url_base_datos)
@@ -101,4 +102,5 @@ def construir_servicio() -> tuple[Configuracion, ServicioTalentIA]:
         configuracion.minutos_bloqueo_login,
         configuracion.dias_vigencia_contrasena,
     )
-    return configuracion, servicio
+    gestor_ia = GestorConfiguracionIA(fabrica_sesiones, configuracion)
+    return configuracion, servicio, gestor_ia

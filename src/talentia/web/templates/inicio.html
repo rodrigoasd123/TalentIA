@@ -4,6 +4,7 @@
 {% block breadcrumb %}Resumen{% endblock %}
 {% block subtitle %}Visibilidad operativa del proceso de seleccion y sus revisiones.{% endblock %}
 {% block content %}
+{% set estado_ia = request.app.state.gestor_configuracion_ia.obtener_publica() %}
 <section class="hero-inicio" aria-labelledby="bienvenida-talentia">
   <div>
     <span class="sobrelinea">ESPACIO DE TRABAJO</span>
@@ -22,7 +23,7 @@
 </section>
 <section class="banda-metricas" aria-label="Resumen">
   <div><span>Candidatos recientes</span><strong>{{ candidatos | length }}</strong></div>
-  <div><span>Proveedor IA</span><strong>{% if modo_manual %}No configurado{% else %}Activo{% endif %}</strong></div>
+  <div><span>Proveedor IA</span><strong>{% if estado_ia.proveedor == 'local' %}Modo local{% else %}{{ estado_ia.proveedor | title }}{% endif %}</strong></div>
   <div><span>Decision final</span><strong>Humana</strong></div>
 </section>
 <section class="seccion">

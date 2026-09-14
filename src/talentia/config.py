@@ -26,6 +26,9 @@ class Configuracion:
     secreto_sesion: str
     proveedor_ia: str | None
     ruta_documentos: Path
+    modelo_ia: str = "deterministico-local"
+    mlflow_url: str = "http://127.0.0.1:5000"
+    mlflow_tracking_uri: str | None = None
     tamano_maximo_mb: int = 10
     tiempo_sesion_minutos: int = 30
     intentos_trabajo: int = 3
@@ -82,6 +85,9 @@ def cargar_configuracion() -> Configuracion:
         secreto_sesion=secreto,
         proveedor_ia=os.getenv("TALENTIA_LLM_PROVIDER") or None,
         ruta_documentos=ruta_documentos,
+        modelo_ia=os.getenv("TALENTIA_LLM_MODEL", "deterministico-local"),
+        mlflow_url=os.getenv("TALENTIA_MLFLOW_URL", "http://127.0.0.1:5000"),
+        mlflow_tracking_uri=os.getenv("TALENTIA_MLFLOW_TRACKING_URI") or None,
         tamano_maximo_mb=int(os.getenv("TALENTIA_MAX_UPLOAD_MB", "10")),
         tiempo_sesion_minutos=int(os.getenv("TALENTIA_SESSION_MINUTES", "30")),
         intentos_trabajo=int(os.getenv("TALENTIA_JOB_ATTEMPTS", "3")),

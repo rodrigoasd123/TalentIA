@@ -99,10 +99,17 @@ MLflow es una herramienta offline de desarrollo y no una dependencia del piloto:
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[benchmark]"
 .\.venv\Scripts\python.exe scripts\ejecutar_benchmark_greenfield.py
+.\.venv\Scripts\mlflow.exe server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5000
 ```
 
 El benchmark debe utilizar etiquetas humanas independientes antes de considerarse evidencia de
 calidad o falso descarte.
+
+Administracion puede abrir /admin/configuracion-ia para seleccionar el proveedor/modelo,
+guardar credenciales cifradas, ejecutar un diagnostico explicito y abrir MLflow. Configure
+TALENTIA_MLFLOW_TRACKING_URI=sqlite:///mlflow.db para registrar runs padre/hijo del workflow.
+La instrumentacion es metadata-only: registra nodos, latencia y tokens, pero nunca prompts,
+respuestas, CV o claves.
 
 ## Arquitectura y gobierno
 

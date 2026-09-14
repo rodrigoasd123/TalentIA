@@ -24,6 +24,10 @@ class EstadoEvaluacion(TypedDict, total=False):
     error: str | None
     reintentos: int
     nodos_completados: list[str]
+    proveedor_ia: str
+    modelo_ia: str
+    prompt_tokens: int
+    completion_tokens: int
 
 
 CLAVES_PERSISTIBLES = frozenset(EstadoEvaluacion.__annotations__)
