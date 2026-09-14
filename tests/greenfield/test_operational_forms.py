@@ -199,14 +199,12 @@ def test_formularios_crean_perfil_y_version_y_conservan_datos(cliente_api) -> No
     assert "Titulo conservado" in duplicado.text
     assert "Ya existe un perfil" in duplicado.text
 
-    token_otro_cliente = cliente.app.state.firmador.crear(
-        {
-            "sub": "gestor-otro-f4",
-            "correo": "gestor@otro.test",
-            "roles": ["gestor_contratacion"],
-            "clientes": ["cliente-fuera-de-alcance"],
-            "csrf": "csrf-gestor-otro",
-        }
+    token_otro_cliente = cliente_api["token_para"](
+        "gestor-otro-f4",
+        "gestor@otro.test",
+        ["gestor_contratacion"],
+        ["cliente-fuera-de-alcance"],
+        "csrf-gestor-otro",
     )
     cliente.cookies.set("talentia_session", token_otro_cliente)
     assert cliente.get(ruta_version).status_code == 403
@@ -239,26 +237,22 @@ def test_postulacion_web_es_idempotente_y_valida_rbac_idor(cliente_api) -> None:
         )
         assert eventos == 1
 
-    token_sin_permiso = cliente.app.state.firmador.crear(
-        {
-            "sub": "entrevistador-f4",
-            "correo": "entrevistador@pruebas.test",
-            "roles": ["entrevistador"],
-            "clientes": [cliente_api["cliente_id"]],
-            "csrf": "csrf-entrevistador",
-        }
+    token_sin_permiso = cliente_api["token_para"](
+        "entrevistador-f4",
+        "entrevistador@pruebas.test",
+        ["entrevistador"],
+        [cliente_api["cliente_id"]],
+        "csrf-entrevistador",
     )
     cliente.cookies.set("talentia_session", token_sin_permiso)
     assert cliente.get("/postulaciones/nueva").status_code == 403
 
-    token_otro_cliente = cliente.app.state.firmador.crear(
-        {
-            "sub": "reclutador-otro-f4",
-            "correo": "reclutador@otro.test",
-            "roles": ["reclutador"],
-            "clientes": ["cliente-fuera-de-alcance"],
-            "csrf": "csrf-otro",
-        }
+    token_otro_cliente = cliente_api["token_para"](
+        "reclutador-otro-f4",
+        "reclutador@otro.test",
+        ["reclutador"],
+        ["cliente-fuera-de-alcance"],
+        "csrf-otro",
     )
     cliente.cookies.set("talentia_session", token_otro_cliente)
     idor = cliente.post(
@@ -359,14 +353,12 @@ def test_formularios_de_fase_4_rechazan_csrf_y_postulacion_fuera_de_alcance(
     )
     assert sin_csrf.status_code == 401
 
-    token_otro_cliente = cliente.app.state.firmador.crear(
-        {
-            "sub": "reclutador-otro-cv-f4",
-            "correo": "reclutador-cv@otro.test",
-            "roles": ["reclutador"],
-            "clientes": ["cliente-fuera-de-alcance"],
-            "csrf": "csrf-otro-cv",
-        }
+    token_otro_cliente = cliente_api["token_para"](
+        "reclutador-otro-cv-f4",
+        "reclutador-cv@otro.test",
+        ["reclutador"],
+        ["cliente-fuera-de-alcance"],
+        "csrf-otro-cv",
     )
     cliente.cookies.set("talentia_session", token_otro_cliente)
     idor = cliente.post(

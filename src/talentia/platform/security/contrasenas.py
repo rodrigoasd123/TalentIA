@@ -12,10 +12,38 @@ from typing import cast
 
 from talentia.shared.application.errores import NoAutorizadoError
 
+LONGITUD_MINIMA = 14
+CONTRASENAS_PROHIBIDAS = frozenset(
+    {
+        "laboratorio-talentia-2026!",
+        "password123456!",
+        "qwerty123456!",
+    }
+)
+
+
+def validar_politica_contrasena(contrasena: str) -> None:
+    """Valida complejidad sin conservar ni registrar el secreto."""
+    errores = []
+    if len(contrasena) < LONGITUD_MINIMA:
+        errores.append(f"al menos {LONGITUD_MINIMA} caracteres")
+    if not any(caracter.islower() for caracter in contrasena):
+        errores.append("una minuscula")
+    if not any(caracter.isupper() for caracter in contrasena):
+        errores.append("una mayuscula")
+    if not any(caracter.isdigit() for caracter in contrasena):
+        errores.append("un numero")
+    if not any(not caracter.isalnum() for caracter in contrasena):
+        errores.append("un simbolo")
+    plegada = contrasena.casefold()
+    if plegada in CONTRASENAS_PROHIBIDAS:
+        errores.append("no ser una credencial conocida o predecible")
+    if errores:
+        raise ValueError("La contrasena debe incluir " + ", ".join(errores))
+
 
 def hash_contrasena(contrasena: str, sal: bytes | None = None) -> str:
-    if len(contrasena) < 14:
-        raise ValueError("La contrasena debe tener al menos 14 caracteres")
+    validar_politica_contrasena(contrasena)
     sal_real = sal or secrets.token_bytes(16)
     derivada = hashlib.scrypt(contrasena.encode(), salt=sal_real, n=2**14, r=8, p=1, dklen=32)
     sal_codificada = base64.urlsafe_b64encode(sal_real).decode()

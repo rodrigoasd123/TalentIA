@@ -28,7 +28,7 @@ py -3.12 -m venv .venv
 $env:TALENTIA_ENV="piloto"
 $env:TALENTIA_SESSION_SECRET="genere-un-secreto-aleatorio-de-al-menos-32-caracteres"
 $env:TALENTIA_ADMIN_EMAIL="admin@su-empresa.com"
-$env:TALENTIA_ADMIN_PASSWORD="una-contrasena-segura-de-al-menos-14-caracteres"
+$env:TALENTIA_ADMIN_PASSWORD="Ejemplo-Seguro-2026!"
 
 .\scripts\migrate.ps1
 .\scripts\start_api.ps1
@@ -65,7 +65,8 @@ La guia completa esta en
 - La base predeterminada es `talentia_greenfield.db`; esta excluida de Git.
 - Los CV se almacenan fuera de los estaticos en `storage/greenfield`; tambien esta excluido.
 - `scripts/backup.ps1` y `scripts/restore.ps1` realizan copias verificables sin sobrescribir.
-- `scripts/seed_greenfield.py` genera unicamente datos ficticios para demostracion.
+- `scripts/seed_greenfield.py` genera unicamente datos ficticios para demostracion y nunca crea
+  usuarios ni contrasenas. Las cuentas se provisionan exclusivamente mediante entorno.
 
 ## Benchmark opcional
 

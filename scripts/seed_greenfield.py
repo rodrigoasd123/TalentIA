@@ -9,29 +9,23 @@ sys.path.insert(0, str(RAIZ_PROYECTO / "src"))
 from sqlalchemy import func, select  # noqa: E402
 
 from talentia.config import cargar_configuracion  # noqa: E402
-from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL, Rol  # noqa: E402
-from talentia.platform.security.contrasenas import hash_contrasena  # noqa: E402
 from talentia.shared.domain.modelos import nuevo_id  # noqa: E402
 from talentia.shared.infrastructure.base_datos import (  # noqa: E402
     FabricaSesiones,
     crear_motor,
 )
 from talentia.shared.infrastructure.modelos_orm import (  # noqa: E402
-    AsignacionUsuarioClienteModelo,
     CandidatoModelo,
     ClienteModelo,
     DocumentoCandidatoModelo,
     EvaluacionModelo,
     PerfilPuestoModelo,
     PostulacionModelo,
-    RolModelo,
-    UsuarioModelo,
-    UsuarioRolModelo,
     VersionPerfilPuestoModelo,
 )
 
 
-def run_seed():  # noqa: C901
+def run_seed():
     configuracion = cargar_configuracion()
     motor = crear_motor(configuracion.url_base_datos)
     fabrica = FabricaSesiones(motor)
@@ -46,50 +40,7 @@ def run_seed():  # noqa: C901
             sesion.add(cliente)
             sesion.flush()
 
-        # 2. Roles del sistema
-        roles = {}
-        for rol, permisos in PERMISOS_POR_ROL.items():
-            r_obj = sesion.scalar(select(RolModelo).where(RolModelo.codigo == rol))
-            if not r_obj:
-                r_obj = RolModelo(id=nuevo_id(), codigo=rol, permisos=sorted(permisos))
-                sesion.add(r_obj)
-                sesion.flush()
-            roles[Rol(rol)] = r_obj
-
-        # 3. Usuarios de Laboratorio
-        clave_lab = "Laboratorio-TalentIA-2026!"
-        hash_lab = hash_contrasena(clave_lab)
-
-        usuarios_data = [
-            ("admin@ejemplo.local", "Administrador Principal", Rol.ADMINISTRADOR),
-            ("reclutador@ejemplo.local", "Reclutador Senior", Rol.RECLUTADOR),
-            ("gestor@ejemplo.local", "Gestor de Contratacion", Rol.GESTOR_CONTRATACION),
-            ("auditor@ejemplo.local", "Auditor de Cumplimiento", Rol.AUDITOR),
-            ("entrevistador@ejemplo.local", "Entrevistador Tecnico", Rol.ENTREVISTADOR),
-            ("importador@ejemplo.local", "Operador de Lotes", Rol.IMPORTADOR),
-        ]
-
-        for correo, nombre, rol in usuarios_data:
-            usr = sesion.scalar(select(UsuarioModelo).where(UsuarioModelo.correo == correo))
-            if not usr:
-                usr = UsuarioModelo(
-                    id=nuevo_id(),
-                    correo=correo,
-                    nombre=nombre,
-                    hash_contrasena=hash_lab,
-                    activo=True,
-                )
-                sesion.add(usr)
-                sesion.flush()
-                sesion.add(UsuarioRolModelo(usuario_id=usr.id, rol_id=roles[rol].id))
-                sesion.add(AsignacionUsuarioClienteModelo(usuario_id=usr.id, cliente_id=cliente.id))
-            else:
-                usr.hash_contrasena = hash_lab
-                usr.activo = True
-
-        sesion.flush()
-
-        # 4. Convocatorias (Perfiles de Puesto)
+        # 2. Convocatorias (Perfiles de Puesto). Los usuarios se provisionan por entorno.
         convocatorias_def = [
             {
                 "codigo": "CONV-2026-001",
@@ -684,7 +635,7 @@ def run_seed():  # noqa: C901
         evals_total = sesion.scalar(select(func.count()).select_from(EvaluacionModelo))
 
         print("=== Siembra Greenfield Completada ===")
-        print(f"Usuarios de laboratorio: {len(usuarios_data)}")
+        print("Usuarios: no se crean credenciales de laboratorio; use variables de entorno")
         print(f"Convocatorias activas: {len(convocatorias_def)}")
         print(f"Candidatos totales: {cands_total}")
         print(f"Postulaciones totales: {posts_total}")

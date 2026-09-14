@@ -52,6 +52,12 @@ class UsuarioModelo(Base, MarcasTiempo):
     nombre: Mapped[str] = mapped_column(String(200))
     hash_contrasena: Mapped[str] = mapped_column(String(255))
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    intentos_fallidos: Mapped[int] = mapped_column(Integer, default=0)
+    bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    contrasena_cambiada_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=ahora_utc
+    )
+    sesion_version: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class UsuarioRolModelo(Base):

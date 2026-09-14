@@ -9,6 +9,7 @@ from talentia.platform.security.contrasenas import (
     hash_contrasena,
     verificar_contrasena,
 )
+from talentia.shared.application.errores import NoAutorizadoError
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.base_datos import crear_motor
 from talentia.shared.infrastructure.modelos_orm import EventoAuditoriaModelo, UsuarioModelo
@@ -21,6 +22,97 @@ def test_contrasena_y_sesion_no_guardan_secretos_en_claro() -> None:
     firmador = FirmadorSesion("x" * 40)
     token = firmador.crear({"sub": "usuario"})
     assert firmador.leer(token)["sub"] == "usuario"
+
+
+def test_politica_rechaza_credencial_de_laboratorio_conocida() -> None:
+    with pytest.raises(ValueError, match="conocida o predecible"):
+        hash_contrasena("Laboratorio-TalentIA-2026!")
+
+
+def test_bloqueo_por_intentos_persiste_y_audita(cliente_api) -> None:
+    cliente = cliente_api["cliente"]
+    for _ in range(5):
+        respuesta = cliente.post(
+            "/api/v1/auth/login",
+            json={"correo": "admin@pruebas.test", "contrasena": "Incorrecta-Segura-2026!"},
+        )
+        assert respuesta.status_code == 401
+
+    correcta = cliente.post(
+        "/api/v1/auth/login",
+        json={
+            "correo": "admin@pruebas.test",
+            "contrasena": "Contrasena-Pruebas-2026!",
+        },
+    )
+    assert correcta.status_code == 401
+
+    motor = crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}")
+    with Session(motor) as sesion:
+        usuario = sesion.scalar(
+            select(UsuarioModelo).where(UsuarioModelo.correo == "admin@pruebas.test")
+        )
+        assert usuario is not None
+        assert usuario.intentos_fallidos == 5
+        assert usuario.bloqueado_hasta is not None
+        eventos = sesion.scalar(
+            select(func.count())
+            .select_from(EventoAuditoriaModelo)
+            .where(EventoAuditoriaModelo.accion == "autenticacion.bloqueada")
+        )
+        assert eventos == 2
+
+
+def test_logout_revoca_el_token_en_servidor(cliente_api) -> None:
+    cliente = cliente_api["cliente"]
+    cabeceras = cliente_api["cabeceras"]
+    salida = cliente.post("/api/v1/auth/logout", headers=cabeceras)
+    assert salida.status_code == 200
+    assert salida.json() == {"cerrada": True}
+    posterior = cliente.get("/api/v1/access-management", headers=cabeceras)
+    assert posterior.status_code == 401
+
+
+def test_cambio_de_contrasena_revoca_token_y_permita_nuevo_login(cliente_api) -> None:
+    cliente = cliente_api["cliente"]
+    cabeceras = cliente_api["cabeceras"]
+    cambio = cliente.post(
+        "/api/v1/auth/change-password",
+        headers=cabeceras,
+        json={
+            "contrasena_actual": "Contrasena-Pruebas-2026!",
+            "contrasena_nueva": "Nueva-Clave-Segura-2027!",
+        },
+    )
+    assert cambio.status_code == 200
+    assert cliente.get("/api/v1/access-management", headers=cabeceras).status_code == 401
+    anterior = cliente.post(
+        "/api/v1/auth/login",
+        json={
+            "correo": "admin@pruebas.test",
+            "contrasena": "Contrasena-Pruebas-2026!",
+        },
+    )
+    assert anterior.status_code == 401
+    nueva = cliente.post(
+        "/api/v1/auth/login",
+        json={"correo": "admin@pruebas.test", "contrasena": "Nueva-Clave-Segura-2027!"},
+    )
+    assert nueva.status_code == 200
+
+
+def test_sesion_vencida_falla_cerrada() -> None:
+    firmador = FirmadorSesion("s" * 40, minutos=-1)
+    token = firmador.crear({"sub": "usuario"})
+    with pytest.raises(NoAutorizadoError, match="Sesion vencida"):
+        firmador.leer(token)
+
+
+def test_arranque_no_crea_usuarios_de_laboratorio(cliente_api) -> None:
+    motor = crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}")
+    with Session(motor) as sesion:
+        correos = set(sesion.scalars(select(UsuarioModelo.correo)).all())
+    assert correos == {"admin@pruebas.test"}
 
 
 def test_piloto_aborta_con_secreto_inseguro(tmp_path) -> None:

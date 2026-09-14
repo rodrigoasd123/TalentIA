@@ -18,6 +18,11 @@ class Credenciales(Estricto):
     contrasena: str
 
 
+class CambioContrasena(Estricto):
+    contrasena_actual: str
+    contrasena_nueva: str
+
+
 class AsignacionRol(Estricto):
     rol: str
     asignar: bool = True

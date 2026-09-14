@@ -272,14 +272,12 @@ def test_web_revision_exige_csrf_rbac_y_alcance_de_cliente(cliente_api) -> None:
     assert procesar_siguiente(fabrica) == trabajo_id
     cliente = cliente_api["cliente"]
 
-    token_reclutador = cliente.app.state.firmador.crear(
-        {
-            "sub": "reclutador-web",
-            "correo": "reclutador@pruebas.test",
-            "roles": ["reclutador"],
-            "clientes": [cliente_api["cliente_id"]],
-            "csrf": "csrf-reclutador",
-        }
+    token_reclutador = cliente_api["token_para"](
+        "reclutador-web",
+        "reclutador@pruebas.test",
+        ["reclutador"],
+        [cliente_api["cliente_id"]],
+        "csrf-reclutador",
     )
     cliente.cookies.set("talentia_session", token_reclutador)
     lectura = cliente.get(f"/evaluaciones/{trabajo_id}")
@@ -295,14 +293,12 @@ def test_web_revision_exige_csrf_rbac_y_alcance_de_cliente(cliente_api) -> None:
     )
     assert sin_permiso.status_code == 403
 
-    token_otro_cliente = cliente.app.state.firmador.crear(
-        {
-            "sub": "revisor-otro-cliente",
-            "correo": "revisor@otro.test",
-            "roles": ["entrevistador"],
-            "clientes": ["cliente-fuera-de-alcance"],
-            "csrf": "csrf-otro",
-        }
+    token_otro_cliente = cliente_api["token_para"](
+        "revisor-otro-cliente",
+        "revisor@otro.test",
+        ["entrevistador"],
+        ["cliente-fuera-de-alcance"],
+        "csrf-otro",
     )
     cliente.cookies.set("talentia_session", token_otro_cliente)
     assert cliente.get(f"/evaluaciones/{trabajo_id}").status_code == 403

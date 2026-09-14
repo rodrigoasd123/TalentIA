@@ -33,6 +33,7 @@ class UsuarioActual:
     correo: str
     roles: frozenset[str]
     clientes: frozenset[str]
+    sesion_version: int = 1
 
     def tiene_permiso(self, permiso: str, permisos_por_rol: dict[str, set[str]]) -> bool:
         return any(

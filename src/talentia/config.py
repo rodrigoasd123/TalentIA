@@ -30,6 +30,9 @@ class Configuracion:
     tiempo_sesion_minutos: int = 30
     intentos_trabajo: int = 3
     timeout_ia_segundos: int = 60
+    maximos_intentos_login: int = 5
+    minutos_bloqueo_login: int = 15
+    dias_vigencia_contrasena: int = 90
 
     @property
     def modo_manual(self) -> bool:
@@ -44,6 +47,12 @@ class Configuracion:
             raise ConfiguracionError("El limite de archivos debe estar entre 1 y 25 MB")
         if not self.url_base_datos.startswith("sqlite:///"):
             raise ConfiguracionError("El piloto solo admite SQLite local")
+        if self.maximos_intentos_login < 3 or self.maximos_intentos_login > 20:
+            raise ConfiguracionError("Los intentos de login deben estar entre 3 y 20")
+        if self.minutos_bloqueo_login < 1 or self.minutos_bloqueo_login > 1440:
+            raise ConfiguracionError("El bloqueo de login debe estar entre 1 y 1440 minutos")
+        if self.dias_vigencia_contrasena < 1 or self.dias_vigencia_contrasena > 365:
+            raise ConfiguracionError("La vigencia de contrasena debe estar entre 1 y 365 dias")
 
 
 RAIZ_PROYECTO = Path(__file__).resolve().parents[2]
@@ -77,6 +86,9 @@ def cargar_configuracion() -> Configuracion:
         tiempo_sesion_minutos=int(os.getenv("TALENTIA_SESSION_MINUTES", "30")),
         intentos_trabajo=int(os.getenv("TALENTIA_JOB_ATTEMPTS", "3")),
         timeout_ia_segundos=int(os.getenv("TALENTIA_LLM_TIMEOUT_SECONDS", "60")),
+        maximos_intentos_login=int(os.getenv("TALENTIA_LOGIN_MAX_ATTEMPTS", "5")),
+        minutos_bloqueo_login=int(os.getenv("TALENTIA_LOGIN_LOCK_MINUTES", "15")),
+        dias_vigencia_contrasena=int(os.getenv("TALENTIA_PASSWORD_MAX_AGE_DAYS", "90")),
     )
     configuracion.validar()
     return configuracion

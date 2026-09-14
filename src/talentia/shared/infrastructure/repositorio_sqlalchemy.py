@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import TracebackType
 from typing import Any
@@ -147,9 +147,56 @@ class RepositorioSqlalchemy:
             "nombre": usuario.nombre,
             "hash_contrasena": usuario.hash_contrasena,
             "activo": usuario.activo,
+            "intentos_fallidos": usuario.intentos_fallidos,
+            "bloqueado_hasta": usuario.bloqueado_hasta,
+            "contrasena_cambiada_en": usuario.contrasena_cambiada_en,
+            "sesion_version": usuario.sesion_version,
             "roles": list(roles),
             "clientes": list(clientes),
         }
+
+    def registrar_intento_autenticacion(
+        self, usuario_id: str, exitoso: bool, maximos_intentos: int, minutos_bloqueo: int
+    ) -> dict[str, object]:
+        usuario = self.sesion.get(UsuarioModelo, usuario_id)
+        if usuario is None:
+            return {"bloqueado": False, "intentos_fallidos": 0}
+        if exitoso:
+            usuario.intentos_fallidos = 0
+            usuario.bloqueado_hasta = None
+        else:
+            usuario.intentos_fallidos += 1
+            if usuario.intentos_fallidos >= maximos_intentos:
+                usuario.bloqueado_hasta = datetime.now(UTC) + timedelta(minutes=minutos_bloqueo)
+        self.sesion.flush()
+        return {
+            "bloqueado": usuario.bloqueado_hasta is not None,
+            "intentos_fallidos": usuario.intentos_fallidos,
+        }
+
+    def sesion_valida(self, usuario_id: str, sesion_version: int) -> bool:
+        usuario = self.sesion.get(UsuarioModelo, usuario_id)
+        return bool(usuario and usuario.activo and usuario.sesion_version == sesion_version)
+
+    def revocar_sesiones(self, usuario_id: str) -> int:
+        usuario = self.sesion.get(UsuarioModelo, usuario_id)
+        if usuario is None:
+            raise EntradaInvalidaError("Usuario inexistente")
+        usuario.sesion_version += 1
+        self.sesion.flush()
+        return usuario.sesion_version
+
+    def actualizar_contrasena(self, usuario_id: str, hash_nuevo: str) -> int:
+        usuario = self.sesion.get(UsuarioModelo, usuario_id)
+        if usuario is None:
+            raise EntradaInvalidaError("Usuario inexistente")
+        usuario.hash_contrasena = hash_nuevo
+        usuario.contrasena_cambiada_en = datetime.now(UTC)
+        usuario.intentos_fallidos = 0
+        usuario.bloqueado_hasta = None
+        usuario.sesion_version += 1
+        self.sesion.flush()
+        return usuario.sesion_version
 
     def listar_accesos(self) -> dict[str, object]:
         usuarios = []
@@ -181,8 +228,10 @@ class RepositorioSqlalchemy:
         existente = self.sesion.get(UsuarioRolModelo, (usuario_id, rol_modelo.id))
         if asignar and existente is None:
             self.sesion.add(UsuarioRolModelo(**clave))
+            usuario.sesion_version += 1
         elif not asignar and existente is not None:
             self.sesion.execute(delete(UsuarioRolModelo).filter_by(**clave))
+            usuario.sesion_version += 1
         self.sesion.flush()
         return {"usuario_id": usuario_id, "rol": rol, "asignado": asignar}
 
@@ -196,8 +245,14 @@ class RepositorioSqlalchemy:
         existente = self.sesion.get(AsignacionUsuarioClienteModelo, (usuario_id, cliente_id))
         if asignar and existente is None:
             self.sesion.add(AsignacionUsuarioClienteModelo(**clave))
+            usuario = self.sesion.get(UsuarioModelo, usuario_id)
+            assert usuario is not None
+            usuario.sesion_version += 1
         elif not asignar and existente is not None:
             self.sesion.execute(delete(AsignacionUsuarioClienteModelo).filter_by(**clave))
+            usuario = self.sesion.get(UsuarioModelo, usuario_id)
+            assert usuario is not None
+            usuario.sesion_version += 1
         self.sesion.flush()
         return {"usuario_id": usuario_id, "cliente_id": cliente_id, "asignado": asignar}
 

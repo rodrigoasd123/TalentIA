@@ -30,12 +30,15 @@ def _usuario(request: Request) -> UsuarioActual:
     if not token:
         raise NoAutorizadoError("Sesion requerida")
     datos = request.app.state.firmador.leer(token)
-    return UsuarioActual(
+    usuario = UsuarioActual(
         id=str(datos["sub"]),
         correo=str(datos["correo"]),
         roles=frozenset(str(rol) for rol in datos.get("roles", [])),
         clientes=frozenset(str(cliente) for cliente in datos.get("clientes", [])),
+        sesion_version=int(datos.get("sv", 0)),
     )
+    request.app.state.servicio.validar_sesion(usuario)
+    return usuario
 
 
 def _csrf(request: Request) -> str:
@@ -173,6 +176,7 @@ def iniciar_sesion_web(
             "roles": sorted(usuario.roles),
             "clientes": sorted(usuario.clientes),
             "csrf": csrf,
+            "sv": usuario.sesion_version,
         }
     )
     respuesta = RedirectResponse("/", status_code=303)
@@ -191,6 +195,10 @@ def iniciar_sesion_web(
 def cerrar_sesion_web(request: Request, csrf: str = Form()) -> RedirectResponse:
     if csrf != _csrf(request):
         raise NoAutorizadoError("CSRF invalido")
+    usuario = _usuario(request)
+    request.app.state.servicio.revocar_sesiones(
+        usuario, getattr(request.state, "correlacion_id", nuevo_id())
+    )
     respuesta = RedirectResponse("/login", status_code=303)
     respuesta.delete_cookie("talentia_session")
     return respuesta

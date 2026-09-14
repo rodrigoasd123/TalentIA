@@ -49,3 +49,21 @@ Los secretos no se devuelven completos ni se registran. Un token ausente, vencid
 ## Aprobación
 
 - [x] Plan retrospectivo aprobado por la persona responsable el 2026-09-10.
+
+## Plan de refinamiento greenfield — 2026-09-14
+
+1. Retirar del bootstrap y seed todas las cuentas y claves previsibles.
+2. Ampliar `users` con contador/bloqueo, fecha de contraseña y versión de sesión mediante una
+   migración Alembic reversible.
+3. Persistir el resultado de autenticación antes de devolver el error para conservar auditoría y
+   rate limiting.
+4. Validar cada token contra SQLite y aumentar la versión al cerrar sesión, cambiar contraseña,
+   rol o alcance.
+5. Probar política, bloqueo, expiración, revocación, RBAC e IDOR con usuarios persistidos reales.
+
+La revocación por versión invalida todas las sesiones del usuario. Es deliberadamente simple y
+adecuada para SQLite/piloto; evita una tabla adicional de tokens y no expone identificadores de
+sesión. La reversión operativa consiste en bajar `0004_seguridad` y revertir el commit del bloque.
+
+- [x] Alcance y plan aprobados por el usuario el 2026-09-14 mediante la orden de ejecutar el MD de
+  pendientes.

@@ -23,6 +23,7 @@ from talentia.web.schemas import (
     AltaVersionPerfil,
     AsignacionCliente,
     AsignacionRol,
+    CambioContrasena,
     ComprobacionExcolaborador,
     ComprobacionIdentidad,
     CorreccionFilaLote,
@@ -62,12 +63,15 @@ def usuario_actual(
     datos = firmador_actual.leer(token)
     roles = cast(list[object], datos.get("roles", []))
     clientes = cast(list[object], datos.get("clientes", []))
-    return UsuarioActual(
+    usuario = UsuarioActual(
         id=str(datos["sub"]),
         correo=str(datos["correo"]),
         roles=frozenset(str(rol) for rol in roles),
         clientes=frozenset(str(cliente) for cliente in clientes),
+        sesion_version=int(str(datos.get("sv", 0))),
     )
+    servicio(request).validar_sesion(usuario)
+    return usuario
 
 
 UsuarioDep = Annotated[UsuarioActual, Depends(usuario_actual)]
@@ -122,14 +126,33 @@ def iniciar_sesion(
             "roles": sorted(usuario.roles),
             "clientes": sorted(usuario.clientes),
             "csrf": csrf,
+            "sv": usuario.sesion_version,
         }
     )
     return {"access_token": token, "token_type": "bearer", "csrf_token": csrf}
 
 
 @router.post("/auth/logout")
-def cerrar_sesion(_: UsuarioDep) -> dict[str, bool]:
+def cerrar_sesion(
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, bool]:
+    servicio_actual.revocar_sesiones(usuario, correlacion_id)
     return {"cerrada": True}
+
+
+@router.post("/auth/change-password")
+def cambiar_contrasena(
+    entrada: CambioContrasena,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, bool]:
+    servicio_actual.cambiar_contrasena(
+        usuario, entrada.contrasena_actual, entrada.contrasena_nueva, correlacion_id
+    )
+    return {"actualizada": True, "sesiones_revocadas": True}
 
 
 @router.post("/candidates/identity-checks")

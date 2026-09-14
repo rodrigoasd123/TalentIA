@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Protocol, cast
 
@@ -24,7 +24,7 @@ from talentia.modules.candidates.domain.modelos import (
     ultimos_nueve_telefono,
 )
 from talentia.modules.documents.domain.modelos import DocumentoLeido, LecturaDocumentoError
-from talentia.platform.security.contrasenas import verificar_contrasena
+from talentia.platform.security.contrasenas import hash_contrasena, verificar_contrasena
 from talentia.shared.application.errores import (
     ConflictoError,
     DecisionNegocioPendienteError,
@@ -84,39 +84,120 @@ class ServicioTalentIA:
         lector_lotes: LectorLotes | None = None,
         extractor_documento: ExtractorDocumento | None = None,
         maximo_documento_bytes: int = 10 * 1024 * 1024,
+        maximos_intentos_login: int = 5,
+        minutos_bloqueo_login: int = 15,
+        dias_vigencia_contrasena: int = 90,
     ) -> None:
         self._fabrica = fabrica_unidad
         self._almacen = almacen_documentos
         self._lector_lotes = lector_lotes
         self._extractor_documento = extractor_documento
         self._maximo_documento_bytes = maximo_documento_bytes
+        self._maximos_intentos_login = maximos_intentos_login
+        self._minutos_bloqueo_login = minutos_bloqueo_login
+        self._dias_vigencia_contrasena = dias_vigencia_contrasena
 
     def autenticar(self, correo: str, contrasena: str, correlacion_id: str) -> UsuarioActual:
+        usuario: UsuarioActual | None = None
         with self._fabrica() as unidad:
             datos = unidad.datos.buscar_usuario(correo)
+            ahora = datetime.now(UTC)
+            bloqueado_hasta = datos.get("bloqueado_hasta") if datos else None
+            if isinstance(bloqueado_hasta, datetime) and bloqueado_hasta.tzinfo is None:
+                bloqueado_hasta = bloqueado_hasta.replace(tzinfo=UTC)
+            bloqueado = isinstance(bloqueado_hasta, datetime) and bloqueado_hasta > ahora
+            cambio = datos.get("contrasena_cambiada_en") if datos else None
+            if isinstance(cambio, datetime) and cambio.tzinfo is None:
+                cambio = cambio.replace(tzinfo=UTC)
+            vencida = (
+                not isinstance(cambio, datetime)
+                or cambio + timedelta(days=self._dias_vigencia_contrasena) < ahora
+            )
             valido = bool(
                 datos
                 and datos.get("activo")
+                and not bloqueado
+                and not vencida
                 and verificar_contrasena(contrasena, str(datos["hash_contrasena"]))
             )
+            resultado: dict[str, object] = {"bloqueado": bloqueado}
+            if datos and not bloqueado:
+                resultado = unidad.datos.registrar_intento_autenticacion(
+                    str(datos["id"]),
+                    valido,
+                    self._maximos_intentos_login,
+                    self._minutos_bloqueo_login,
+                )
             unidad.datos.registrar_evento(
                 cliente_id=None,
                 actor_id=str(datos["id"]) if datos else None,
-                accion="autenticacion.exitosa" if valido else "autenticacion.fallida",
+                accion=(
+                    "autenticacion.exitosa"
+                    if valido
+                    else "autenticacion.bloqueada"
+                    if bloqueado or resultado["bloqueado"]
+                    else "autenticacion.contrasena_vencida"
+                    if vencida and datos
+                    else "autenticacion.fallida"
+                ),
                 recurso_tipo="sesion",
                 recurso_id=None,
                 detalle={"correo_hash": hashlib.sha256(correo.casefold().encode()).hexdigest()},
                 correlacion_id=correlacion_id,
             )
-            if not valido or datos is None:
+            if valido and datos is not None:
+                usuario = UsuarioActual(
+                    id=str(datos["id"]),
+                    correo=str(datos["correo"]),
+                    roles=frozenset(str(rol) for rol in cast(list[object], datos["roles"])),
+                    clientes=frozenset(
+                        str(cliente) for cliente in cast(list[object], datos["clientes"])
+                    ),
+                    sesion_version=int(str(datos["sesion_version"])),
+                )
+        if usuario is None:
+            raise NoAutorizadoError("Credenciales invalidas")
+        return usuario
+
+    def validar_sesion(self, usuario: UsuarioActual) -> None:
+        with self._fabrica() as unidad:
+            if not unidad.datos.sesion_valida(usuario.id, usuario.sesion_version):
+                raise NoAutorizadoError("Sesion revocada")
+
+    def revocar_sesiones(self, usuario: UsuarioActual, correlacion_id: str) -> None:
+        with self._fabrica() as unidad:
+            unidad.datos.revocar_sesiones(usuario.id)
+            unidad.datos.registrar_evento(
+                cliente_id=None,
+                actor_id=usuario.id,
+                accion="autenticacion.sesiones_revocadas",
+                recurso_tipo="sesion",
+                recurso_id=None,
+                detalle={},
+                correlacion_id=correlacion_id,
+            )
+
+    def cambiar_contrasena(
+        self,
+        usuario: UsuarioActual,
+        actual: str,
+        nueva: str,
+        correlacion_id: str,
+    ) -> None:
+        hash_nuevo = hash_contrasena(nueva)
+        with self._fabrica() as unidad:
+            datos = unidad.datos.buscar_usuario(usuario.correo)
+            if not datos or not verificar_contrasena(actual, str(datos["hash_contrasena"])):
                 raise NoAutorizadoError("Credenciales invalidas")
-            return UsuarioActual(
-                id=str(datos["id"]),
-                correo=str(datos["correo"]),
-                roles=frozenset(str(rol) for rol in cast(list[object], datos["roles"])),
-                clientes=frozenset(
-                    str(cliente) for cliente in cast(list[object], datos["clientes"])
-                ),
+            unidad.datos.actualizar_contrasena(usuario.id, hash_nuevo)
+            unidad.datos.registrar_evento(
+                cliente_id=None,
+                actor_id=usuario.id,
+                accion="autenticacion.contrasena_actualizada",
+                recurso_tipo="usuario",
+                recurso_id=usuario.id,
+                detalle={"sesiones_revocadas": True},
+                correlacion_id=correlacion_id,
             )
 
     def listar_accesos(self, usuario: UsuarioActual) -> dict[str, object]:

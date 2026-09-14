@@ -30,14 +30,12 @@ def _crear_lote(cliente_api, contenido: bytes, clave: str = "fase-5-lote"):
 
 
 def _cabeceras_otro_cliente(cliente_api, rol: str) -> dict[str, str]:
-    token = cliente_api["cliente"].app.state.firmador.crear(
-        {
-            "sub": "usuario-otro-cliente",
-            "correo": "otro@pruebas.test",
-            "roles": [rol],
-            "clientes": ["cliente-no-autorizado"],
-            "csrf": nuevo_csrf(),
-        }
+    token = cliente_api["token_para"](
+        "usuario-otro-cliente",
+        "otro@pruebas.test",
+        [rol],
+        ["cliente-no-autorizado"],
+        nuevo_csrf(),
     )
     return {"Authorization": f"Bearer {token}"}
 
