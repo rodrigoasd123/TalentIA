@@ -25,7 +25,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e .
 
-$env:TALENTIA_ENV="piloto"
+$env:TALENTIA_ENV="desarrollo"
 $env:TALENTIA_SESSION_SECRET="genere-un-secreto-aleatorio-de-al-menos-32-caracteres"
 $env:TALENTIA_ADMIN_EMAIL="admin@su-empresa.com"
 $env:TALENTIA_ADMIN_PASSWORD="Ejemplo-Seguro-2026!"
@@ -35,6 +35,9 @@ $env:TALENTIA_ADMIN_PASSWORD="Ejemplo-Seguro-2026!"
 ```
 
 Abra `http://127.0.0.1:8000/login`.
+
+`desarrollo` es el modo correcto para una prueba local por HTTP. En `piloto`, la cookie de
+sesion es segura y la aplicacion debe publicarse mediante HTTPS; no use `piloto` sobre HTTP.
 
 Para procesar trabajos de evaluacion, abra otra terminal:
 
@@ -109,4 +112,5 @@ calidad o falso descarte.
 - Runbook: [`docs/pilot_runbook.md`](docs/pilot_runbook.md)
 - Constitucion SDD: [`docs/sdd/constitucion.md`](docs/sdd/constitucion.md)
 - Consolidacion del runtime: [`specs/031-consolidacion-runtime-greenfield/`](specs/031-consolidacion-runtime-greenfield/)
-- Cierre de operabilidad: [`specs/032-cierre-operabilidad-rubrica/`](specs/032-cierre-operabilidad-rubrica/)
+- Cierre de operabilidad:
+  [`specs/archive/032-cierre-operabilidad-rubrica/`](specs/archive/032-cierre-operabilidad-rubrica/)

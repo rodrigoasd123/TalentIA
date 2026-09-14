@@ -16,8 +16,15 @@ py -3.12 -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Configure en `.env` `TALENTIA_SESSION_SECRET`, `TALENTIA_ADMIN_EMAIL` y
-`TALENTIA_ADMIN_PASSWORD`. No versionar ese archivo.
+Use `.env.example` como lista de referencia, pero exporte las variables en PowerShell antes del
+arranque; el runtime no carga el archivo `.env` automaticamente. No versionar secretos.
+
+```powershell
+$env:TALENTIA_ENV="desarrollo"
+$env:TALENTIA_SESSION_SECRET="secreto-local-de-al-menos-32-caracteres"
+$env:TALENTIA_ADMIN_EMAIL="admin@su-empresa.com"
+$env:TALENTIA_ADMIN_PASSWORD="una-contrasena-segura"
+```
 
 ## Preparacion y arranque
 
@@ -35,6 +42,9 @@ En otra terminal:
 
 Abrir `http://127.0.0.1:8000/login`. Sin `TALENTIA_LLM_PROVIDER`, el sistema funciona en modo
 determinista/manual.
+
+Use `desarrollo` para esta prueba HTTP local. El ambiente `piloto` marca la cookie como segura y
+requiere servir la aplicacion mediante HTTPS.
 
 ## Backup y restauracion
 

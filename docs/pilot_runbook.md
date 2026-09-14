@@ -12,6 +12,9 @@
 Iniciar `scripts/start_api.ps1` y, en otra terminal, `scripts/start_worker.ps1`. Abrir
 `http://127.0.0.1:8000/login`. Sin proveedor IA, los trabajos pasan a revision manual.
 
+Para una prueba HTTP en localhost use `TALENTIA_ENV=desarrollo`. En ambiente `piloto`, publicar
+mediante HTTPS para que el navegador acepte la cookie segura de sesion.
+
 ## Recuperacion
 
 Detener API y worker. Ejecutar `scripts/backup.ps1 -Origen <base> -Destino <respaldo>`. Para
