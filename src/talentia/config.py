@@ -64,9 +64,7 @@ def cargar_configuracion() -> Configuracion:
 
     doc_env = os.getenv("TALENTIA_DOCUMENT_STORAGE")
     ruta_documentos = (
-        Path(doc_env).resolve()
-        if doc_env
-        else (RAIZ_PROYECTO / "storage" / "greenfield").resolve()
+        Path(doc_env).resolve() if doc_env else (RAIZ_PROYECTO / "storage" / "greenfield").resolve()
     )
 
     configuracion = Configuracion(
