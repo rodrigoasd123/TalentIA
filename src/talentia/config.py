@@ -46,19 +46,35 @@ class Configuracion:
             raise ConfiguracionError("El piloto solo admite SQLite local")
 
 
+RAIZ_PROYECTO = Path(__file__).resolve().parents[2]
+
+
 def cargar_configuracion() -> Configuracion:
     ambiente = Ambiente(os.getenv("TALENTIA_ENV", Ambiente.DESARROLLO.value))
     secreto = os.getenv("TALENTIA_SESSION_SECRET", "")
     if not secreto and ambiente is not Ambiente.PILOTO:
         secreto = secrets.token_urlsafe(32)
+
+    db_env = os.getenv("TALENTIA_GREENFIELD_DATABASE_URL")
+    if not db_env:
+        db_path = (RAIZ_PROYECTO / "talentia_greenfield.db").resolve()
+        url_base_datos = f"sqlite:///{db_path.as_posix()}"
+    else:
+        url_base_datos = db_env
+
+    doc_env = os.getenv("TALENTIA_DOCUMENT_STORAGE")
+    ruta_documentos = (
+        Path(doc_env).resolve()
+        if doc_env
+        else (RAIZ_PROYECTO / "storage" / "greenfield").resolve()
+    )
+
     configuracion = Configuracion(
         ambiente=ambiente,
-        url_base_datos=os.getenv(
-            "TALENTIA_GREENFIELD_DATABASE_URL", "sqlite:///./talentia_greenfield.db"
-        ),
+        url_base_datos=url_base_datos,
         secreto_sesion=secreto,
         proveedor_ia=os.getenv("TALENTIA_LLM_PROVIDER") or None,
-        ruta_documentos=Path(os.getenv("TALENTIA_DOCUMENT_STORAGE", "storage/greenfield")),
+        ruta_documentos=ruta_documentos,
         tamano_maximo_mb=int(os.getenv("TALENTIA_MAX_UPLOAD_MB", "10")),
         tiempo_sesion_minutos=int(os.getenv("TALENTIA_SESSION_MINUTES", "30")),
         intentos_trabajo=int(os.getenv("TALENTIA_JOB_ATTEMPTS", "3")),

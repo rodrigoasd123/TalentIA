@@ -58,20 +58,53 @@ def preparar_acceso(configuracion: Configuracion, fabrica: FabricaSesiones) -> N
             sesion.add(cliente)
         sesion.flush()
 
+        usuarios_laboratorio = [
+            ("admin@ejemplo.local", "Administrador del Sistema", Rol.ADMINISTRADOR),
+            ("reclutador@ejemplo.local", "Reclutador Principal", Rol.RECLUTADOR),
+            ("gestor@ejemplo.local", "Gestor de Contratación", Rol.GESTOR_CONTRATACION),
+            ("auditor@ejemplo.local", "Auditor de Cumplimiento", Rol.AUDITOR),
+            ("entrevistador@ejemplo.local", "Entrevistador Técnico", Rol.ENTREVISTADOR),
+            ("importador@ejemplo.local", "Operador de Importación", Rol.IMPORTADOR),
+        ]
+        clave_lab = "Laboratorio-TalentIA-2026!"
+        hash_lab = hash_contrasena(clave_lab)
+
+        for correo_lab, nombre_lab, rol_lab in usuarios_laboratorio:
+            usr = sesion.scalar(select(UsuarioModelo).where(UsuarioModelo.correo == correo_lab))
+            if usr is None:
+                h_pwd = (
+                    hash_contrasena(contrasena)
+                    if (correo_lab == correo and contrasena and len(contrasena) >= 14)
+                    else hash_lab
+                )
+                usr = UsuarioModelo(
+                    id=nuevo_id(),
+                    correo=correo_lab,
+                    nombre=nombre_lab,
+                    hash_contrasena=h_pwd,
+                    activo=True,
+                )
+                sesion.add(usr)
+                sesion.flush()
+                sesion.add(UsuarioRolModelo(usuario_id=usr.id, rol_id=roles[rol_lab].id))
+                sesion.add(AsignacionUsuarioClienteModelo(usuario_id=usr.id, cliente_id=cliente.id))
+
+        if correo and contrasena and len(contrasena) >= 14:
+            usr = sesion.scalar(select(UsuarioModelo).where(UsuarioModelo.correo == correo))
+            if usr is None:
+                usr = UsuarioModelo(
+                    id=nuevo_id(),
+                    correo=correo,
+                    nombre=os.getenv("TALENTIA_ADMIN_NAME", "Administracion del piloto"),
+                    hash_contrasena=hash_contrasena(contrasena),
+                    activo=True,
+                )
+                sesion.add(usr)
+                sesion.flush()
+                sesion.add(UsuarioRolModelo(usuario_id=usr.id, rol_id=roles[Rol.ADMINISTRADOR].id))
+                sesion.add(AsignacionUsuarioClienteModelo(usuario_id=usr.id, cliente_id=cliente.id))
+
         total_usuarios = sesion.scalar(select(func.count()).select_from(UsuarioModelo)) or 0
-        if correo and contrasena and total_usuarios == 0:
-            usuario = UsuarioModelo(
-                id=nuevo_id(),
-                correo=correo,
-                nombre=os.getenv("TALENTIA_ADMIN_NAME", "Administracion del piloto"),
-                hash_contrasena=hash_contrasena(contrasena),
-                activo=True,
-            )
-            sesion.add(usuario)
-            sesion.flush()
-            sesion.add(UsuarioRolModelo(usuario_id=usuario.id, rol_id=roles[Rol.ADMINISTRADOR].id))
-            sesion.add(AsignacionUsuarioClienteModelo(usuario_id=usuario.id, cliente_id=cliente.id))
-            total_usuarios = 1
         if configuracion.ambiente is Ambiente.PILOTO and total_usuarios == 0:
             raise RuntimeError(
                 "El piloto requiere TALENTIA_ADMIN_EMAIL y TALENTIA_ADMIN_PASSWORD iniciales"

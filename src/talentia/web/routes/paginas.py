@@ -301,7 +301,7 @@ async def crear_candidato_web(request: Request) -> Response:
 
 
 @router.get("/candidatos/{candidato_id}", response_class=HTMLResponse)
-def detalle_candidato(request: Request, candidato_id: str) -> Response:
+def detalle_candidato(request: Request, candidato_id: str, mensaje: str = "") -> Response:
     usuario = _usuario(request)
     candidato = request.app.state.servicio.obtener_candidato(usuario, candidato_id, nuevo_id())
     traza = request.app.state.servicio.traza_candidato(usuario, candidato_id)
@@ -311,8 +311,69 @@ def detalle_candidato(request: Request, candidato_id: str) -> Response:
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="detalle_candidato.html",
-        context=_contexto(request, usuario, candidato=ficha, eventos=traza["eventos"]),
+        context=_contexto(
+            request, usuario, candidato=ficha, eventos=traza["eventos"], mensaje=mensaje
+        ),
     )
+
+
+@router.post("/candidatos/{candidato_id}/editar", response_class=HTMLResponse)
+async def editar_candidato_web(request: Request, candidato_id: str) -> Response:
+    usuario = _usuario(request)
+    formulario = await request.form()
+    entrada = {clave: str(valor) for clave, valor in formulario.items()}
+    if entrada.get("csrf") != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+
+    version = int(entrada.get("version", 1))
+
+    cambios: dict[str, object] = {}
+    for campo in [
+        "nombres",
+        "apellidos",
+        "correo",
+        "telefono",
+        "ubicacion",
+        "fuente",
+        "reclutador",
+        "perfil_solicitado",
+        "conocimiento_tecnico",
+        "disponibilidad",
+        "expectativa_salarial",
+        "ctc_rol",
+    ]:
+        if campo in entrada and entrada[campo] != "":
+            if campo in {"expectativa_salarial", "ctc_rol"}:
+                cambios[campo] = Decimal(entrada[campo])
+            else:
+                cambios[campo] = entrada[campo]
+        elif campo in entrada and entrada[campo] == "":
+            cambios[campo] = None
+
+    if "etiquetas" in entrada:
+        cambios["etiquetas"] = [
+            item.strip() for item in entrada["etiquetas"].split(",") if item.strip()
+        ]
+
+    try:
+        request.app.state.servicio.actualizar_candidato(
+            usuario, candidato_id, version, cambios, request.state.correlacion_id
+        )
+        return RedirectResponse(f"/candidatos/{candidato_id}?mensaje=actualizado", status_code=303)
+    except (TalentIAError, ValueError) as error:
+        candidato = request.app.state.servicio.obtener_candidato(usuario, candidato_id, nuevo_id())
+        traza = request.app.state.servicio.traza_candidato(usuario, candidato_id)
+        ficha = asdict(candidato)
+        ficha["edad"] = candidato.edad
+        ficha["variacion_ctc_porcentaje"] = candidato.variacion_ctc_porcentaje
+        return PLANTILLAS.TemplateResponse(
+            request=request,
+            name="detalle_candidato.html",
+            context=_contexto(
+                request, usuario, candidato=ficha, eventos=traza["eventos"], error=str(error)
+            ),
+            status_code=422,
+        )
 
 
 @router.get("/fragmentos/candidatos", response_class=HTMLResponse)

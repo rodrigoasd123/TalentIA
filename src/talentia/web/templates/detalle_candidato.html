@@ -2,7 +2,46 @@
 {% block title %}{{ candidato.nombres }} {{ candidato.apellidos }} | TalentIA{% endblock %}
 {% block heading %}{{ candidato.nombres }} {{ candidato.apellidos }}{% endblock %}
 {% block content %}
+{% if mensaje == "actualizado" %}<div class="alert alert-success" role="alert">¡Candidato actualizado con éxito! Se incrementó la versión y se registró el evento de trazabilidad.</div>{% endif %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
 <section class="banda-metricas"><div><span>Estado</span><strong>{{ candidato.estado }}</strong></div><div><span>Edad</span><strong>{{ candidato.edad or '-' }}</strong></div><div><span>Variacion CTC</span><strong>{{ candidato.variacion_ctc_porcentaje or '-' }}</strong></div></section>
-<section class="seccion"><div class="titulo-seccion"><h2>Ficha general</h2><span class="estado">Version {{ candidato.version }}</span></div><dl class="ficha">{% for campo, valor in candidato.items() %}{% if campo not in ['id', 'creado_en', 'actualizado_en', 'version'] %}<div><dt>{{ campo | replace('_', ' ') | title }}</dt><dd>{{ valor if valor is not none else '-' }}</dd></div>{% endif %}{% endfor %}</dl></section>
+<section class="seccion">
+  <div class="titulo-seccion">
+    <h2>Ficha general</h2>
+    <div>
+      <span class="estado me-2">Versión {{ candidato.version }}</span>
+      <a class="btn btn-sm btn-primary" href="#editar-candidato">Editar candidato</a>
+    </div>
+  </div>
+  <dl class="ficha">{% for campo, valor in candidato.items() %}{% if campo not in ['id', 'creado_en', 'actualizado_en', 'version'] %}<div><dt>{{ campo | replace('_', ' ') | title }}</dt><dd>{{ valor if valor is not none else '-' }}</dd></div>{% endif %}{% endfor %}</dl>
+</section>
+<section class="seccion" id="editar-candidato">
+  <div class="titulo-seccion">
+    <h2>Editar información del candidato</h2>
+    <span class="estado">Bloqueo optimista (Versión {{ candidato.version }})</span>
+  </div>
+  <form method="post" action="/candidatos/{{ candidato.id }}/editar" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="version" value="{{ candidato.version }}">
+    <div class="rejilla-formulario">
+      <label>Nombres<input class="form-control" name="nombres" value="{{ candidato.nombres or '' }}" required></label>
+      <label>Apellidos<input class="form-control" name="apellidos" value="{{ candidato.apellidos or '' }}" required></label>
+      <label>Correo<input class="form-control" type="email" name="correo" value="{{ candidato.correo or '' }}"></label>
+      <label>Teléfono<input class="form-control" name="telefono" value="{{ candidato.telefono or '' }}"></label>
+      <label>Ubicación<input class="form-control" name="ubicacion" value="{{ candidato.ubicacion or '' }}"></label>
+      <label>Fuente<input class="form-control" name="fuente" value="{{ candidato.fuente or '' }}"></label>
+      <label>Reclutador asignado<input class="form-control" name="reclutador" value="{{ candidato.reclutador or '' }}"></label>
+      <label>Perfil solicitado<input class="form-control" name="perfil_solicitado" value="{{ candidato.perfil_solicitado or '' }}"></label>
+      <label>Disponibilidad<input class="form-control" name="disponibilidad" value="{{ candidato.disponibilidad or '' }}"></label>
+      <label>Expectativa salarial (S/)<input class="form-control" type="number" step="0.01" name="expectativa_salarial" value="{{ candidato.expectativa_salarial or '' }}"></label>
+      <label>CTC del rol (S/)<input class="form-control" type="number" step="0.01" name="ctc_rol" value="{{ candidato.ctc_rol or '' }}"></label>
+      <label>Etiquetas (separadas por coma)<input class="form-control" name="etiquetas" value="{{ candidato.etiquetas | join(', ') if candidato.etiquetas else '' }}"></label>
+      <label class="ancho-completo">Conocimiento técnico y habilidades<textarea class="form-control" name="conocimiento_tecnico" rows="3">{{ candidato.conocimiento_tecnico or '' }}</textarea></label>
+    </div>
+    <div class="acciones-formulario">
+      <button class="btn btn-primary" type="submit">Guardar cambios</button>
+    </div>
+  </form>
+</section>
 <section class="seccion"><div class="titulo-seccion"><h2>Trazabilidad</h2><span class="estado">{{ eventos | length }} eventos</span></div><div class="tabla-responsive"><table class="table"><thead><tr><th>Evento</th><th>Actor</th><th>Fecha</th></tr></thead><tbody>{% for evento in eventos %}<tr><td>{{ evento.tipo }}</td><td>{{ evento.actor_id }}</td><td>{{ evento.ocurrido_en }}</td></tr>{% else %}<tr><td colspan="3" class="vacio">Sin eventos.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endblock %}
