@@ -98,7 +98,11 @@ def test_benchmark_es_reproducible_y_registra_mlflow_sin_pii(tmp_path) -> None:
     assert primero == segundo
     assert primero["casos"] == 20
     assert primero["ag_02_tasa_extraccion"] == 1.0
-    assert float(primero["ag_03_tasa_evidencia"]) >= 0.9
+    assert primero["ag_03_tasa_evidencia"] == 0.75
+    assert primero["ag_02_acuerdo_etiquetas"] == 1.0
+    assert primero["ag_03_acuerdo_etiquetas"] == 1.0
+    assert primero["tasa_falso_avance"] == 0.0
+    assert primero["tasa_falso_descarte"] == 0.0
     resultado = ejecutar_benchmark(
         Path("tests/golden/corpus_cv_anonimizado.json"),
         tracking_uri=f"sqlite:///{(tmp_path / 'mlflow.db').as_posix()}",
@@ -132,3 +136,8 @@ def test_prompt_injection_bloquea_doble_antes_de_invocarlo() -> None:
             proveedor,
         )
     assert llamadas == []
+
+
+def test_benchmark_falla_si_ignora_o_no_carga_etiquetas() -> None:
+    with pytest.raises(ValueError, match="etiquetas independientes"):
+        evaluar_corpus([{"id": "sin-etiqueta", "texto": "Experiencia amplia en Python."}])

@@ -1,6 +1,6 @@
 # SPEC-025 — Benchmarking gobernado de modelos
 
-- **Estado:** VERIFIED (línea base y refinamiento R1)
+- **Estado:** VERIFICANDO (refinamiento R2)
 - **Fecha:** 2026-09-12
 - **Owner:** Product and engineering
 
@@ -84,3 +84,10 @@ errores, latencia, tokens y costo conocido.
 - La suite sintética, sus límites y el endpoint actual se conservan.
 - Los resultados previos que carezcan de una métrica nueva se mostrarán como “no disponible”.
 - La falta de una tarifa no debe excluir un modelo ni convertir su costo en cero.
+
+## Refinamiento R2 — Etiquetas independientes (2026-09-14)
+
+El benchmark debe fallar si falta `requisito` o las etiquetas independientes de extracción y
+veredicto. Debe informar acuerdo contra etiquetas, falso avance y falso descarte. El requisito ya
+no puede derivarse de la habilidad encontrada en el mismo CV. Aprobado por la orden de ejecutar el
+documento de pendientes.

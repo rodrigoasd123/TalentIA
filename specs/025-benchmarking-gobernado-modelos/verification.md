@@ -15,3 +15,11 @@
 - MLflow conserva métricas agregadas metadata-only, incluido costo estimado cuando está disponible.
 - Suite focalizada: `36 passed`; suite global: `401 passed, 2 warnings`.
 - Ruff, formato, migración reversible y puertas greenfield aprobadas.
+## Refinamiento R2 — 2026-09-14
+
+- Se eliminó la derivación auto-confirmatoria del requisito desde el texto evaluado.
+- El corpus contiene requisito y etiquetas explícitas por caso.
+- Pendiente suite completa y CI; la aceptación humana independiente del etiquetado sigue siendo
+  una puerta externa y no se declara sustituida por estas pruebas.
+- Suite greenfield: `91 passed, 2 warnings in 94.01s`; Ruff/formato (90 archivos), mypy (65),
+  scanner (348) e identidad aprobados. Falta CI remoto.

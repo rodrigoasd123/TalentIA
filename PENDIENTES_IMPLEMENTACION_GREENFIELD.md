@@ -33,6 +33,8 @@ El bloque 2 permanece bloqueado por `BIZ-009`. El bloque 3 (AG-01) fue implement
 salvo la similitud configurable de nombres, bloqueada expresamente por `BIZ-004`.
 Los bloques 4 (AG-02) y 5 (AG-03) ya estaban cubiertos por SPEC-030 y sus pruebas; OCR concreto es
 opcional y el fallback manual está implementado. El bloque 6 (traza AG-04) fue ampliado localmente.
+El bloque 12 fue corregido para usar etiquetas independientes y fallar si no se cargan; la firma
+humana del corpus continúa como puerta externa.
 
 ### 1. Seguridad e inicializacion
 

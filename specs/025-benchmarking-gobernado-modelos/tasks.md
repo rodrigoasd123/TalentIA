@@ -12,3 +12,7 @@
 - [x] **T-025-007** Exponer histórico paginado y detalle protegido. `[FR-025-005..007, SEC-025-003]`
 - [x] **T-025-008** Integrar indicadores comparativos y enlaces seguros en el panel. `[FR-025-006..009, NFR-025-004]`
 - [x] **T-025-009** Verificar reproducibilidad, privacidad, RBAC y compatibilidad. `[AC-025-005..008]`
+- [x] **T-025-R2-001** Versionar requisitos y etiquetas independientes en el corpus.
+- [x] **T-025-R2-002** Calcular acuerdo, falso avance y falso descarte y registrarlos en MLflow.
+- [x] **T-025-R2-003** Fallar ante corpus vacío o etiquetas ausentes.
+- [ ] **T-025-R2-004** Ejecutar regresión completa y CI remoto.
