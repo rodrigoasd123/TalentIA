@@ -153,3 +153,26 @@ humana del corpus continúa como puerta externa.
 ## Criterio de completitud
 
 No declarar el proyecto como 100% terminado hasta contar con implementacion, pruebas, evidencia en `verification.md`, CI verde, validacion de seguridad, UAT humano y benchmark con etiquetas independientes para cada bloque.
+
+## Estado de ejecución — 2026-09-14
+
+| Bloque | Estado comprobado | Pendiente no autorizable por ingeniería |
+|---|---|---|
+| 1 Seguridad | Implementado y CI verde | SSO/MFA para producción |
+| 2 Estados | Bloqueado | Decisión TCS `BIZ-009` y reglas `BIZ-001..003` |
+| 3 AG-01 | Implementado y CI verde | Umbral TCS `BIZ-004` |
+| 4 AG-02 | Ya implementado/verificado en SPEC-030 | Motor OCR concreto opcional |
+| 5 AG-03 | Ya implementado/verificado en SPEC-030 | Regla TCS `BIZ-005` |
+| 6 AG-04 | Implementado y CI verde | Ninguno dentro del piloto |
+| 7 AG-05 | Ya implementado/verificado en fase 5 | Vigencias/motivos TCS |
+| 8 Orquestación | Ya implementado/verificado en fase 2 y 6 | Proveedor real no configurado |
+| 9 Persistencia | Consolidado por SPEC-031 | Retención productiva |
+| 10 Privacidad | Guardrails y almacenamiento privado implementados | `BIZ-007`, `BIZ-010` y KMS productivo |
+| 11 Observabilidad | Ya implementado/verificado en fase 6 | Operación productiva externa |
+| 12 Benchmark | Etiquetas independientes implementadas | Validación/firma humana del corpus |
+| 13 UX | Flujos greenfield implementados | UAT humana de RR. HH. |
+| 14 Rendimiento | Percentiles y paginación del piloto implementados | Línea base con carga representativa |
+| 15 CI/release | CI aislado y reproducible | Docker no disponible, UAT, revisión y autorización de merge |
+
+Los elementos de la tercera columna no se implementan por suposición: requieren decisión humana,
+infraestructura externa o autorización expresa según las reglas del propio documento.

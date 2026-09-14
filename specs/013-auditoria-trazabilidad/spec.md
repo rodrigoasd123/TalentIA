@@ -1,7 +1,7 @@
 ---
 id: SPEC-013
 titulo: Auditoría y trazabilidad de decisiones
-estado: VERIFICANDO
+estado: VERIFICADO
 tipo: ESPECIFICACION_ACTIVA
 origen: SPEC-004
 actualizado: 2026-09-14

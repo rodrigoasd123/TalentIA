@@ -29,4 +29,4 @@
 
 - [x] **T-013-005 — Integrar recursos relacionados en la traza 360.** `[FR-013-004]`
 - [x] **T-013-006 — Exponer correlación, detalle y filtros.** `[FR-013-005, AC-013-004]`
-- [ ] **T-013-007 — Ejecutar regresión y confirmar CI remoto.**
+- [x] **T-013-007 — Ejecutar regresión y confirmar CI remoto.**

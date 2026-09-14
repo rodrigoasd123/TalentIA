@@ -1,6 +1,6 @@
 # SPEC-026 — Deduplicación de identidad de candidatos
 
-- **Estado:** VERIFICANDO
+- **Estado:** VERIFICADO (salvo BIZ-004 fuera de alcance)
 - **Fuente:** Documento TCS, agente 1 y orden operativo propuesto.
 
 ## Problema y alcance

@@ -15,4 +15,4 @@
 - [x] **T-025-R2-001** Versionar requisitos y etiquetas independientes en el corpus.
 - [x] **T-025-R2-002** Calcular acuerdo, falso avance y falso descarte y registrarlos en MLflow.
 - [x] **T-025-R2-003** Fallar ante corpus vacío o etiquetas ausentes.
-- [ ] **T-025-R2-004** Ejecutar regresión completa y CI remoto.
+- [x] **T-025-R2-004** Ejecutar regresión completa y CI remoto.

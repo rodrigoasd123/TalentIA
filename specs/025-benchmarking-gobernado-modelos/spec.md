@@ -1,6 +1,6 @@
 # SPEC-025 — Benchmarking gobernado de modelos
 
-- **Estado:** VERIFICANDO (refinamiento R2)
+- **Estado:** VERIFICADO (refinamiento R2; etiquetado humano pendiente)
 - **Fecha:** 2026-09-12
 - **Owner:** Product and engineering
 

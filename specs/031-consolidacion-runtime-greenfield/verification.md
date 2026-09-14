@@ -2,7 +2,7 @@
 
 Fecha: 2026-09-14
 
-Estado: `VERIFICANDO`; pendiente confirmar CI remoto verde para declarar `VERIFICADO`.
+Estado: `VERIFICADO`.
 
 ## Trazabilidad
 
@@ -67,3 +67,4 @@ Estado: `VERIFICANDO`; pendiente confirmar CI remoto verde para declarar `VERIFI
 - Los runs `34820901707` y `34820987079` aprobaron instalación y `pip check` dentro del entorno
   aislado. El escáner detectó el entorno al estar dentro del checkout; se movió a `RUNNER_TEMP` para
   que solo los archivos del producto formen parte de la inspección.
+- El run remoto `34821576489` aprobó todas las puertas en `189e7e4`; SPEC-031 queda cerrada.

@@ -44,6 +44,6 @@
 - [x] **T-006-008 — Migrar SQLite reversiblemente**
   - Cubre: AC-006-008
   - Archivo: `migrations_greenfield/versions/0004_seguridad_acceso.py`
-- [ ] **T-006-009 — Cerrar verificación local y remota**
+- [x] **T-006-009 — Cerrar verificación local y remota**
   - Cubre: todos los criterios nuevos
   - Evidencia: suite, lint, tipos, scanner, upgrade/downgrade y CI remoto

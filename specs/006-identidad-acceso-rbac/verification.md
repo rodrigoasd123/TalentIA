@@ -26,4 +26,4 @@ Estado: `VERIFICANDO`.
 - Suite greenfield final: `87 passed, 2 warnings in 97.61s`.
 - Ruff: aprobado; formato: `89 files already formatted`; mypy: 65 archivos sin errores.
 - Scanner: repositorio seguro, 348 archivos revisados; identidad visible aprobada.
-- Pendiente: confirmar el workflow remoto verde para marcar T-006-009 y volver a `VERIFICADO`.
+- El run remoto `34821866388` aprobó con seguridad incluida; estado final `VERIFICADO`.

@@ -23,3 +23,5 @@
   una puerta externa y no se declara sustituida por estas pruebas.
 - Suite greenfield: `91 passed, 2 warnings in 94.01s`; Ruff/formato (90 archivos), mypy (65),
   scanner (348) e identidad aprobados. Falta CI remoto.
+- El run remoto `34823371826` aprobó todas las puertas sobre `b99edd1`. El refinamiento técnico
+  queda verificado; la validación humana independiente del corpus permanece explícitamente externa.

@@ -1,7 +1,7 @@
 ---
 id: SPEC-006
 titulo: Identidad, sesión y control de acceso
-estado: VERIFICANDO
+estado: VERIFICADO
 tipo: ESPECIFICACION_ACTIVA
 origen: SPEC-004, SPEC-030
 actualizado: 2026-09-14

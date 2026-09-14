@@ -14,4 +14,4 @@
 - Suite greenfield: `89 passed, 2 warnings in 95.83s`.
 - Ruff y formato: aprobados sobre 89 archivos; mypy: 65 archivos sin errores.
 - Scanner: 348 archivos seguros; identidad visible aprobada.
-- Estado: `VERIFICANDO`; falta CI remoto y `BIZ-004` continúa fuera del alcance autorizado.
+- El run `34821866388` aprobó; estado `VERIFICADO`. `BIZ-004` continúa fuera del alcance.
