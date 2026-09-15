@@ -6,24 +6,159 @@
   <div class="titulo-seccion"><h2>{{ perfil.codigo }} · {{ perfil.titulo }}</h2></div>
 </section>
 {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
-<form method="post" action="/perfiles/{{ perfil.id }}/versiones/nueva" class="seccion formulario-operativo">
+{% if mensaje_exito %}<div class="alert alert-success" role="alert">✓ {{ mensaje_exito }}</div>{% endif %}
+
+<form method="post" enctype="multipart/form-data" action="/perfiles/{{ perfil.id }}/versiones/nueva" class="seccion formulario-operativo">
   <input type="hidden" name="csrf" value="{{ csrf }}">
+
+  <!-- Tarjeta para carga y extracción de bases de convocatoria (JD) -->
+  <div class="card mb-4" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <span style="font-size: 1.3rem;">📄</span>
+        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">Cargar Bases de Convocatoria (Job Description)</h3>
+      </div>
+      <span class="badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 4px;">Soporta PDF y Word (.docx)</span>
+    </div>
+    <p style="color: #64748b; font-size: 0.875rem; margin-bottom: 0.75rem;">
+      Selecciona el documento de requerimiento corporativo (ej. formato TCS o convocatoria estándar). Al seleccionarlo, se <strong>autocompletarán de forma automática</strong> los requisitos técnicos y el <strong>CTC presupuestado</strong>.
+    </p>
+    <div style="margin-bottom: 1rem; font-size: 0.85rem;">
+      <a href="/descargas/convocatorias-demo.zip" style="display: inline-flex; align-items: center; gap: 0.35rem; color: #0284c7; text-decoration: none; font-weight: 500;">
+        <span>📥</span> <span>Descargar lote de convocatorias de ejemplo (.zip)</span>
+      </a>
+    </div>
+    
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+      <input type="file" id="archivo_convocatoria" name="archivo_convocatoria" accept=".pdf,.docx,.doc" class="form-control" style="flex: 1; min-width: 240px; padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px;">
+      <button type="button" id="btn-analizar-convocatoria" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">
+        <span id="spinner-convocatoria" class="spinner-border spinner-border-sm" style="display: none;" role="status"></span>
+        <span id="icono-convocatoria">✨</span>
+        <span>Analizar y autocompletar</span>
+      </button>
+    </div>
+
+    <div id="resultado-convocatoria" style="margin-top: 0.85rem; display: none; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.875rem;"></div>
+  </div>
+
   <div class="rejilla-formulario">
-    <label class="ancho-completo">Requisitos
-      <textarea name="requisitos_texto" rows="7" required placeholder="PY | Experiencia Python | obligatorio | 1&#10;AWS | Experiencia AWS | opcional | 0.5">{{ datos.requisitos_texto or '' }}</textarea>
+    <label class="ancho-completo">Requisitos Técnicos (autocompletados desde el archivo o editables)
+      <textarea name="requisitos_texto" id="requisitos_texto" rows="9" placeholder="Sube un archivo de convocatoria arriba para autocompletar automáticamente, o escribe tus requisitos aquí:&#10;CODIGO | descripcion | obligatorio/opcional | peso">{{ datos.requisitos_texto or '' }}</textarea>
       <small>Una linea por requisito: CODIGO | descripcion | obligatorio/opcional | peso</small>
     </label>
     <label>CTC del rol
-      <input name="ctc" type="number" min="0" step="0.01" value="{{ datos.ctc or '' }}">
+      <input name="ctc" id="ctc_input" type="number" min="0" step="0.01" value="{{ datos.ctc or '' }}">
     </label>
     <label class="opcion-check">
-      <input name="publicado" type="checkbox" value="si" {% if datos.publicado == 'si' %}checked{% endif %}>
+      <input name="publicado" id="publicado_check" type="checkbox" value="si" {% if datos.publicado != 'no' %}checked{% endif %}>
       Publicar version para postulaciones
     </label>
   </div>
   <div class="acciones-formulario">
     <a class="btn btn-outline-secondary" href="/modulo/perfiles">Cancelar</a>
-    <button class="btn btn-primary" type="submit">Guardar version</button>
+    <button class="btn btn-primary" type="submit" id="btn-guardar-version">Guardar version</button>
   </div>
 </form>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const btn = document.getElementById("btn-analizar-convocatoria");
+  const inputArchivo = document.getElementById("archivo_convocatoria");
+  const spinner = document.getElementById("spinner-convocatoria");
+  const icono = document.getElementById("icono-convocatoria");
+  const resultado = document.getElementById("resultado-convocatoria");
+  const textareaRequisitos = document.getElementById("requisitos_texto");
+  const inputCtc = document.getElementById("ctc_input");
+  const checkPublicado = document.getElementById("publicado_check");
+
+  if (!inputArchivo) return;
+
+  async function procesarArchivo() {
+    if (!inputArchivo.files || inputArchivo.files.length === 0) {
+      return;
+    }
+
+    const archivo = inputArchivo.files[0];
+    const formData = new FormData();
+    formData.append("archivo", archivo);
+    formData.append("csrf", "{{ csrf }}");
+
+    // UI Loading state
+    if (btn) btn.disabled = true;
+    spinner.style.display = "inline-block";
+    icono.style.display = "none";
+    resultado.style.display = "block";
+    resultado.style.background = "#e0f2fe";
+    resultado.style.color = "#0369a1";
+    resultado.style.border = "1px solid #bae6fd";
+    resultado.innerHTML = "⏳ Analizando <strong>" + archivo.name + "</strong> y extrayendo competencias técnicas...";
+
+    try {
+      const resp = await fetch("/perfiles/{{ perfil.id }}/versiones/analizar-convocatoria", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await resp.json();
+      if (resp.ok && data.exito) {
+        // Autocompletar textarea y CTC
+        textareaRequisitos.value = data.requisitos_texto;
+        if (data.ctc) {
+          inputCtc.value = data.ctc;
+        }
+        if (checkPublicado) {
+          checkPublicado.checked = true;
+        }
+
+        // Efecto visual de resaltado
+        textareaRequisitos.style.transition = "border-color 0.3s, box-shadow 0.3s";
+        textareaRequisitos.style.borderColor = "#16a34a";
+        textareaRequisitos.style.boxShadow = "0 0 0 3px rgba(22, 163, 74, 0.2)";
+        setTimeout(() => {
+          textareaRequisitos.style.borderColor = "";
+          textareaRequisitos.style.boxShadow = "";
+        }, 2000);
+
+        resultado.style.background = "#dcfce7";
+        resultado.style.color = "#166534";
+        resultado.style.border = "1px solid #86efac";
+        resultado.innerHTML = `<strong>✓ Extracción exitosa:</strong> ${data.resumen}. Los campos han sido autocompletados automáticamente. Puedes revisarlos o hacer clic en <strong>Guardar versión</strong>.`;
+      } else {
+        resultado.style.background = "#fee2e2";
+        resultado.style.color = "#991b1b";
+        resultado.style.border = "1px solid #fca5a5";
+        resultado.innerHTML = `<strong>✗ Error:</strong> ${data.error || "No se pudo extraer la información del archivo"}`;
+      }
+    } catch (err) {
+      resultado.style.background = "#fee2e2";
+      resultado.style.color = "#991b1b";
+      resultado.style.border = "1px solid #fca5a5";
+      resultado.innerHTML = `<strong>✗ Error de conexión:</strong> ${err.message}`;
+    } finally {
+      if (btn) btn.disabled = false;
+      spinner.style.display = "none";
+      icono.style.display = "inline";
+    }
+  }
+
+  // Ejecución automática tan pronto como el usuario selecciona el archivo
+  inputArchivo.addEventListener("change", procesarArchivo);
+
+  // Botón manual también disponible
+  if (btn) {
+    btn.addEventListener("click", function() {
+      if (!inputArchivo.files || inputArchivo.files.length === 0) {
+        resultado.style.display = "block";
+        resultado.style.background = "#fee2e2";
+        resultado.style.color = "#991b1b";
+        resultado.style.border = "1px solid #fca5a5";
+        resultado.innerHTML = "⚠️ Por favor selecciona un archivo PDF o Word (.docx) con las bases de la convocatoria.";
+        inputArchivo.focus();
+        return;
+      }
+      procesarArchivo();
+    });
+  }
+});
+</script>
 {% endblock %}

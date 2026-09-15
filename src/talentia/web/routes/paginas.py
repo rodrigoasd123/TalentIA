@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import Annotated, cast
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
+from talentia.modules.recruitment.application.extractor_convocatoria import extraer_bases_convocatoria
 from talentia.platform.security.contrasenas import FirmadorSesion, nuevo_csrf
 from talentia.shared.application.errores import (
     EntradaInvalidaError,
@@ -285,6 +286,7 @@ async def importar_cvs_web(
     cliente_id: str = Form(),
     fuente: str = Form(""),
     reclutador: str = Form(""),
+    version_perfil_id: str = Form(""),
 ) -> Response:
     usuario = _usuario(request)
     if csrf != _csrf(request):
@@ -315,6 +317,7 @@ async def importar_cvs_web(
                 fuente,
                 reclutador,
                 request.state.correlacion_id,
+                version_perfil_id=version_perfil_id.strip() or None,
             )
             resultados.append(resultado)
         except (TalentIAError, ValueError) as error:
@@ -541,6 +544,40 @@ def cambiar_cliente_web(
     return RedirectResponse("/modulo/usuarios", status_code=303)
 
 
+@router.post("/perfiles/analizar-convocatoria-previa")
+async def analizar_convocatoria_previa_ajax(
+    request: Request,
+    archivo: Annotated[UploadFile, File()],
+    csrf: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf and csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    contenido = await archivo.read()
+    if not contenido:
+        return JSONResponse({"exito": False, "error": "Archivo vacío"}, status_code=400)
+    try:
+        gestor_ia = getattr(request.app.state, "gestor_ia", None)
+        resultado = extraer_bases_convocatoria(
+            contenido,
+            archivo.content_type or "",
+            nombre_archivo=archivo.filename or "",
+            gestor_ia=gestor_ia,
+        )
+        return JSONResponse(
+            {
+                "exito": True,
+                "titulo": resultado.titulo,
+                "codigo": resultado.codigo,
+                "ctc": resultado.ctc or "",
+                "total_requisitos": len(resultado.requisitos),
+                "resumen": resultado.resumen,
+            }
+        )
+    except Exception as exc:
+        return JSONResponse({"exito": False, "error": str(exc)}, status_code=422)
+
+
 @router.get("/perfiles/nuevo", response_class=HTMLResponse)
 def nuevo_perfil(request: Request) -> Response:
     usuario = _usuario(request)
@@ -548,16 +585,49 @@ def nuevo_perfil(request: Request) -> Response:
 
 
 @router.post("/perfiles/nuevo", response_class=HTMLResponse)
-def crear_perfil_web(
+async def crear_perfil_web(
     request: Request,
     csrf: str = Form(),
     cliente_id: str = Form(),
-    codigo: str = Form(),
-    titulo: str = Form(),
+    codigo: str = Form(""),
+    titulo: str = Form(""),
+    archivo_convocatoria: Annotated[UploadFile | None, File()] = None,
 ) -> Response:
     usuario = _usuario(request)
     if csrf != _csrf(request):
         raise NoAutorizadoError("CSRF invalido")
+
+    resultado_convocatoria = None
+    if archivo_convocatoria and archivo_convocatoria.filename:
+        contenido = await archivo_convocatoria.read()
+        if contenido:
+            try:
+                gestor_ia = getattr(request.app.state, "gestor_ia", None)
+                resultado_convocatoria = extraer_bases_convocatoria(
+                    contenido,
+                    archivo_convocatoria.content_type or "",
+                    nombre_archivo=archivo_convocatoria.filename or "",
+                    gestor_ia=gestor_ia,
+                )
+                if not titulo.strip() and resultado_convocatoria.titulo:
+                    titulo = resultado_convocatoria.titulo
+                if not codigo.strip() and resultado_convocatoria.codigo:
+                    codigo = resultado_convocatoria.codigo
+            except Exception:
+                pass
+
+    if not codigo.strip() or not titulo.strip():
+        datos = {"cliente_id": cliente_id, "codigo": codigo, "titulo": titulo}
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nuevo_perfil.html",
+            "perfiles",
+            error="Debe indicar el código y título del rol, o adjuntar un archivo de convocatoria.",
+            datos=datos,
+            status_code=422,
+        )
+
     datos = {"cliente_id": cliente_id, "codigo": codigo, "titulo": titulo}
     try:
         perfil = request.app.state.servicio.crear_perfil(
@@ -573,6 +643,26 @@ def crear_perfil_web(
             datos=datos,
             status_code=error.estado_http,
         )
+
+    # Si se cargo la convocatoria y se extrajeron requisitos:
+    # Creamos y publicamos la versión 1 automáticamente y vamos directo a la vacante
+    if resultado_convocatoria and resultado_convocatoria.requisitos:
+        try:
+            reqs = _requisitos_desde_texto(resultado_convocatoria.requisitos_texto)
+            request.app.state.servicio.crear_version_perfil(
+                usuario,
+                perfil["id"],
+                {
+                    "requisitos": reqs,
+                    "ctc": resultado_convocatoria.ctc,
+                    "publicado": True,
+                },
+                request.state.correlacion_id,
+            )
+            return RedirectResponse(f"/perfiles/{perfil['id']}", status_code=303)
+        except Exception:
+            pass
+
     return RedirectResponse(f"/perfiles/{perfil['id']}/versiones/nueva", status_code=303)
 
 
@@ -590,17 +680,63 @@ def nueva_version_perfil(request: Request, perfil_id: str) -> Response:
 
 
 @router.post("/perfiles/{perfil_id}/versiones/nueva", response_class=HTMLResponse)
-def crear_version_perfil_web(
+async def crear_version_perfil_web(
     request: Request,
     perfil_id: str,
     csrf: str = Form(),
-    requisitos_texto: str = Form(),
+    requisitos_texto: str = Form(""),
     ctc: str = Form(""),
     publicado: str = Form(""),
+    archivo_convocatoria: Annotated[UploadFile | None, File()] = None,
 ) -> Response:
     usuario = _usuario(request)
     if csrf != _csrf(request):
         raise NoAutorizadoError("CSRF invalido")
+
+    # Si el usuario adjunto un archivo de convocatoria directamente en el formulario
+    if archivo_convocatoria and archivo_convocatoria.filename:
+        contenido = await archivo_convocatoria.read()
+        if contenido:
+            try:
+                gestor_ia = getattr(request.app.state, "gestor_ia", None)
+                res = extraer_bases_convocatoria(
+                    contenido,
+                    archivo_convocatoria.content_type or "",
+                    nombre_archivo=archivo_convocatoria.filename or "",
+                    gestor_ia=gestor_ia,
+                )
+                if not requisitos_texto.strip():
+                    requisitos_texto = res.requisitos_texto
+                if not ctc.strip() and res.ctc:
+                    ctc = res.ctc
+                if not publicado:
+                    publicado = "si"
+            except Exception as e:
+                perfil = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
+                return _respuesta_formulario(
+                    request,
+                    usuario,
+                    "nueva_version_perfil.html",
+                    "perfiles",
+                    error=f"No se pudo extraer la convocatoria: {e}",
+                    datos={"requisitos_texto": requisitos_texto, "ctc": ctc, "publicado": publicado},
+                    status_code=422,
+                    perfil=perfil,
+                )
+
+    if not requisitos_texto.strip():
+        perfil = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nueva_version_perfil.html",
+            "perfiles",
+            error="Selecciona un archivo de convocatoria (Word o PDF) o escribe los requisitos del puesto.",
+            datos={"requisitos_texto": "", "ctc": ctc, "publicado": publicado},
+            status_code=422,
+            perfil=perfil,
+        )
+
     datos_formulario = {
         "requisitos_texto": requisitos_texto,
         "ctc": ctc,
@@ -631,8 +767,276 @@ def crear_version_perfil_web(
             perfil=perfil,
         )
     return RedirectResponse(
-        f"/modulo/perfiles?version={version['numero']}&perfil={perfil['id']}", status_code=303
+        f"/perfiles/{perfil['id']}", status_code=303
     )
+
+
+@router.post("/perfiles/{perfil_id}/versiones/analizar-convocatoria")
+async def analizar_convocatoria_version_ajax(
+    request: Request,
+    perfil_id: str,
+    archivo: Annotated[UploadFile, File()],
+    csrf: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf and csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    _ = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
+
+    contenido = await archivo.read()
+    if not contenido:
+        return JSONResponse({"exito": False, "error": "El archivo está vacío o no es legible"}, status_code=400)
+
+    try:
+        gestor_ia = getattr(request.app.state, "gestor_ia", None)
+        resultado = extraer_bases_convocatoria(
+            contenido,
+            archivo.content_type or "",
+            nombre_archivo=archivo.filename or "",
+            gestor_ia=gestor_ia,
+        )
+        return JSONResponse(
+            {
+                "exito": True,
+                "titulo": resultado.titulo,
+                "codigo": resultado.codigo,
+                "ctc": resultado.ctc or "",
+                "requisitos_texto": resultado.requisitos_texto,
+                "total_obligatorios": resultado.total_obligatorios,
+                "total_deseables": resultado.total_deseables,
+                "resumen": resultado.resumen,
+            }
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {"exito": False, "error": f"No se pudo procesar la convocatoria: {exc}"},
+            status_code=422,
+        )
+
+
+@router.post("/perfiles/{perfil_id}/versiones/cargar-convocatoria", response_class=HTMLResponse)
+async def cargar_convocatoria_version_web(
+    request: Request,
+    perfil_id: str,
+    archivo: Annotated[UploadFile, File()],
+    csrf: str = Form(),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    perfil = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
+
+    contenido = await archivo.read()
+    if not contenido:
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nueva_version_perfil.html",
+            "perfiles",
+            error="Seleccione un archivo de convocatoria valido (PDF o DOCX)",
+            status_code=422,
+            perfil=perfil,
+        )
+
+    try:
+        gestor_ia = getattr(request.app.state, "gestor_ia", None)
+        resultado = extraer_bases_convocatoria(
+            contenido,
+            archivo.content_type or "",
+            nombre_archivo=archivo.filename or "",
+            gestor_ia=gestor_ia,
+        )
+        datos_formulario = {
+            "requisitos_texto": resultado.requisitos_texto,
+            "ctc": resultado.ctc or "",
+            "publicado": "si",
+        }
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nueva_version_perfil.html",
+            "perfiles",
+            datos=datos_formulario,
+            perfil=perfil,
+            mensaje_exito=resultado.resumen,
+        )
+    except Exception as exc:
+        return _respuesta_formulario(
+            request,
+            usuario,
+            "nueva_version_perfil.html",
+            "perfiles",
+            error=f"No se pudo extraer la convocatoria: {exc}",
+            status_code=422,
+            perfil=perfil,
+        )
+
+
+@router.get("/perfiles/{perfil_id}", response_class=HTMLResponse)
+def detalle_perfil_web(
+    request: Request,
+    perfil_id: str,
+    mensaje: str = "",
+    filtro_completitud: str = "todos",
+) -> Response:
+    usuario = _usuario(request)
+    correlacion_id = getattr(request.state, "correlacion_id", nuevo_id())
+    detalle = request.app.state.servicio.obtener_detalle_perfil(usuario, perfil_id, correlacion_id)
+
+    postulantes = detalle["postulantes"]
+    if filtro_completitud == "completos":
+        postulantes = [p for p in postulantes if p["completitud"]["completo"]]
+    elif filtro_completitud == "incompletos":
+        postulantes = [p for p in postulantes if not p["completitud"]["completo"]]
+    elif filtro_completitud == "alertas":
+        postulantes = [p for p in postulantes if p["alertas"]]
+
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_perfil.html",
+        context=_contexto(
+            request,
+            usuario,
+            perfil=detalle["perfil"],
+            versiones=detalle["versiones"],
+            version_activa=detalle["version_activa"],
+            postulantes=postulantes,
+            metricas=detalle["metricas"],
+            filtro_completitud=filtro_completitud,
+            mensaje=mensaje,
+            resultados=None,
+        ),
+    )
+
+
+@router.post("/perfiles/{perfil_id}/importar-cvs", response_class=HTMLResponse)
+async def importar_cvs_perfil_web(
+    request: Request,
+    perfil_id: str,
+    archivos: Annotated[list[UploadFile], File()],
+    csrf: str = Form(),
+    fuente: str = Form(""),
+    reclutador: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    correlacion_id = getattr(request.state, "correlacion_id", nuevo_id())
+    detalle = request.app.state.servicio.obtener_detalle_perfil(usuario, perfil_id, correlacion_id)
+    version_activa = detalle["version_activa"]
+    if not version_activa:
+        raise EntradaInvalidaError("El perfil no cuenta con una versión publicada")
+
+    if not archivos or len(archivos) > 50:
+        return PLANTILLAS.TemplateResponse(
+            request=request,
+            name="detalle_perfil.html",
+            context=_contexto(
+                request,
+                usuario,
+                perfil=detalle["perfil"],
+                versiones=detalle["versiones"],
+                version_activa=version_activa,
+                postulantes=detalle["postulantes"],
+                metricas=detalle["metricas"],
+                error="Seleccione entre 1 y 50 archivos de currículum",
+                status_code=422,
+            ),
+            status_code=422,
+        )
+
+    tipos = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    cliente_id = str(detalle["perfil"]["cliente_id"])
+    version_id = str(version_activa["id"])
+
+    resultados: list[dict[str, object]] = []
+    for archivo in archivos:
+        nombre = archivo.filename or "cv"
+        tipo_mime = tipos.get(Path(nombre).suffix.casefold(), archivo.content_type or "")
+        try:
+            resultado = request.app.state.servicio.registrar_candidato_desde_cv(
+                usuario,
+                cliente_id,
+                nombre,
+                tipo_mime,
+                await archivo.read(),
+                fuente,
+                reclutador,
+                correlacion_id,
+                version_perfil_id=version_id,
+            )
+            resultados.append(resultado)
+        except (TalentIAError, ValueError) as error:
+            resultados.append(
+                {
+                    "archivo": nombre,
+                    "estado": "requiere_revision",
+                    "error": str(error),
+                    "alertas": [],
+                }
+            )
+
+    detalle_actualizado = request.app.state.servicio.obtener_detalle_perfil(usuario, perfil_id, correlacion_id)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_perfil.html",
+        context=_contexto(
+            request,
+            usuario,
+            perfil=detalle_actualizado["perfil"],
+            versiones=detalle_actualizado["versiones"],
+            version_activa=detalle_actualizado["version_activa"],
+            postulantes=detalle_actualizado["postulantes"],
+            metricas=detalle_actualizado["metricas"],
+            resultados=resultados,
+            mensaje="cvs_procesados",
+        ),
+    )
+
+
+@router.post("/perfiles/{perfil_id}/candidatos/{candidato_id}/completar-rrhh", response_class=HTMLResponse)
+async def completar_rrhh_candidato_web(
+    request: Request,
+    perfil_id: str,
+    candidato_id: str,
+) -> Response:
+    usuario = _usuario(request)
+    formulario = await request.form()
+    entrada = {clave: str(valor) for clave, valor in formulario.items()}
+    if entrada.get("csrf") != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+
+    version = int(entrada.get("version", 1))
+    cambios: dict[str, object] = {}
+
+    for campo in ["reclutador", "fecha_nacimiento", "ctc_rol", "expectativa_salarial", "disponibilidad"]:
+        if campo in entrada and entrada[campo].strip() != "":
+            cambios[campo] = entrada[campo].strip()
+        elif campo in entrada and entrada[campo].strip() == "":
+            cambios[campo] = None
+
+    etiquetas_raw = [x.strip() for x in entrada.get("etiquetas", "").split(",") if x.strip()]
+    if entrada.get("bgc_validado") in {"si", "true", "on", "1"}:
+        if "bgc-validado" not in etiquetas_raw:
+            etiquetas_raw.append("bgc-validado")
+    if entrada.get("titulo_verificado") in {"si", "true", "on", "1"}:
+        if "titulo-validado" not in etiquetas_raw:
+            etiquetas_raw.append("titulo-validado")
+    if entrada.get("verificado_rrhh") in {"si", "true", "on", "1"}:
+        if "verificado-rrhh" not in etiquetas_raw:
+            etiquetas_raw.append("verificado-rrhh")
+
+    if etiquetas_raw or "etiquetas" in entrada:
+        cambios["etiquetas"] = etiquetas_raw
+
+    correlacion_id = getattr(request.state, "correlacion_id", nuevo_id())
+    request.app.state.servicio.actualizar_candidato(
+        usuario, candidato_id, version, cambios, correlacion_id
+    )
+    return RedirectResponse(f"/perfiles/{perfil_id}?mensaje=candidato_completado", status_code=303)
 
 
 @router.get("/postulaciones/nueva", response_class=HTMLResponse)
@@ -1130,6 +1534,19 @@ def descargar_reporte_ag05(request: Request) -> Response:
         path=str(_CSV_REPORTE_AG05),
         media_type="text/csv; charset=utf-8",
         filename="reporte_exclusiones_oficial_tcs.csv",
+    )
+
+
+@router.get("/descargas/convocatorias-demo.zip")
+def descargar_convocatorias_demo(request: Request) -> Response:
+    _usuario(request)
+    ruta_zip = Path("descargas_talento/06_Convocatorias_Demo.zip")
+    if not ruta_zip.exists():
+        raise NoEncontradoError("Archivo ZIP de convocatorias no encontrado")
+    return FileResponse(
+        path=str(ruta_zip),
+        media_type="application/zip",
+        filename="convocatorias_tcs_demo.zip",
     )
 
 

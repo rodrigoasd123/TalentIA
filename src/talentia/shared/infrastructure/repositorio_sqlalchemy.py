@@ -557,6 +557,8 @@ class RepositorioSqlalchemy:
                     VersionPerfilPuestoModelo.perfil_id,
                     VersionPerfilPuestoModelo.numero,
                     VersionPerfilPuestoModelo.publicado,
+                    VersionPerfilPuestoModelo.requisitos,
+                    VersionPerfilPuestoModelo.ctc,
                     PerfilPuestoModelo.cliente_id,
                     PerfilPuestoModelo.codigo,
                     PerfilPuestoModelo.titulo,
@@ -570,6 +572,51 @@ class RepositorioSqlalchemy:
             .one_or_none()
         )
         return dict(fila) if fila is not None else None
+
+    def obtener_versiones_perfil(self, perfil_id: str) -> list[dict[str, object]]:
+        filas = (
+            self.sesion.execute(
+                select(
+                    VersionPerfilPuestoModelo.id,
+                    VersionPerfilPuestoModelo.perfil_id,
+                    VersionPerfilPuestoModelo.numero,
+                    VersionPerfilPuestoModelo.publicado,
+                    VersionPerfilPuestoModelo.requisitos,
+                    VersionPerfilPuestoModelo.ctc,
+                )
+                .where(VersionPerfilPuestoModelo.perfil_id == perfil_id)
+                .order_by(VersionPerfilPuestoModelo.numero.desc())
+            )
+            .mappings()
+            .all()
+        )
+        return [dict(f) for f in filas]
+
+    def listar_postulaciones_perfil(self, perfil_id: str) -> list[dict[str, object]]:
+        filas = (
+            self.sesion.execute(
+                select(
+                    PostulacionModelo.id.label("postulacion_id"),
+                    PostulacionModelo.cliente_id.label("cliente_id"),
+                    PostulacionModelo.candidato_id.label("candidato_id"),
+                    PostulacionModelo.version_perfil_id.label("version_perfil_id"),
+                    PostulacionModelo.fuente.label("fuente"),
+                    PostulacionModelo.estado.label("estado"),
+                    PostulacionModelo.creado_en.label("creado_en"),
+                    VersionPerfilPuestoModelo.numero.label("version_numero"),
+                    VersionPerfilPuestoModelo.ctc.label("version_ctc"),
+                )
+                .join(
+                    VersionPerfilPuestoModelo,
+                    VersionPerfilPuestoModelo.id == PostulacionModelo.version_perfil_id,
+                )
+                .where(VersionPerfilPuestoModelo.perfil_id == perfil_id)
+                .order_by(PostulacionModelo.creado_en.desc())
+            )
+            .mappings()
+            .all()
+        )
+        return [dict(f) for f in filas]
 
     def crear_postulacion(self, datos: dict[str, object]) -> dict[str, object]:
         existente = self.sesion.scalar(

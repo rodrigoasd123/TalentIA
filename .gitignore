@@ -40,6 +40,8 @@ backups/
 # Temporary files
 tmp/
 output/
+scratch/
+~$*
 .vscode/
 # Local development agents and dependency caches
 .agents/

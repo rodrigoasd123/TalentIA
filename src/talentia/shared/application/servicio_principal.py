@@ -88,6 +88,34 @@ def _huella_preflight(datos: dict[str, object]) -> str:
     return hashlib.sha256("\x1f".join(partes).encode()).hexdigest()
 
 
+def calcular_completitud_candidato(candidato: Candidato) -> dict[str, object]:
+    """Calcula si la ficha del candidato cuenta con los datos de validacion de RRHH."""
+    faltantes: list[str] = []
+    if not (candidato.reclutador and str(candidato.reclutador).strip()):
+        faltantes.append("Reclutador asignado")
+    if candidato.fecha_nacimiento is None:
+        faltantes.append("Fecha de nacimiento / Reniec")
+    if candidato.ctc_rol is None:
+        faltantes.append("Presupuesto CTC rol")
+    if candidato.expectativa_salarial is None:
+        faltantes.append("Pretensión salarial")
+    tags = set(candidato.etiquetas or [])
+    bgc_tags = {"bgc-validado", "bgc-en-proceso", "verificado-rrhh", "titulo-validado"}
+    if not tags.intersection(bgc_tags):
+        faltantes.append("Validación BGC / Títulos")
+
+    total_criterios = 5
+    completados = total_criterios - len(faltantes)
+    porcentaje = int((completados / total_criterios) * 100)
+    return {
+        "completo": len(faltantes) == 0,
+        "porcentaje": porcentaje,
+        "completados": completados,
+        "total": total_criterios,
+        "campos_faltantes": faltantes,
+    }
+
+
 class ServicioTalentIA:
     def __init__(
         self,
@@ -474,6 +502,16 @@ class ServicioTalentIA:
                     raise EntradaInvalidaError(f"Campo desconocido: {campo}")
                 if campo in {"expectativa_salarial", "ctc_rol"} and valor is not None:
                     valor = Decimal(str(valor))
+                elif campo == "fecha_nacimiento" and valor is not None:
+                    if isinstance(valor, str) and valor.strip():
+                        valor = date.fromisoformat(valor.strip())
+                    elif valor == "":
+                        valor = None
+                elif campo == "etiquetas" and valor is not None:
+                    if isinstance(valor, list):
+                        valor = [str(x).strip() for x in valor if str(x).strip()]
+                    elif isinstance(valor, str):
+                        valor = [x.strip() for x in valor.split(",") if x.strip()]
                 setattr(candidato, campo, valor)
             actualizado = unidad.datos.actualizar_candidato(candidato, version, set(cambios))
             unidad.datos.registrar_evento(
@@ -561,13 +599,85 @@ class ServicioTalentIA:
             return perfil
 
     def obtener_perfil(self, usuario: UsuarioActual, perfil_id: str) -> dict[str, object]:
-        _exigir_permiso(usuario, "perfiles:escribir")
+        if not (usuario.tiene_permiso("perfiles:escribir", PERMISOS_POR_ROL) or usuario.tiene_permiso("candidatos:leer", PERMISOS_POR_ROL)):
+            _exigir_permiso(usuario, "candidatos:leer")
         with self._fabrica() as unidad:
             perfil = unidad.datos.obtener_perfil(perfil_id)
             if perfil is None:
                 raise NoEncontradoError("Perfil no encontrado")
             _exigir_cliente(usuario, str(perfil["cliente_id"]))
             return perfil
+
+    def obtener_detalle_perfil(
+        self,
+        usuario: UsuarioActual,
+        perfil_id: str,
+        correlacion_id: str = "",
+    ) -> dict[str, object]:
+        _exigir_permiso(usuario, "candidatos:leer")
+        with self._fabrica() as unidad:
+            perfil = unidad.datos.obtener_perfil(perfil_id)
+            if perfil is None:
+                raise NoEncontradoError("Perfil no encontrado")
+            _exigir_cliente(usuario, str(perfil["cliente_id"]))
+            versiones = unidad.datos.obtener_versiones_perfil(perfil_id)
+            version_activa = next((v for v in versiones if v.get("publicado")), versiones[0] if versiones else None)
+            postulaciones_raw = unidad.datos.listar_postulaciones_perfil(perfil_id)
+
+            postulantes: list[dict[str, object]] = []
+            completos_count = 0
+            incompletos_count = 0
+            alertas_count = 0
+
+            for post in postulaciones_raw:
+                candidato = unidad.datos.obtener_candidato(str(post["candidato_id"]))
+                if not candidato:
+                    continue
+                traza = unidad.datos.traza_candidato(candidato.id, 50)
+                alertas = [
+                    e["detalle"]
+                    for e in traza
+                    if e.get("tipo") == "candidato.alerta_lista_control"
+                ]
+                if alertas:
+                    alertas_count += 1
+                completitud = calcular_completitud_candidato(candidato)
+                if completitud["completo"]:
+                    completos_count += 1
+                else:
+                    incompletos_count += 1
+
+                version_ctc = post.get("version_ctc")
+                variacion_ctc = None
+                if candidato.expectativa_salarial and version_ctc and Decimal(str(version_ctc)) > 0:
+                    diff = ((candidato.expectativa_salarial - Decimal(str(version_ctc))) / Decimal(str(version_ctc))) * 100
+                    variacion_ctc = round(float(diff), 2)
+
+                postulantes.append({
+                    "postulacion_id": post["postulacion_id"],
+                    "postulacion_estado": post["estado"],
+                    "postulacion_fuente": post["fuente"],
+                    "postulacion_fecha": post["creado_en"],
+                    "version_numero": post["version_numero"],
+                    "version_ctc": version_ctc,
+                    "candidato": asdict(candidato),
+                    "variacion_ctc_perfil": variacion_ctc,
+                    "alertas": alertas,
+                    "completitud": completitud,
+                })
+
+            return {
+                "perfil": perfil,
+                "versiones": versiones,
+                "version_activa": version_activa,
+                "postulantes": postulantes,
+                "metricas": {
+                    "total_postulantes": len(postulantes),
+                    "completos": completos_count,
+                    "incompletos": incompletos_count,
+                    "con_alertas": alertas_count,
+                },
+            }
 
     def crear_version_perfil(
         self,
@@ -724,6 +834,7 @@ class ServicioTalentIA:
         fuente: str | None,
         reclutador: str | None,
         correlacion_id: str,
+        version_perfil_id: str | None = None,
     ) -> dict[str, object]:
         """Crea una ficha desde un CV sin sobrescribir identidades ya registradas."""
 
@@ -811,6 +922,22 @@ class ServicioTalentIA:
                         detalle=dict(alerta),
                         correlacion_id=correlacion_id,
                     )
+        postulacion = None
+        if version_perfil_id:
+            try:
+                postulacion = self.crear_postulacion(
+                    usuario,
+                    {
+                        "cliente_id": cliente_id,
+                        "candidato_id": candidato.id,
+                        "version_perfil_id": version_perfil_id,
+                        "fuente": _texto(fuente) or _texto(datos.get("fuente")) or "carga_cv",
+                    },
+                    correlacion_id,
+                )
+            except Exception:
+                pass
+
         return {
             "archivo": nombre,
             "estado": "reutilizado" if reutilizado else "registrado",
@@ -820,6 +947,8 @@ class ServicioTalentIA:
             "procedencias": precarga.procedencias,
             "documento_id": documento["id"],
             "extraccion_estado": extraccion["estado"],
+            "postulacion_id": postulacion["id"] if postulacion else None,
+            "completitud": calcular_completitud_candidato(candidato),
             "alertas": alertas,
         }
 

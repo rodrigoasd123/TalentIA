@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% block title %}{{ perfil.codigo }} - {{ perfil.titulo }} | TalentIA{% endblock %}
+{% block heading %}{{ perfil.codigo }} · {{ perfil.titulo }}{% endblock %}
+{% block breadcrumb %}<a href="/modulo/perfiles">Perfiles</a> / {{ perfil.codigo }}{% endblock %}
+{% block subtitle %}Gestión individual de vacante: recepción de CVs, autocompletado y validación de completitud para RR. HH.{% endblock %}
+
+{% block content %}
+{% if mensaje == "cvs_procesados" %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  <strong>¡Lote de CVs procesado!</strong> Los datos fueron extraídos automáticamente y vinculados a esta vacante.
+</div>
+{% elif mensaje == "candidato_completado" %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  <strong>¡Datos de RR. HH. guardados!</strong> La información de validación se actualizó correctamente en la base general.
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+
+<!-- KPIs de la Vacante -->
+<section class="banda-metricas">
+  <div><span>Postulantes en esta vacante</span><strong>{{ metricas.total_postulantes }}</strong></div>
+  <div><span class="text-success">Completos para RR. HH.</span><strong class="text-success">{{ metricas.completos }}</strong></div>
+  <div><span class="text-warning">Incompletos (Faltan validar)</span><strong class="text-warning">{{ metricas.incompletos }}</strong></div>
+  <div><span class="text-danger">Con Alertas TCS / Vetos</span><strong class="text-danger">{{ metricas.con_alertas }}</strong></div>
+  <div><span>Presupuesto CTC</span><strong>{% if version_activa and version_activa.ctc %}S/ {{ "{:,.2f}".format(version_activa.ctc) }}{% else %}Sin definir{% endif %}</strong></div>
+</section>
+
+<!-- Requisitos y Carga de CVs -->
+<div class="row g-4 mb-4">
+  <!-- Tarjeta informativa del Puesto -->
+  <div class="col-md-5">
+    <section class="seccion h-100 mb-0">
+      <div class="titulo-seccion">
+        <h2>Detalles de la Convocatoria</h2>
+        <span class="estado">Versión {{ version_activa.numero if version_activa else 1 }}</span>
+      </div>
+      <dl class="ficha">
+        <div><dt>Código de Vacante</dt><dd><code>{{ perfil.codigo }}</code></dd></div>
+        <div><dt>Título Oficial</dt><dd><strong>{{ perfil.titulo }}</strong></dd></div>
+        <div><dt>Estado</dt><dd><span class="badge {% if perfil.activo %}bg-success{% else %}bg-secondary{% endif %}">{% if perfil.activo %}Activa / Publicada{% else %}Inactiva{% endif %}</span></dd></div>
+        <div><dt>Presupuesto Máximo (CTC)</dt><dd>{% if version_activa and version_activa.ctc %}S/ {{ "{:,.2f}".format(version_activa.ctc) }}{% else %}No fijado{% endif %}</dd></div>
+      </dl>
+
+      {% if version_activa and version_activa.requisitos %}
+      <h3 class="h6 mt-3 mb-2 text-muted fw-bold">Requisitos Clave del Perfil:</h3>
+      <ul class="list-group list-group-flush small">
+        {% for req in version_activa.requisitos %}
+        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
+          <span><strong>{{ req.codigo }}:</strong> {{ req.descripcion }}</span>
+          {% if req.obligatorio %}<span class="badge bg-danger">Excluyente</span>{% else %}<span class="badge bg-light text-dark">Peso {{ req.peso }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- Formulario de Carga Masiva para esta Vacante -->
+  <div class="col-md-7">
+    <section class="seccion h-100 mb-0">
+      <div class="titulo-seccion">
+        <h2>Cargar CVs para este Perfil</h2>
+        <span class="estado">Hasta 50 CVs (DOCX / PDF)</span>
+      </div>
+      <p class="text-muted small">
+        Sube los currículums recibidos para este puesto. El agente extraerá los datos automáticamente (DNI, nombres, pretensión, skills) y creará la postulación enlazada a esta vacante.
+      </p>
+
+      <form method="post" action="/perfiles/{{ perfil.id }}/importar-cvs" enctype="multipart/form-data" class="formulario-operativo">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="rejilla-formulario">
+          <label>Reclutador(a) asignado(a)
+            <input class="form-control" name="reclutador" placeholder="Ej: Diana Torres (RRHH)" value="{{ usuario.correo }}">
+          </label>
+          <label>Canal de atracción / Fuente
+            <input class="form-control" name="fuente" placeholder="Ej: LinkedIn, Convocatoria TCS">
+          </label>
+          <label class="ancho-completo">Seleccionar o arrastrar archivos de CV
+            <input class="form-control" type="file" name="archivos" accept=".pdf,.docx" multiple required>
+          </label>
+        </div>
+        <div class="acciones-formulario mt-3">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-cloud-arrow-up"></i> Procesar y Cargar CVs a esta Vacante
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+
+<!-- Tarjetas de Resultados de Carga Inmediata (si aplica) -->
+{% if resultados %}
+<section class="seccion mb-4">
+  <div class="titulo-seccion">
+    <h2>Resultado del Lote Reciente</h2>
+    <span class="estado">{{ resultados | length }} archivos procesados</span>
+  </div>
+  <div class="resultados-cv">
+    {% for resultado in resultados %}
+    <article class="resultado-cv">
+      <header>
+        <div>
+          <strong>{{ resultado.archivo }}</strong>
+          <span>{{ resultado.nombre or 'Revisión manual necesaria' }}</span>
+        </div>
+        <span class="estado badge {% if resultado.estado == 'registrado' %}bg-success{% elif resultado.estado == 'reutilizado' %}bg-info text-dark{% else %}bg-danger{% endif %}">
+          {{ resultado.estado | replace('_', ' ') | upper }}
+        </span>
+      </header>
+      {% if resultado.error %}<p class="text-danger mb-1">{{ resultado.error }}</p>{% endif %}
+      {% if resultado.campos_extraidos %}<p class="small text-muted mb-1">Datos extraídos del CV: {{ resultado.campos_extraidos | join(', ') | replace('_', ' ') }}.</p>{% endif %}
+      {% for alerta in resultado.alertas %}
+      <div class="alert {% if alerta.nivel == 'alta' %}alert-danger{% else %}alert-warning{% endif %} py-1 px-2 mb-1 small" role="alert">
+        <strong>{% if alerta.tipo == 'ex_tcs' %}Ex-TCS{% else %}Restricción{% endif %}:</strong> {{ alerta.mensaje }}
+      </div>
+      {% endfor %}
+      {% if resultado.candidato_id %}
+      <div class="mt-2">
+        <a class="btn btn-sm btn-outline-primary" href="/candidatos/{{ resultado.candidato_id }}">Ver ficha completa</a>
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<!-- Tabla Individual de Candidatos / Postulantes para ESTA Vacante -->
+<section class="seccion">
+  <div class="titulo-seccion">
+    <h2>Postulantes de esta Vacante ({{ perfil.codigo }})</h2>
+    <div class="acciones-cabecera d-flex align-items-center gap-2">
+      <!-- Filtro de completitud -->
+      <div class="btn-group btn-group-sm" role="group" aria-label="Filtro de completitud">
+        <a href="/perfiles/{{ perfil.id }}?filtro_completitud=todos" class="btn {% if filtro_completitud == 'todos' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Todos ({{ metricas.total_postulantes }})</a>
+        <a href="/perfiles/{{ perfil.id }}?filtro_completitud=incompletos" class="btn {% if filtro_completitud == 'incompletos' %}btn-warning text-dark{% else %}btn-outline-secondary{% endif %}">Incompletos ({{ metricas.incompletos }})</a>
+        <a href="/perfiles/{{ perfil.id }}?filtro_completitud=completos" class="btn {% if filtro_completitud == 'completos' %}btn-success{% else %}btn-outline-secondary{% endif %}">Completos ({{ metricas.completos }})</a>
+        <a href="/perfiles/{{ perfil.id }}?filtro_completitud=alertas" class="btn {% if filtro_completitud == 'alertas' %}btn-danger{% else %}btn-outline-secondary{% endif %}">Con Alertas ({{ metricas.con_alertas }})</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabla-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Candidato / DNI</th>
+          <th>Pretensión vs CTC</th>
+          <th>Skills (CV)</th>
+          <th>Alertas TCS</th>
+          <th>Validación RR. HH.</th>
+          <th>Campos Pendientes de Validación</th>
+          <th class="text-end">Acción Rápida RRHH</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in postulantes %}
+        <tr>
+          <!-- Candidato / DNI -->
+          <td>
+            <strong><a href="/candidatos/{{ p.candidato.id }}">{{ p.candidato.nombres }} {{ p.candidato.apellidos }}</a></strong>
+            <div class="small text-muted">
+              DNI: <code>{{ p.candidato.documento_normalizado or '-' }}</code> | {{ p.candidato.telefono or 'Sin teléfono' }}
+            </div>
+            <div class="small text-muted">{{ p.candidato.correo or 'Sin correo' }}</div>
+          </td>
+
+          <!-- Pretensión Salarial vs CTC -->
+          <td>
+            {% if p.candidato.expectativa_salarial %}
+              <strong>S/ {{ "{:,.2f}".format(p.candidato.expectativa_salarial) }}</strong>
+              {% if p.variacion_ctc_perfil is not none %}
+                {% if p.variacion_ctc_perfil <= 0 %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle d-block mt-1">{{ p.variacion_ctc_perfil }}% (En rango)</span>
+                {% else %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-block mt-1">+{{ p.variacion_ctc_perfil }}% (Supera)</span>
+                {% endif %}
+              {% endif %}
+            {% else %}
+              <span class="badge bg-light text-dark">No especificada</span>
+            {% endif %}
+          </td>
+
+          <!-- Skills extraídos -->
+          <td style="max-width: 220px;">
+            <div class="small text-truncate" title="{{ p.candidato.conocimiento_tecnico or 'Sin skills extraídos' }}">
+              {{ p.candidato.conocimiento_tecnico or '-' }}
+            </div>
+            <span class="badge bg-light text-muted mt-1">Disp: {{ p.candidato.disponibilidad or 'Inmediata' }}</span>
+          </td>
+
+          <!-- Alertas TCS / Vetados -->
+          <td>
+            {% if p.alertas %}
+              {% for a in p.alertas %}
+                <span class="badge {% if a.nivel == 'alta' %}bg-danger{% else %}bg-warning text-dark{% endif %} d-block mb-1 text-wrap text-start" title="{{ a.mensaje }}">
+                  {% if a.tipo == 'ex_tcs' %}⚠ Ex-TCS{% else %}⛔ Vetado{% endif %}: {{ a.mensaje | truncate(35) }}
+                </span>
+              {% endfor %}
+            {% else %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle">✓ Sin alertas</span>
+            {% endif %}
+          </td>
+
+          <!-- Validación RRHH: Completo vs Incompleto -->
+          <td>
+            {% if p.completitud.completo %}
+              <span class="badge bg-success py-2 px-2 d-inline-flex align-items-center gap-1">
+                <i class="bi bi-check-circle-fill"></i> COMPLETO (100%)
+              </span>
+            {% else %}
+              <span class="badge bg-warning text-dark py-2 px-2 d-inline-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i> INCOMPLETO ({{ p.completitud.porcentaje }}%)
+              </span>
+            {% endif %}
+          </td>
+
+          <!-- Campos pendientes que RRHH debe validar -->
+          <td style="max-width: 240px;">
+            {% if p.completitud.campos_faltantes %}
+              <ul class="list-unstyled mb-0 small">
+                {% for campo in p.completitud.campos_faltantes %}
+                <li class="text-danger d-flex align-items-center gap-1">
+                  <span class="text-danger">✗</span> {{ campo }}
+                </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <span class="text-success small fw-bold">✓ Todos los datos validados</span>
+            {% endif %}
+          </td>
+
+          <!-- Acción Rápida para el Reclutador -->
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#completar-{{ p.candidato.id }}" aria-expanded="false">
+              {% if p.completitud.completo %}Editar RRHH{% else %}Completar datos{% endif %}
+            </button>
+            <a class="btn btn-sm btn-outline-secondary" href="/candidatos/{{ p.candidato.id }}">Ficha</a>
+          </td>
+        </tr>
+
+        <!-- Formulario Desplegable Inline para Completar Datos RRHH -->
+        <tr class="collapse" id="completar-{{ p.candidato.id }}">
+          <td colspan="7" class="bg-light p-3 border-bottom border-primary">
+            <div class="card card-body border-0 shadow-sm">
+              <h4 class="h6 fw-bold text-primary mb-3">
+                Validación de RR. HH. para: {{ p.candidato.nombres }} {{ p.candidato.apellidos }} (DNI: {{ p.candidato.documento_normalizado }})
+              </h4>
+              <form method="post" action="/perfiles/{{ perfil.id }}/candidatos/{{ p.candidato.id }}/completar-rrhh">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <input type="hidden" name="version" value="{{ p.candidato.version }}">
+
+                <div class="row g-3">
+                  <div class="col-md-3">
+                    <label class="form-label small fw-bold">Reclutador Responsable</label>
+                    <input class="form-control form-control-sm" name="reclutador" value="{{ p.candidato.reclutador or usuario.correo }}" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-bold">Fecha Nacimiento (Reniec)</label>
+                    <input class="form-control form-control-sm" type="date" name="fecha_nacimiento" value="{{ p.candidato.fecha_nacimiento or '' }}">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small fw-bold">Presupuesto CTC (S/)</label>
+                    <input class="form-control form-control-sm" type="number" step="0.01" name="ctc_rol" value="{{ p.candidato.ctc_rol or (version_activa.ctc if version_activa else '') }}">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small fw-bold">Pretensión Validada (S/)</label>
+                    <input class="form-control form-control-sm" type="number" step="0.01" name="expectativa_salarial" value="{{ p.candidato.expectativa_salarial or '' }}">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small fw-bold">Disponibilidad</label>
+                    <input class="form-control form-control-sm" name="disponibilidad" value="{{ p.candidato.disponibilidad or 'Inmediata' }}">
+                  </div>
+
+                  <!-- Validaciones externas de Antecedentes y Grados -->
+                  <div class="col-md-8 d-flex align-items-center gap-4 mt-2">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="bgc_validado" id="bgc_{{ p.candidato.id }}" {% if 'bgc-validado' in (p.candidato.etiquetas or []) %}checked{% endif %}>
+                      <label class="form-check-label small fw-bold" for="bgc_{{ p.candidato.id }}">
+                        ✓ Antecedentes BGC Verificados
+                      </label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="titulo_verificado" id="tit_{{ p.candidato.id }}" {% if 'titulo-validado' in (p.candidato.etiquetas or []) %}checked{% endif %}>
+                      <label class="form-check-label small fw-bold" for="tit_{{ p.candidato.id }}">
+                        ✓ Grado / Título Académico Verificado
+                      </label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="verificado_rrhh" id="gen_{{ p.candidato.id }}" {% if 'verificado-rrhh' in (p.candidato.etiquetas or []) %}checked{% endif %}>
+                      <label class="form-check-label small fw-bold" for="gen_{{ p.candidato.id }}">
+                        ✓ Entrevista de Screening Realizada
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-4 text-end mt-2">
+                    <button class="btn btn-sm btn-success" type="submit">
+                      Guardar y Marcar Verificado
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#completar-{{ p.candidato.id }}">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="7" class="vacio py-4 text-center text-muted">
+            No hay postulantes registrados para esta vacante aún.<br>
+            Usa la sección superior para subir el lote de CVs (.docx / .pdf) asignado a este puesto.
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
