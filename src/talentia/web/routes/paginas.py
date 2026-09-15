@@ -667,8 +667,27 @@ async def crear_perfil_web(
                 request.state.correlacion_id,
             )
             return RedirectResponse(f"/perfiles/{perfil['id']}", status_code=303)
+    with contextlib.suppress(Exception):
+        cod_clean = "".join(c for c in codigo if c.isalnum() or c == "-")[:8].upper() or "ROL"
+        req_base = [
+            {
+                "codigo": f"REQ-{cod_clean}-01",
+                "descripcion": f"Competencias y experiencia técnica requeridas para {titulo}",
+                "obligatorio": True,
+                "peso": "1.0",
+            }
+        ]
+        request.app.state.servicio.crear_version_perfil(
+            usuario,
+            perfil["id"],
+            {
+                "requisitos": req_base,
+                "publicado": True,
+            },
+            request.state.correlacion_id,
+        )
 
-    return RedirectResponse(f"/perfiles/{perfil['id']}/versiones/nueva", status_code=303)
+    return RedirectResponse(f"/perfiles/{perfil['id']}", status_code=303)
 
 
 @router.get("/perfiles/{perfil_id}/versiones/nueva", response_class=HTMLResponse)

@@ -23,7 +23,7 @@
         <select name="version_perfil_id">
           <option value="">-- Sin asignar a vacante específica --</option>
           {% for version in opciones.versiones %}
-          <option value="{{ version.id }}">{{ version.perfil_codigo }} (v{{ version.numero }})</option>
+          <option value="{{ version.id }}" {% if datos.version_perfil_id == version.id or request.query_params.get('version_id') == version.id or request.query_params.get('perfil_id') == version.perfil_id %}selected{% endif %}>{{ version.codigo or version.perfil_codigo }} · {{ version.titulo or version.perfil_titulo }} (v{{ version.numero or version.version_numero }})</option>
           {% endfor %}
         </select>
       </label>

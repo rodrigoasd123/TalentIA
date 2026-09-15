@@ -1213,8 +1213,11 @@ class RepositorioSqlalchemy:
                 PerfilPuestoModelo.cliente_id,
                 PerfilPuestoModelo.id.label("perfil_id"),
                 PerfilPuestoModelo.codigo,
+                PerfilPuestoModelo.codigo.label("perfil_codigo"),
                 PerfilPuestoModelo.titulo,
+                PerfilPuestoModelo.titulo.label("perfil_titulo"),
                 VersionPerfilPuestoModelo.numero,
+                VersionPerfilPuestoModelo.numero.label("version_numero"),
             )
             .join(PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id)
             .where(
