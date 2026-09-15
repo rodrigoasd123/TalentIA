@@ -703,9 +703,7 @@ class ServicioTalentIA:
                 ruta = Path(temporal) / f"cv{sufijo}"
                 ruta.write_bytes(contenido)
                 leido = self._extractor_documento(str(ruta), tipo_mime)
-                texto = "\n".join(
-                    pagina.texto for pagina in leido.paginas if pagina.texto.strip()
-                )
+                texto = "\n".join(pagina.texto for pagina in leido.paginas if pagina.texto.strip())
                 return extraer_precarga_candidato(texto)
         except SanitizacionError as error:
             raise EntradaInvalidaError(
