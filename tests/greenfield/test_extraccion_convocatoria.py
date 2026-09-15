@@ -78,8 +78,8 @@ Necesario:
 
     # Verificar que las líneas obligatorias y opcionales estén bien etiquetadas
     lineas = res.requisitos_texto.splitlines()
-    obligatorios = [l for l in lineas if " | obligatorio | " in l]
-    opcionales = [l for l in lineas if " | opcional | " in l]
+    obligatorios = [linea for linea in lineas if " | obligatorio | " in linea]
+    opcionales = [linea for linea in lineas if " | opcional | " in linea]
     assert len(obligatorios) == res.total_obligatorios
     assert len(opcionales) == res.total_deseables
 
@@ -111,8 +111,14 @@ def test_extraer_convocatoria_formato_estandar_con_ctc() -> None:
     assert res.ctc == "8500.00"
     assert res.total_obligatorios == 3
     assert res.total_deseables == 2
-    assert "REQ-PY-01 | Experiencia sólida en Python (FastAPI o Django) | obligatorio | 2.5" in res.requisitos_texto
-    assert "REQ-API-04 | Diseño de APIs RESTful y microservicios | opcional | 1.5" in res.requisitos_texto
+    assert (
+        "REQ-PY-01 | Experiencia sólida en Python (FastAPI o Django) | obligatorio | 2.5"
+        in res.requisitos_texto
+    )
+    assert (
+        "REQ-API-04 | Diseño de APIs RESTful y microservicios | opcional | 1.5"
+        in res.requisitos_texto
+    )
 
 
 def test_endpoint_analizar_convocatoria_flujo_web(cliente_api) -> None:
@@ -132,6 +138,7 @@ def test_endpoint_analizar_convocatoria_flujo_web(cliente_api) -> None:
 
     # Obtener el perfil
     from sqlalchemy import text
+
     with cliente.app.state.servicio._fabrica() as unidad:
         row = unidad.datos.sesion.execute(
             text("SELECT id FROM job_profiles WHERE codigo = 'DEV-CONV-TEST'")
@@ -154,10 +161,16 @@ def test_endpoint_analizar_convocatoria_flujo_web(cliente_api) -> None:
     resp_analisis = cliente.post(
         f"/perfiles/{perfil_id}/versiones/analizar-convocatoria",
         data={"csrf": csrf},
-        files=[(
-            "archivo",
-            ("convocatoria_java.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-        )],
+        files=[
+            (
+                "archivo",
+                (
+                    "convocatoria_java.docx",
+                    docx_bytes,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
+            )
+        ],
     )
     assert resp_analisis.status_code == 200
     data = resp_analisis.json()
@@ -200,10 +213,16 @@ def test_endpoint_analizar_convocatoria_previa(cliente_api) -> None:
     resp = cliente.post(
         "/perfiles/analizar-convocatoria-previa",
         data={"csrf": csrf},
-        files=[(
-            "archivo",
-            ("jd_qa.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-        )],
+        files=[
+            (
+                "archivo",
+                (
+                    "jd_qa.docx",
+                    docx_bytes,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
+            )
+        ],
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -231,7 +250,16 @@ def test_crear_perfil_con_convocatoria_directo_en_paso_1(cliente_api) -> None:
             "codigo": "",
             "titulo": "",
         },
-        files=[("archivo_convocatoria", ("devops.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))],
+        files=[
+            (
+                "archivo_convocatoria",
+                (
+                    "devops.docx",
+                    docx_bytes,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
+            )
+        ],
     )
     assert resp.status_code in {200, 303}
     # Verificamos que redirige directamente a la vacante ya publicada con sus requisitos
@@ -253,13 +281,15 @@ def test_version_con_archivo_adjunto_sin_escribir_requisitos(cliente_api) -> Non
     )
     assert resp_perfil.status_code in {200, 303}
     from sqlalchemy import text
+
     with cliente.app.state.servicio._fabrica() as unidad:
         row = unidad.datos.sesion.execute(
             text("SELECT id FROM job_profiles WHERE codigo = 'FRONT-TEST-01'")
         ).first()
         perfil_id = row[0]
 
-    # 2. Guardar versión subiendo archivo pero con textarea vacía (no debe salir error de campo requerido)
+    # 2. Guardar versión subiendo archivo pero con textarea vacía
+    # (no debe salir error de campo requerido)
     docx_bytes = _crear_docx_simple(
         "Nombre del Rol: Frontend Specialist React",
         "Compensación Total (CTC): S/ 10,000.00",
@@ -272,11 +302,20 @@ def test_version_con_archivo_adjunto_sin_escribir_requisitos(cliente_api) -> Non
         f"/perfiles/{perfil_id}/versiones/nueva",
         data={
             "csrf": csrf,
-            "requisitos_texto": "", # Dejado vacío intencionalmente por el reclutador
+            "requisitos_texto": "",  # Dejado vacío intencionalmente por el reclutador
             "ctc": "",
             "publicado": "si",
         },
-        files=[("archivo_convocatoria", ("jd_frontend.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))],
+        files=[
+            (
+                "archivo_convocatoria",
+                (
+                    "jd_frontend.docx",
+                    docx_bytes,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
+            )
+        ],
     )
     assert resp_version.status_code in {200, 303}
     # Verificamos que la vacante quedó creada y contiene los requisitos del archivo

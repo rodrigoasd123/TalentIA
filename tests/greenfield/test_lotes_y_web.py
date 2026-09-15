@@ -86,3 +86,41 @@ def test_alta_web_evidencia_ficha_y_trazabilidad(cliente_api) -> None:
     assert "Lucia Web" in respuesta.text
     assert "Trazabilidad" in respuesta.text
     assert "-16.67" in respuesta.text
+
+
+def test_sesion_vencida_redirecciona_a_login_en_web(cliente_api) -> None:
+    from talentia.platform.security.contrasenas import FirmadorSesion
+
+    cliente = cliente_api["cliente"]
+    firmador_vencido = FirmadorSesion("pruebas-talentia-01234567890123456789", minutos=-1)
+    token_vencido = firmador_vencido.crear(
+        {
+            "sub": "usuario-vencido",
+            "correo": "vencido@test.local",
+            "roles": ["reclutador"],
+            "clientes": [],
+            "csrf": "csrf-vencido",
+            "sv": 1,
+        }
+    )
+
+    cliente.cookies.clear()
+    resp = cliente.get("/candidatos", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"
+
+    cliente.cookies.set("talentia_session", token_vencido)
+    resp = cliente.get("/candidatos", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"
+    assert "talentia_session" in resp.headers.get("set-cookie", "")
+
+    cliente.cookies.set("talentia_session", token_vencido)
+    resp_htmx = cliente.get("/candidatos", headers={"HX-Request": "true"})
+    assert resp_htmx.status_code == 200
+    assert resp_htmx.headers.get("HX-Redirect") == "/login"
+
+    cliente.cookies.set("talentia_session", token_vencido)
+    resp_login = cliente.get("/login", follow_redirects=False)
+    assert resp_login.status_code == 200
+    assert "TalentIA" in resp_login.text

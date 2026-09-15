@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
 from dataclasses import asdict
 from datetime import date
@@ -14,7 +15,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.templating import Jinja2Templates
 
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
-from talentia.modules.recruitment.application.extractor_convocatoria import extraer_bases_convocatoria
+from talentia.modules.recruitment.application.extractor_convocatoria import (
+    extraer_bases_convocatoria,
+)
 from talentia.platform.security.contrasenas import FirmadorSesion, nuevo_csrf
 from talentia.shared.application.errores import (
     EntradaInvalidaError,
@@ -144,12 +147,19 @@ def _respuesta_evaluacion(
 @router.get("/login", response_class=HTMLResponse)
 def login(request: Request) -> Response:
     if request.cookies.get("talentia_session"):
-        return RedirectResponse("/", status_code=303)
-    return PLANTILLAS.TemplateResponse(
+        try:
+            _usuario(request)
+            return RedirectResponse("/", status_code=303)
+        except NoAutorizadoError:
+            pass
+    respuesta = PLANTILLAS.TemplateResponse(
         request=request,
         name="login.html",
         context={"error": None, "modo_manual": request.app.state.configuracion.modo_manual},
     )
+    if request.cookies.get("talentia_session"):
+        respuesta.delete_cookie("talentia_session")
+    return respuesta
 
 
 @router.post("/login")
@@ -209,10 +219,7 @@ def cerrar_sesion_web(request: Request, csrf: str = Form()) -> RedirectResponse:
 
 @router.get("/", response_class=HTMLResponse)
 def inicio(request: Request) -> Response:
-    try:
-        usuario = _usuario(request)
-    except NoAutorizadoError:
-        return RedirectResponse("/login", status_code=303)
+    usuario = _usuario(request)
     candidatos = request.app.state.servicio.buscar_candidatos(usuario, limite=5)
     return PLANTILLAS.TemplateResponse(
         request=request,
@@ -227,10 +234,7 @@ def inicio(request: Request) -> Response:
 
 @router.get("/candidatos", response_class=HTMLResponse)
 def candidatos(request: Request, q: str = "") -> Response:
-    try:
-        usuario = _usuario(request)
-    except NoAutorizadoError:
-        return RedirectResponse("/login", status_code=303)
+    usuario = _usuario(request)
     encontrados = request.app.state.servicio.buscar_candidatos(usuario, q, 100)
     return PLANTILLAS.TemplateResponse(
         request=request,
@@ -503,6 +507,11 @@ def tabla_candidatos(request: Request, q: str = "") -> HTMLResponse:
 def usuarios(request: Request) -> Response:
     usuario = _usuario(request)
     accesos = request.app.state.servicio.listar_accesos(usuario)
+    mapa_clientes = {
+        c["id"]: c.get("nombre") or c.get("codigo") or c["id"] for c in accesos.get("clientes", [])
+    }
+    for u in accesos.get("usuarios", []):
+        u["clientes_nombres"] = [mapa_clientes.get(cid, cid) for cid in u.get("clientes", [])]
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="usuarios.html",
@@ -550,7 +559,7 @@ async def analizar_convocatoria_previa_ajax(
     archivo: Annotated[UploadFile, File()],
     csrf: str = Form(""),
 ) -> Response:
-    usuario = _usuario(request)
+    _usuario(request)
     if csrf and csrf != _csrf(request):
         raise NoAutorizadoError("CSRF invalido")
     contenido = await archivo.read()
@@ -601,7 +610,7 @@ async def crear_perfil_web(
     if archivo_convocatoria and archivo_convocatoria.filename:
         contenido = await archivo_convocatoria.read()
         if contenido:
-            try:
+            with contextlib.suppress(Exception):
                 gestor_ia = getattr(request.app.state, "gestor_ia", None)
                 resultado_convocatoria = extraer_bases_convocatoria(
                     contenido,
@@ -613,8 +622,6 @@ async def crear_perfil_web(
                     titulo = resultado_convocatoria.titulo
                 if not codigo.strip() and resultado_convocatoria.codigo:
                     codigo = resultado_convocatoria.codigo
-            except Exception:
-                pass
 
     if not codigo.strip() or not titulo.strip():
         datos = {"cliente_id": cliente_id, "codigo": codigo, "titulo": titulo}
@@ -647,7 +654,7 @@ async def crear_perfil_web(
     # Si se cargo la convocatoria y se extrajeron requisitos:
     # Creamos y publicamos la versión 1 automáticamente y vamos directo a la vacante
     if resultado_convocatoria and resultado_convocatoria.requisitos:
-        try:
+        with contextlib.suppress(Exception):
             reqs = _requisitos_desde_texto(resultado_convocatoria.requisitos_texto)
             request.app.state.servicio.crear_version_perfil(
                 usuario,
@@ -660,8 +667,6 @@ async def crear_perfil_web(
                 request.state.correlacion_id,
             )
             return RedirectResponse(f"/perfiles/{perfil['id']}", status_code=303)
-        except Exception:
-            pass
 
     return RedirectResponse(f"/perfiles/{perfil['id']}/versiones/nueva", status_code=303)
 
@@ -719,7 +724,11 @@ async def crear_version_perfil_web(
                     "nueva_version_perfil.html",
                     "perfiles",
                     error=f"No se pudo extraer la convocatoria: {e}",
-                    datos={"requisitos_texto": requisitos_texto, "ctc": ctc, "publicado": publicado},
+                    datos={
+                        "requisitos_texto": requisitos_texto,
+                        "ctc": ctc,
+                        "publicado": publicado,
+                    },
                     status_code=422,
                     perfil=perfil,
                 )
@@ -731,7 +740,10 @@ async def crear_version_perfil_web(
             usuario,
             "nueva_version_perfil.html",
             "perfiles",
-            error="Selecciona un archivo de convocatoria (Word o PDF) o escribe los requisitos del puesto.",
+            error=(
+                "Selecciona un archivo de convocatoria (Word o PDF) "
+                "o escribe los requisitos del puesto."
+            ),
             datos={"requisitos_texto": "", "ctc": ctc, "publicado": publicado},
             status_code=422,
             perfil=perfil,
@@ -744,7 +756,7 @@ async def crear_version_perfil_web(
     }
     try:
         perfil = request.app.state.servicio.obtener_perfil(usuario, perfil_id)
-        version = request.app.state.servicio.crear_version_perfil(
+        _ = request.app.state.servicio.crear_version_perfil(
             usuario,
             perfil_id,
             {
@@ -766,9 +778,7 @@ async def crear_version_perfil_web(
             status_code=error.estado_http,
             perfil=perfil,
         )
-    return RedirectResponse(
-        f"/perfiles/{perfil['id']}", status_code=303
-    )
+    return RedirectResponse(f"/perfiles/{perfil['id']}", status_code=303)
 
 
 @router.post("/perfiles/{perfil_id}/versiones/analizar-convocatoria")
@@ -785,7 +795,9 @@ async def analizar_convocatoria_version_ajax(
 
     contenido = await archivo.read()
     if not contenido:
-        return JSONResponse({"exito": False, "error": "El archivo está vacío o no es legible"}, status_code=400)
+        return JSONResponse(
+            {"exito": False, "error": "El archivo está vacío o no es legible"}, status_code=400
+        )
 
     try:
         gestor_ia = getattr(request.app.state, "gestor_ia", None)
@@ -979,7 +991,9 @@ async def importar_cvs_perfil_web(
                 }
             )
 
-    detalle_actualizado = request.app.state.servicio.obtener_detalle_perfil(usuario, perfil_id, correlacion_id)
+    detalle_actualizado = request.app.state.servicio.obtener_detalle_perfil(
+        usuario, perfil_id, correlacion_id
+    )
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="detalle_perfil.html",
@@ -997,8 +1011,10 @@ async def importar_cvs_perfil_web(
     )
 
 
-@router.post("/perfiles/{perfil_id}/candidatos/{candidato_id}/completar-rrhh", response_class=HTMLResponse)
-async def completar_rrhh_candidato_web(
+@router.post(
+    "/perfiles/{perfil_id}/candidatos/{candidato_id}/completar-rrhh", response_class=HTMLResponse
+)
+async def completar_rrhh_candidato_web(  # noqa: C901
     request: Request,
     perfil_id: str,
     candidato_id: str,
@@ -1012,7 +1028,13 @@ async def completar_rrhh_candidato_web(
     version = int(entrada.get("version", 1))
     cambios: dict[str, object] = {}
 
-    for campo in ["reclutador", "fecha_nacimiento", "ctc_rol", "expectativa_salarial", "disponibilidad"]:
+    for campo in [
+        "reclutador",
+        "fecha_nacimiento",
+        "ctc_rol",
+        "expectativa_salarial",
+        "disponibilidad",
+    ]:
         if campo in entrada and entrada[campo].strip() != "":
             cambios[campo] = entrada[campo].strip()
         elif campo in entrada and entrada[campo].strip() == "":

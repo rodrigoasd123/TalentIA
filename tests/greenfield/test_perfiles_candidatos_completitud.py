@@ -114,7 +114,9 @@ def test_perfil_detalle_y_carga_cv_contextual(cliente_api) -> None:
         f"/perfiles/{perfil_id}/versiones/nueva",
         data={
             "csrf": csrf,
-            "requisitos_texto": "REQ-1 | Python y FastAPI | obligatorio | 3\nREQ-2 | Docker y AWS | opcional | 2",
+            "requisitos_texto": (
+                "REQ-1 | Python y FastAPI | obligatorio | 3\nREQ-2 | Docker y AWS | opcional | 2"
+            ),
             "ctc": "8500.00",
             "publicado": "si",
         },

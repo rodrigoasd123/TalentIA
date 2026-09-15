@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import re
 import tempfile
@@ -471,7 +472,7 @@ class ServicioTalentIA:
             )
             return candidato
 
-    def actualizar_candidato(
+    def actualizar_candidato(  # noqa: C901
         self,
         usuario: UsuarioActual,
         candidato_id: str,
@@ -599,7 +600,10 @@ class ServicioTalentIA:
             return perfil
 
     def obtener_perfil(self, usuario: UsuarioActual, perfil_id: str) -> dict[str, object]:
-        if not (usuario.tiene_permiso("perfiles:escribir", PERMISOS_POR_ROL) or usuario.tiene_permiso("candidatos:leer", PERMISOS_POR_ROL)):
+        if not (
+            usuario.tiene_permiso("perfiles:escribir", PERMISOS_POR_ROL)
+            or usuario.tiene_permiso("candidatos:leer", PERMISOS_POR_ROL)
+        ):
             _exigir_permiso(usuario, "candidatos:leer")
         with self._fabrica() as unidad:
             perfil = unidad.datos.obtener_perfil(perfil_id)
@@ -621,7 +625,9 @@ class ServicioTalentIA:
                 raise NoEncontradoError("Perfil no encontrado")
             _exigir_cliente(usuario, str(perfil["cliente_id"]))
             versiones = unidad.datos.obtener_versiones_perfil(perfil_id)
-            version_activa = next((v for v in versiones if v.get("publicado")), versiones[0] if versiones else None)
+            version_activa = next(
+                (v for v in versiones if v.get("publicado")), versiones[0] if versiones else None
+            )
             postulaciones_raw = unidad.datos.listar_postulaciones_perfil(perfil_id)
 
             postulantes: list[dict[str, object]] = []
@@ -635,9 +641,7 @@ class ServicioTalentIA:
                     continue
                 traza = unidad.datos.traza_candidato(candidato.id, 50)
                 alertas = [
-                    e["detalle"]
-                    for e in traza
-                    if e.get("tipo") == "candidato.alerta_lista_control"
+                    e["detalle"] for e in traza if e.get("tipo") == "candidato.alerta_lista_control"
                 ]
                 if alertas:
                     alertas_count += 1
@@ -650,21 +654,26 @@ class ServicioTalentIA:
                 version_ctc = post.get("version_ctc")
                 variacion_ctc = None
                 if candidato.expectativa_salarial and version_ctc and Decimal(str(version_ctc)) > 0:
-                    diff = ((candidato.expectativa_salarial - Decimal(str(version_ctc))) / Decimal(str(version_ctc))) * 100
+                    diff = (
+                        (candidato.expectativa_salarial - Decimal(str(version_ctc)))
+                        / Decimal(str(version_ctc))
+                    ) * 100
                     variacion_ctc = round(float(diff), 2)
 
-                postulantes.append({
-                    "postulacion_id": post["postulacion_id"],
-                    "postulacion_estado": post["estado"],
-                    "postulacion_fuente": post["fuente"],
-                    "postulacion_fecha": post["creado_en"],
-                    "version_numero": post["version_numero"],
-                    "version_ctc": version_ctc,
-                    "candidato": asdict(candidato),
-                    "variacion_ctc_perfil": variacion_ctc,
-                    "alertas": alertas,
-                    "completitud": completitud,
-                })
+                postulantes.append(
+                    {
+                        "postulacion_id": post["postulacion_id"],
+                        "postulacion_estado": post["estado"],
+                        "postulacion_fuente": post["fuente"],
+                        "postulacion_fecha": post["creado_en"],
+                        "version_numero": post["version_numero"],
+                        "version_ctc": version_ctc,
+                        "candidato": asdict(candidato),
+                        "variacion_ctc_perfil": variacion_ctc,
+                        "alertas": alertas,
+                        "completitud": completitud,
+                    }
+                )
 
             return {
                 "perfil": perfil,
@@ -924,7 +933,7 @@ class ServicioTalentIA:
                     )
         postulacion = None
         if version_perfil_id:
-            try:
+            with contextlib.suppress(Exception):
                 postulacion = self.crear_postulacion(
                     usuario,
                     {
@@ -935,8 +944,6 @@ class ServicioTalentIA:
                     },
                     correlacion_id,
                 )
-            except Exception:
-                pass
 
         return {
             "archivo": nombre,

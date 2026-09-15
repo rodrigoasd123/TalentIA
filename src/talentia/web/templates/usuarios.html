@@ -5,7 +5,7 @@
 <section class="seccion">
   <div class="titulo-seccion"><h2>Asignaciones actuales</h2><span class="estado">Solo administradores</span></div>
   <div class="tabla-responsive"><table class="table"><thead><tr><th>Usuario</th><th>Roles</th><th>Clientes</th></tr></thead><tbody>
-  {% for item in accesos.usuarios %}<tr><td><strong>{{ item.nombre }}</strong><small>{{ item.correo }}</small></td><td>{{ item.roles | join(', ') or '-' }}</td><td>{{ item.clientes | join(', ') or '-' }}</td></tr>{% endfor %}
+  {% for item in accesos.usuarios %}<tr><td><strong>{{ item.nombre }}</strong><small>{{ item.correo }}</small></td><td>{{ item.roles | join(', ') or '-' }}</td><td>{{ item.clientes_nombres | join(', ') or item.clientes | join(', ') or '-' }}</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 <section class="rejilla-acceso">

@@ -62,6 +62,12 @@ RAIZ_PROYECTO = Path(__file__).resolve().parents[2]
 
 
 def cargar_configuracion() -> Configuracion:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(RAIZ_PROYECTO / ".env")
+    except ImportError:
+        pass
     ambiente = Ambiente(os.getenv("TALENTIA_ENV", Ambiente.DESARROLLO.value))
     secreto = os.getenv("TALENTIA_SESSION_SECRET", "")
     if not secreto and ambiente is not Ambiente.PILOTO:

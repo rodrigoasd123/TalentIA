@@ -169,7 +169,7 @@ def test_formularios_crean_perfil_y_version_y_conservan_datos(cliente_api) -> No
         follow_redirects=False,
     )
     assert creada.status_code == 303
-    assert creada.headers["location"].startswith("/modulo/perfiles")
+    assert creada.headers["location"].startswith(("/modulo/perfiles", "/perfiles/"))
 
     fabrica = FabricaSesiones(crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}"))
     with fabrica.sesion() as sesion:

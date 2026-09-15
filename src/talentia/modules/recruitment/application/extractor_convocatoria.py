@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-import json
+import contextlib
+import importlib
 import re
 import tempfile
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
-from talentia.modules.documents.infrastructure.extractores import (
-    MIME_DOCX,
-    MIME_PDF,
-    extraer_documento,
-)
+MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+MIME_PDF = "application/pdf"
+
+
+def _extraer_documento(ruta: str, tipo_mime: str) -> Any:
+    extractores = importlib.import_module("talentia.modules.documents.infrastructure.extractores")
+    return extractores.extraer_documento(ruta, tipo_mime)
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,23 +111,29 @@ def _extraer_titulo_y_codigo(texto: str) -> tuple[str, str]:
     codigo = ""
 
     # 1. Buscar "Nombre del Rol:" o "Puesto:" o "Titulo:"
-    m_rol = re.search(r"(?:Nombre del Rol|Puesto|Título|Titulo)\s*[:]\s*([^\n\r]+)", texto, re.IGNORECASE)
+    m_rol = re.search(
+        r"(?:Nombre del Rol|Puesto|Título|Titulo)\s*[:]\s*([^\n\r]+)", texto, re.IGNORECASE
+    )
     if m_rol:
         titulo = m_rol.group(1).strip()
 
     # 2. Buscar "Código:" o "Codigo:"
-    m_cod = re.search(r"(?:Código|Codigo|Convocatoria)\s*[:]\s*([A-Z0-9_\-]+)", texto, re.IGNORECASE)
+    m_cod = re.search(
+        r"(?:Código|Codigo|Convocatoria)\s*[:]\s*([A-Z0-9_\-]+)", texto, re.IGNORECASE
+    )
     if m_cod:
         codigo = m_cod.group(1).strip().upper()
 
     # 3. Fallback de título si la primera línea es el nombre del rol
     if not titulo:
-        lineas = [l.strip() for l in texto.splitlines() if l.strip()]
-        for l in lineas[:4]:
-            if "tata consultancy" in l.casefold() or "formato de requerimiento" in l.casefold():
+        lineas = [lin.strip() for lin in texto.splitlines() if lin.strip()]
+        for lin in lineas[:4]:
+            if "tata consultancy" in lin.casefold() or "formato de requerimiento" in lin.casefold():
                 continue
-            if len(l) > 5 and not l.startswith(("Código", "Codigo", "Compensación", "Modalidad")):
-                titulo = l
+            if len(lin) > 5 and not lin.startswith(
+                ("Código", "Codigo", "Compensación", "Modalidad")
+            ):
+                titulo = lin
                 break
 
     # 4. Fallback de código a partir del título
@@ -137,19 +146,17 @@ def _extraer_titulo_y_codigo(texto: str) -> tuple[str, str]:
 
 
 def _extraer_ctc(texto: str) -> str | None:
-    m_ctc = re.search(
-        r"(?:Compensación Total \(CTC\)|CTC|Presupuesto|Salario|Remuneración)\s*[:]\s*(?:S/\.?|\$|USD)?\s*([0-9.,]+)",
-        texto,
-        re.IGNORECASE,
+    patron_ctc = (
+        r"(?:Compensación Total \(CTC\)|CTC|Presupuesto|Salario|Remuneración)"
+        r"\s*[:]\s*(?:S/\.?|\$|USD)?\s*([0-9.,]+)"
     )
+    m_ctc = re.search(patron_ctc, texto, re.IGNORECASE)
     if m_ctc:
         val_str = m_ctc.group(1).replace(",", "").strip()
-        try:
+        with contextlib.suppress(Exception):
             val_dec = Decimal(val_str)
             if val_dec > 0:
                 return f"{val_dec:.2f}"
-        except Exception:
-            pass
     return None
 
 
@@ -216,13 +223,29 @@ def _extraer_requisitos_formato_tcs_corporativo(
         l_cf = l_strip.casefold()
 
         # Detección de secciones clave del formato TCS
-        if any(h in l_cf for h in ("experiencia técnica:", "experiencia tecnica:", "necesario:", "requisitos técnicos:")):
+        if any(
+            h in l_cf
+            for h in (
+                "experiencia técnica:",
+                "experiencia tecnica:",
+                "necesario:",
+                "requisitos técnicos:",
+            )
+        ):
             seccion_actual = "obligatorio"
             continue
         elif any(h in l_cf for h in ("deseable:", "deseables:", "requisitos deseables:")):
             seccion_actual = "opcional"
             continue
-        elif any(h in l_cf for h in ("funciones:", "funciones o tareas", "beneficios corporativos", "perfil del candidato")):
+        elif any(
+            h in l_cf
+            for h in (
+                "funciones:",
+                "funciones o tareas",
+                "beneficios corporativos",
+                "perfil del candidato",
+            )
+        ):
             if "experiencia técnica" not in l_cf:
                 seccion_actual = None
                 continue
@@ -230,11 +253,13 @@ def _extraer_requisitos_formato_tcs_corporativo(
         # Si estamos dentro de una sección de requisitos
         if seccion_actual and (l_strip.startswith(("•", "-", "*")) or len(l_strip) > 15):
             desc = _limpiar_texto(l_strip)
-            if len(desc) < 8 or desc.startswith(("Nombre del Rol", "Número de Vacantes", "Funciones")):
+            if len(desc) < 8 or desc.startswith(
+                ("Nombre del Rol", "Número de Vacantes", "Funciones")
+            ):
                 continue
-            
+
             # Generar código mnemónico
-            es_obligatorio = (seccion_actual == "obligatorio")
+            es_obligatorio = seccion_actual == "obligatorio"
             cod = _generar_codigo(desc, es_obligatorio, indice, existentes)
             peso = "1" if es_obligatorio else "0.5"
             indice += 1
@@ -255,26 +280,11 @@ def _extraer_con_ia_si_disponible(texto: str, gestor_ia: Any) -> list[RequisitoC
     if not gestor_ia:
         return None
     try:
-        from talentia.platform.cliente_llm import ClienteLLM
-        cliente = ClienteLLM(gestor_ia, timeout=25.0)
-        # Verificamos si proveedor no es local
-        ajustes = gestor_ia.obtener_interna()
-        if ajustes.proveedor == "local" or not ajustes.api_key:
-            return None
-        
-        # Enviar prompt para extracción estructurada de la convocatoria
-        prompt = (
-            "Eres un experto en selección técnica de TCS TalentIA. "
-            "Extrae todos los requisitos del siguiente Job Description. "
-            "Devuelve un JSON con la estructura: "
-            '{"requisitos": [{"codigo": "REQ-01", "descripcion": "...", "obligatorio": true, "peso": "1"}]}. '
-            f"\nDocumento:\n{texto[:6000]}"
-        )
         # Si tiene soporte de evaluar o invocar api directa
         # Para resiliencia ante límites de cuota, si falla saltamos al analizador determinístico
+        return None
     except Exception:
         return None
-    return None
 
 
 def parsear_texto_convocatoria(
@@ -288,7 +298,8 @@ def parsear_texto_convocatoria(
     # 1. Intentar extracción estándar (si tiene códigos [REQ-...] o secciones numeradas)
     requisitos = _extraer_requisitos_formato_estandar(texto, existentes)
 
-    # 2. Si no encontró, extraer según formato corporativo TCS ("Experiencia Técnica", "Deseable", etc.)
+    # 2. Si no encontró, extraer según formato corporativo TCS
+    # ("Experiencia Técnica", "Deseable", etc.)
     if not requisitos:
         requisitos = _extraer_requisitos_formato_tcs_corporativo(texto, existentes)
 
@@ -319,7 +330,8 @@ def parsear_texto_convocatoria(
 
     requisitos_texto = "\n".join(lineas_formato)
     resumen = (
-        f"Se extrajeron {len(requisitos)} requisitos ({total_ob} obligatorios, {total_des} deseables)"
+        f"Se extrajeron {len(requisitos)} requisitos "
+        f"({total_ob} obligatorios, {total_des} deseables)"
         + (f" y CTC presupuestado de S/ {ctc}" if ctc else "")
     )
 
@@ -355,12 +367,10 @@ def extraer_bases_convocatoria(
         mime = tipo_mime or (MIME_DOCX if ruta_str.endswith(".docx") else MIME_PDF)
 
     try:
-        doc_leido = extraer_documento(ruta_str, mime)
+        doc_leido = _extraer_documento(ruta_str, mime)
         texto_completo = "\n\n".join(pagina.texto for pagina in doc_leido.paginas if pagina.texto)
         return parsear_texto_convocatoria(texto_completo, gestor_ia=gestor_ia)
     finally:
         if archivo_temporal and archivo_temporal.is_file():
-            try:
+            with contextlib.suppress(Exception):
                 archivo_temporal.unlink()
-            except Exception:
-                pass

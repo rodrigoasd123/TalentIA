@@ -8,13 +8,13 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from talentia import __version__
 from talentia.bootstrap import construir_servicio
 from talentia.platform.security.contrasenas import FirmadorSesion
-from talentia.shared.application.errores import TalentIAError
+from talentia.shared.application.errores import NoAutorizadoError, TalentIAError
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.web.api import router as api_router
 from talentia.web.routes.admin_ia import router as admin_ia_router
@@ -65,7 +65,18 @@ async def cabeceras(
 
 
 @app.exception_handler(TalentIAError)
-def error_talentia(request: Request, error: TalentIAError) -> JSONResponse:
+def error_talentia(request: Request, error: TalentIAError) -> Response:
+    es_api = request.url.path.startswith("/api/")
+    if not es_api and isinstance(error, NoAutorizadoError):
+        mensaje = str(error)
+        if mensaje != "CSRF invalido":
+            if request.headers.get("HX-Request") == "true":
+                respuesta = Response(status_code=200, headers={"HX-Redirect": "/login"})
+            else:
+                respuesta = RedirectResponse("/login", status_code=303)
+            respuesta.delete_cookie("talentia_session")
+            return respuesta
+
     return JSONResponse(
         status_code=error.estado_http,
         content={
