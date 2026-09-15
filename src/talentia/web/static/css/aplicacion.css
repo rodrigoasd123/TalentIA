@@ -404,6 +404,11 @@ button, input, select, textarea { font: inherit; }
 .estado-trabajo p { margin: 0; color: var(--color-neutral-600); }
 .htmx-indicator { display: none; color: var(--color-neutral-500); font-size: .8rem; }
 .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
+.resultados-cv { display: grid; gap: 12px; }
+.resultado-cv { padding: 18px; background: var(--color-white); border: 1px solid var(--color-neutral-200); border-radius: var(--radius-md); }
+.resultado-cv header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+.resultado-cv header div { display: grid; gap: 3px; }
+.resultado-cv header span:not(.estado), .resultado-cv p { color: var(--color-neutral-600); font-size: .82rem; }
 
 .tarjeta-configuracion { padding: clamp(20px, 3vw, 28px); background: var(--color-white); border: 1px solid var(--color-neutral-200); border-radius: var(--radius-md); box-shadow: var(--shadow-xs); }
 .tarjeta-configuracion .titulo-seccion form { display: flex; align-items: center; gap: 10px; }

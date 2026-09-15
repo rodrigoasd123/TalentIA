@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Importar CV | TalentIA{% endblock %}
+{% block heading %}Crear candidatos desde CV{% endblock %}
+{% block breadcrumb %}Importar CV{% endblock %}
+{% block subtitle %}Carga varios CV y completa la base general con la informacion que contienen.{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<section class="seccion">
+  <div class="titulo-seccion">
+    <h2>Cargar curriculums</h2>
+    <span class="estado">Hasta 50 archivos PDF o DOCX</span>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="rejilla-formulario">
+      <label>Cliente
+        <select name="cliente_id" required>
+          {% for cliente in opciones.clientes %}<option value="{{ cliente.id }}">{{ cliente.codigo }} · {{ cliente.nombre }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Fuente opcional<input name="fuente" maxlength="80" placeholder="Se tomara del CV si esta disponible"></label>
+      <label>Reclutador asignado<input name="reclutador" maxlength="160"></label>
+      <label class="ancho-completo">Archivos
+        <input class="form-control" type="file" name="archivos" accept=".pdf,.docx" multiple required>
+      </label>
+    </div>
+    <p class="ayuda">Se crean fichas nuevas con los datos encontrados. Las coincidencias probables quedan pendientes de revision y ningun dato existente se sobrescribe.</p>
+    <div class="acciones-formulario">
+      <a class="btn btn-outline-secondary" href="/candidatos">Cancelar</a>
+      <button class="btn btn-primary" type="submit">Procesar CV</button>
+    </div>
+  </form>
+</section>
+
+{% if resultados %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Resultado de la carga</h2><span class="estado">{{ resultados | length }} archivos</span></div>
+  <div class="resultados-cv">
+    {% for resultado in resultados %}
+    <article class="resultado-cv">
+      <header>
+        <div><strong>{{ resultado.archivo }}</strong><span>{{ resultado.nombre or 'Revision manual necesaria' }}</span></div>
+        <span class="estado">{{ resultado.estado | replace('_', ' ') }}</span>
+      </header>
+      {% if resultado.error %}<p class="text-danger mb-0">{{ resultado.error }}</p>{% endif %}
+      {% if resultado.campos_extraidos %}<p>Datos cargados: {{ resultado.campos_extraidos | join(', ') | replace('_', ' ') }}.</p>{% endif %}
+      {% for alerta in resultado.alertas %}
+      <div class="alert {% if alerta.nivel == 'alta' %}alert-danger{% else %}alert-warning{% endif %} mb-2" role="alert">
+        <strong>{% if alerta.tipo == 'ex_tcs' %}Ex-TCS{% else %}Restriccion{% endif %}:</strong> {{ alerta.mensaje }}
+      </div>
+      {% endfor %}
+      {% if resultado.candidato_id %}<a class="btn btn-sm btn-outline-primary" href="/candidatos/{{ resultado.candidato_id }}">Revisar ficha</a>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

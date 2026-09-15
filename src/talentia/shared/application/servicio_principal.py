@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import re
+import tempfile
 from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Protocol, cast
 
 from talentia.ai.agents.exclusiones import EntradaExclusion, clasificar_exclusiones, generar_csv
 from talentia.ai.agents.lector_cv import extraer_cv_paginas
+from talentia.ai.agents.precarga_candidato import PrecargaCandidato, extraer_precarga_candidato
 from talentia.ai.guardrails.privacidad import SanitizacionError
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
 from talentia.modules.candidates.domain.modelos import (
@@ -51,6 +54,15 @@ class ExtractorDocumento(Protocol):
     def __call__(self, ruta: str, tipo_mime: str) -> DocumentoLeido: ...
 
 
+class VerificadorListasControl(Protocol):
+    def comprobar(
+        self,
+        cliente_id: str,
+        documento: str | None,
+        nombre_completo: str,
+    ) -> list[dict[str, str]]: ...
+
+
 def _exigir_permiso(usuario: UsuarioActual, permiso: str) -> None:
     if not usuario.tiene_permiso(permiso, PERMISOS_POR_ROL):
         raise ProhibidoError(f"Falta el permiso {permiso}")
@@ -87,6 +99,7 @@ class ServicioTalentIA:
         maximos_intentos_login: int = 5,
         minutos_bloqueo_login: int = 15,
         dias_vigencia_contrasena: int = 90,
+        verificador_listas_control: VerificadorListasControl | None = None,
     ) -> None:
         self._fabrica = fabrica_unidad
         self._almacen = almacen_documentos
@@ -96,6 +109,7 @@ class ServicioTalentIA:
         self._maximos_intentos_login = maximos_intentos_login
         self._minutos_bloqueo_login = minutos_bloqueo_login
         self._dias_vigencia_contrasena = dias_vigencia_contrasena
+        self._verificador_listas_control = verificador_listas_control
 
     def autenticar(self, correo: str, contrasena: str, correlacion_id: str) -> UsuarioActual:
         usuario: UsuarioActual | None = None
@@ -680,6 +694,137 @@ class ServicioTalentIA:
             _exigir_cliente(usuario, str(postulacion["cliente_id"]))
             return postulacion
 
+    def _extraer_precarga_cv(self, contenido: bytes, tipo_mime: str) -> PrecargaCandidato:
+        if self._extractor_documento is None:
+            raise EntradaInvalidaError("Extractor de documentos no configurado")
+        sufijo = ".pdf" if tipo_mime == "application/pdf" else ".docx"
+        try:
+            with tempfile.TemporaryDirectory(prefix="talentia-precarga-") as temporal:
+                ruta = Path(temporal) / f"cv{sufijo}"
+                ruta.write_bytes(contenido)
+                leido = self._extractor_documento(str(ruta), tipo_mime)
+                texto = "\n".join(
+                    pagina.texto for pagina in leido.paginas if pagina.texto.strip()
+                )
+                return extraer_precarga_candidato(texto)
+        except SanitizacionError as error:
+            raise EntradaInvalidaError(
+                "El CV contiene instrucciones no confiables y requiere revision manual"
+            ) from error
+        except LecturaDocumentoError as error:
+            raise EntradaInvalidaError(
+                "No se pudo extraer texto del CV; requiere revision manual"
+            ) from error
+
+    def registrar_candidato_desde_cv(
+        self,
+        usuario: UsuarioActual,
+        cliente_id: str,
+        nombre: str,
+        tipo_mime: str,
+        contenido: bytes,
+        fuente: str | None,
+        reclutador: str | None,
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        """Crea una ficha desde un CV sin sobrescribir identidades ya registradas."""
+
+        _exigir_permiso(usuario, "candidatos:escribir")
+        _exigir_permiso(usuario, "documentos:escribir")
+        _exigir_cliente(usuario, cliente_id)
+        if not contenido or len(contenido) > self._maximo_documento_bytes:
+            raise EntradaInvalidaError("Tamano de documento invalido")
+        firmas = {
+            "application/pdf": contenido.startswith(b"%PDF"),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": (
+                contenido.startswith(b"PK")
+            ),
+        }
+        if tipo_mime not in firmas or not firmas[tipo_mime]:
+            raise EntradaInvalidaError("Tipo o firma de archivo no permitida")
+
+        precarga = self._extraer_precarga_cv(contenido, tipo_mime)
+
+        datos = dict(precarga.campos)
+        if not _texto(datos.get("nombres")) or not _texto(datos.get("apellidos")):
+            raise EntradaInvalidaError(
+                "No se pudo extraer el nombre completo; registre este CV manualmente"
+            )
+        datos.update(
+            {
+                "cliente_id": cliente_id,
+                "fuente": _texto(fuente) or _texto(datos.get("fuente")) or "carga_cv",
+                "reclutador": _texto(reclutador) or None,
+                "etiquetas": ["precarga-cv"],
+                "confirmar_posible_duplicado": False,
+            }
+        )
+        identidad = {
+            "cliente_id": cliente_id,
+            "documento": datos.get("documento"),
+            "correo": datos.get("correo"),
+            "telefono": datos.get("telefono"),
+            "nombre_completo": f"{datos['nombres']} {datos['apellidos']}",
+        }
+        preflight = self.comprobar_identidad(usuario, identidad, correlacion_id)
+        if preflight["resultado"] == ResultadoIdentidad.PROBABLE:
+            raise ConflictoError(
+                "Existe una coincidencia probable; revise la identidad antes de crear la ficha"
+            )
+        reutilizado = preflight["resultado"] == ResultadoIdentidad.EXACTA
+        if reutilizado:
+            candidato_id = str(cast(tuple[str, ...], preflight["candidato_ids"])[0])
+            candidato = self.obtener_candidato(usuario, candidato_id, correlacion_id)
+        else:
+            candidato = self.registrar_candidato(
+                usuario,
+                datos,
+                str(preflight["preflight_id"]),
+                correlacion_id,
+            )
+
+        documento = self.adjuntar_documento(
+            usuario,
+            candidato.id,
+            nombre,
+            tipo_mime,
+            contenido,
+            correlacion_id,
+        )
+        extraccion = self.procesar_documento(usuario, str(documento["id"]), correlacion_id)
+        alertas = (
+            self._verificador_listas_control.comprobar(
+                cliente_id,
+                candidato.documento_normalizado or str(datos.get("documento") or "") or None,
+                candidato.nombre_completo,
+            )
+            if self._verificador_listas_control is not None
+            else []
+        )
+        if alertas and not bool(documento.get("reutilizado")):
+            with self._fabrica() as unidad:
+                for alerta in alertas:
+                    unidad.datos.registrar_evento(
+                        cliente_id=cliente_id,
+                        actor_id=usuario.id,
+                        accion="candidato.alerta_lista_control",
+                        recurso_tipo="candidato",
+                        recurso_id=candidato.id,
+                        detalle=dict(alerta),
+                        correlacion_id=correlacion_id,
+                    )
+        return {
+            "archivo": nombre,
+            "estado": "reutilizado" if reutilizado else "registrado",
+            "candidato_id": candidato.id,
+            "nombre": candidato.nombre_completo,
+            "campos_extraidos": sorted(precarga.campos),
+            "procedencias": precarga.procedencias,
+            "documento_id": documento["id"],
+            "extraccion_estado": extraccion["estado"],
+            "alertas": alertas,
+        }
+
     def adjuntar_documento(
         self,
         usuario: UsuarioActual,
@@ -1075,6 +1220,7 @@ class ServicioTalentIA:
             "perfiles": ("perfiles:escribir",),
             "postulaciones": ("postulaciones:escribir",),
             "evaluaciones": ("documentos:escribir", "evaluaciones:solicitar"),
+            "importar_cvs": ("candidatos:escribir", "documentos:escribir"),
         }
         requeridos = permisos.get(formulario)
         if requeridos is None:

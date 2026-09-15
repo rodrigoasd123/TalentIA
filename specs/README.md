@@ -30,6 +30,7 @@ Consulta primero el [mapa funcional](./MAPA_FUNCIONAL.md), que define la spec pr
 - [`SPEC-027`](./027-precarga-ficha-desde-cv/spec.md): Precarga selectiva y confirmada desde CV (verificada localmente).
 - [`SPEC-028`](./028-control-proveedor-exclusiones/spec.md): Lista operativa de exclusiones de proveedor (verificada localmente).
 - [`SPEC-029`](./029-metricas-impacto-operativo-tcs/spec.md): Métricas verificables del piloto TCS (verificada localmente).
+- [`SPEC-034`](./034-carga-masiva-cv-alertas/spec.md): Carga masiva de CV, precarga de candidatos y alertas TCS (verificada localmente).
 
 ## Cambio pendiente de aprobación
 

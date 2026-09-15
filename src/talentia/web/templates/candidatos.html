@@ -10,7 +10,10 @@
     <input class="form-control" id="q" name="q" value="{{ consulta }}" placeholder="Nombre, correo o documento">
     <button class="btn btn-primary" type="submit">Buscar</button>
   </form>
-  <a class="btn btn-primary" href="/candidatos/nuevo">+ Nuevo candidato</a>
+  <div class="acciones-cabecera">
+    <a class="btn btn-outline-primary" href="/candidatos/importar-cvs">Importar CV</a>
+    <a class="btn btn-primary" href="/candidatos/nuevo">+ Nuevo candidato</a>
+  </div>
 </section>
 <section class="seccion" id="tabla-candidatos">
   {% include "fragmentos/tabla_candidatos.html" %}

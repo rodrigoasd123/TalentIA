@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 
 from talentia.config import Ambiente, Configuracion, cargar_configuracion
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL, Rol
+from talentia.modules.candidates.infrastructure.listas_control import ListasControlTCS
 from talentia.modules.documents.infrastructure.extractores import extraer_documento
 from talentia.modules.providers.infrastructure.lector_lotes import leer_filas
 from talentia.platform.configuracion_ia import GestorConfiguracionIA
@@ -91,6 +92,17 @@ def construir_servicio() -> tuple[Configuracion, ServicioTalentIA, GestorConfigu
     motor = crear_motor(configuracion.url_base_datos)
     fabrica_sesiones = FabricaSesiones(motor)
     preparar_acceso(configuracion, fabrica_sesiones)
+    with fabrica_sesiones.sesion() as sesion:
+        clientes_tcs = frozenset(
+            sesion.scalars(select(ClienteModelo.id).where(ClienteModelo.codigo == "TCS"))
+        )
+    listas_control = ListasControlTCS(
+        RAIZ_PROYECTO
+        / "descargas_talento/03_Excolaboradores_TCS/excolaboradores_tcs_simulados.csv",
+        RAIZ_PROYECTO
+        / "descargas_talento/04_Vetados_y_Exclusiones_TCS/vetados_excluidos_tcs_simulados.csv",
+        clientes_tcs,
+    )
     fabrica_unidad = cast(FabricaUnidadTrabajo, FabricaUnidadTrabajoSqlalchemy(fabrica_sesiones))
     servicio = ServicioTalentIA(
         fabrica_unidad,
@@ -101,6 +113,7 @@ def construir_servicio() -> tuple[Configuracion, ServicioTalentIA, GestorConfigu
         configuracion.maximos_intentos_login,
         configuracion.minutos_bloqueo_login,
         configuracion.dias_vigencia_contrasena,
+        listas_control,
     )
     gestor_ia = GestorConfiguracionIA(fabrica_sesiones, configuracion)
     return configuracion, servicio, gestor_ia

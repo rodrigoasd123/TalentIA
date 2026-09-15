@@ -253,6 +253,82 @@ def nuevo_candidato(request: Request) -> Response:
     )
 
 
+def _pagina_importar_cvs(
+    request: Request,
+    usuario: UsuarioActual,
+    *,
+    resultados: list[dict[str, object]] | None = None,
+    error: str | None = None,
+    status_code: int = 200,
+) -> Response:
+    return _respuesta_formulario(
+        request,
+        usuario,
+        "importar_cvs.html",
+        "importar_cvs",
+        resultados=resultados or [],
+        error=error,
+        status_code=status_code,
+    )
+
+
+@router.get("/candidatos/importar-cvs", response_class=HTMLResponse)
+def importar_cvs(request: Request) -> Response:
+    return _pagina_importar_cvs(request, _usuario(request))
+
+
+@router.post("/candidatos/importar-cvs", response_class=HTMLResponse)
+async def importar_cvs_web(
+    request: Request,
+    archivos: Annotated[list[UploadFile], File()],
+    csrf: str = Form(),
+    cliente_id: str = Form(),
+    fuente: str = Form(""),
+    reclutador: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    if not archivos or len(archivos) > 50:
+        return _pagina_importar_cvs(
+            request,
+            usuario,
+            error="Seleccione entre 1 y 50 CV",
+            status_code=422,
+        )
+
+    tipos = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    resultados: list[dict[str, object]] = []
+    for archivo in archivos:
+        nombre = archivo.filename or "cv"
+        tipo_mime = tipos.get(Path(nombre).suffix.casefold(), archivo.content_type or "")
+        try:
+            resultado = request.app.state.servicio.registrar_candidato_desde_cv(
+                usuario,
+                cliente_id,
+                nombre,
+                tipo_mime,
+                await archivo.read(),
+                fuente,
+                reclutador,
+                request.state.correlacion_id,
+            )
+            resultados.append(resultado)
+        except (TalentIAError, ValueError) as error:
+            resultados.append(
+                {
+                    "archivo": nombre,
+                    "estado": "requiere_revision",
+                    "error": str(error),
+                    "alertas": [],
+                }
+            )
+    return _pagina_importar_cvs(request, usuario, resultados=resultados)
+
+
 @router.post("/candidatos/nuevo", response_class=HTMLResponse)
 async def crear_candidato_web(request: Request) -> Response:
     usuario = _usuario(request)
@@ -331,11 +407,21 @@ def detalle_candidato(request: Request, candidato_id: str, mensaje: str = "") ->
     ficha = asdict(candidato)
     ficha["edad"] = candidato.edad
     ficha["variacion_ctc_porcentaje"] = candidato.variacion_ctc_porcentaje
+    alertas = [
+        evento["detalle"]
+        for evento in traza["eventos"]
+        if evento["tipo"] == "candidato.alerta_lista_control"
+    ]
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="detalle_candidato.html",
         context=_contexto(
-            request, usuario, candidato=ficha, eventos=traza["eventos"], mensaje=mensaje
+            request,
+            usuario,
+            candidato=ficha,
+            eventos=traza["eventos"],
+            alertas=alertas,
+            mensaje=mensaje,
         ),
     )
 

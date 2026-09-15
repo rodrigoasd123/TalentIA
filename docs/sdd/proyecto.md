@@ -13,6 +13,7 @@
 - **Filtro temprano:** se conserva la evaluación explicable, ponderada y con revisión humana. La IA no decide contratación.
 - **Trazabilidad:** la auditoría encadenada y las trazas exportables permanecen como fuente de explicación de cada cambio.
 - **Proveedor:** Reportes expone una lista determinística de exclusiones con vigencia y CSV neutralizado para Excel.
+- **Alta desde CV:** Base general permite cargar hasta 50 CV, precargar campos presentes y alertar por coincidencias con ex-TCS o restricciones TCS sin decidir por RR. HH.
 - **Medición:** Reportes muestra CV útiles, evaluaciones tempranas, duplicados advertidos y horas potenciales con parámetros visibles. Son indicadores del piloto, no ROI ni ahorro validado.
 - **Modelos:** catálogo único para Gemini, GenAI Lab y OpenAI; cada proveedor usa una credencial cifrada independiente. El benchmark usa una suite sintética versionada, máximo cinco modelos, confirmación explícita y quality gate contra baseline.
 - **Privacidad MLflow:** no se habilita autologging de prompts/respuestas. Solo se registran metadatos técnicos; Streamlit consulta la API y no abre SQLite directamente.

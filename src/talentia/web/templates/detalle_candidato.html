@@ -4,6 +4,12 @@
 {% block content %}
 {% if mensaje == "actualizado" %}<div class="alert alert-success" role="alert">¡Candidato actualizado con éxito! Se incrementó la versión y se registró el evento de trazabilidad.</div>{% endif %}
 {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+{% for alerta in alertas %}
+<div class="alert {% if alerta.nivel == 'alta' %}alert-danger{% else %}alert-warning{% endif %}" role="alert">
+  <strong>{% if alerta.tipo == 'ex_tcs' %}Alerta ex-TCS{% else %}Alerta de restriccion{% endif %}:</strong>
+  {{ alerta.mensaje }} Coincidencia por {{ alerta.criterio }}. La decision final corresponde a RR. HH.
+</div>
+{% endfor %}
 <section class="banda-metricas"><div><span>Estado</span><strong>{{ candidato.estado }}</strong></div><div><span>Edad</span><strong>{{ candidato.edad or '-' }}</strong></div><div><span>Variacion CTC</span><strong>{{ candidato.variacion_ctc_porcentaje or '-' }}</strong></div></section>
 <section class="seccion">
   <div class="titulo-seccion">
