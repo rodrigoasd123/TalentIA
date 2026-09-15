@@ -15,7 +15,7 @@
     <label>Persona candidata
       <select name="candidato_id" required>
         <option value="">Seleccione</option>
-        {% for candidato in opciones.candidatos %}<option value="{{ candidato.id }}" {% if datos.candidato_id == candidato.id %}selected{% endif %}>{{ candidato.nombre }} · cliente {{ candidato.cliente_id }}</option>{% endfor %}
+        {% for candidato in opciones.candidatos %}<option value="{{ candidato.id }}" {% if datos.candidato_id == candidato.id %}selected{% endif %}>{{ candidato.nombre }} · {{ candidato.cliente_nombre }}</option>{% endfor %}
       </select>
     </label>
     <label>Perfil publicado

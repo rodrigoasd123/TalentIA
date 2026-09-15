@@ -9,7 +9,7 @@
   <div class="titulo-seccion">
     <div>
       <h2>Registros actuales de Excolaboradores</h2>
-      <span class="subtitulo-seccion text-muted">Historial contractual oficial y validación de políticas de recontratación TCS</span>
+      <span class="subtitulo-seccion">Historial contractual y validación de políticas de recontratación.</span>
     </div>
     <div class="acciones-cabecera">
       <span class="badge bg-primary fs-6">{{ excolaboradores | length }} colaboradores</span>
@@ -18,35 +18,19 @@
     </div>
   </div>
 
-  <!-- Métricas Rápidas -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card border-0 shadow-sm p-3 bg-light">
-        <div class="text-muted small">Total Excolaboradores Registrados</div>
-        <div class="fs-4 fw-bold text-dark">{{ excolaboradores | length }}</div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card border-0 shadow-sm p-3 bg-light">
-        <div class="text-muted small">Elegibles para Reingreso (SI)</div>
-        <div class="fs-4 fw-bold text-success">{{ total_elegibles }}</div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card border-0 shadow-sm p-3 bg-light">
-        <div class="text-muted small">No Elegibles / Bloqueados (NO)</div>
-        <div class="fs-4 fw-bold text-danger">{{ total_no_elegibles }}</div>
-      </div>
-    </div>
+  <div class="panel-metricas-operativas panel-metricas-3">
+    <article class="metrica-operativa"><span>Total registrado</span><strong>{{ excolaboradores | length }}</strong></article>
+    <article class="metrica-operativa metrica-positiva"><span>Elegibles para reingreso</span><strong>{{ total_elegibles }}</strong></article>
+    <article class="metrica-operativa metrica-alerta"><span>No elegibles</span><strong>{{ total_no_elegibles }}</strong></article>
   </div>
 
-  <!-- Buscador rápido en vivo -->
-  <div class="mb-3">
-    <input type="text" id="buscador-excolab" class="form-control form-control-lg" placeholder="🔍 Filtrar en tiempo real por DNI, nombres, cargo, proyecto o motivo de salida..." onkeyup="filtrarExcolab()">
+  <div class="filtro-operativo">
+    <label for="buscador-excolab">Buscar en excolaboradores</label>
+    <input type="search" id="buscador-excolab" class="form-control" data-filter-table="tabla-excolab" placeholder="DNI, nombre, cargo, proyecto o motivo de salida">
   </div>
 
   <div class="tabla-responsive">
-    <table class="table table-hover align-middle" id="tabla-excolab">
+    <table class="table table-hover align-middle tabla-control" id="tabla-excolab">
       <thead class="table-light">
         <tr>
           <th>DNI</th>
@@ -64,7 +48,7 @@
       <tbody>
         {% for ex in excolaboradores %}
         <tr>
-          <td><code class="fw-bold text-primary">{{ ex.documento }}</code></td>
+          <td><span class="referencia-documento">{{ ex.documento }}</span></td>
           <td><strong>{{ ex.nombres }} {{ ex.apellidos }}</strong></td>
           <td>{{ ex.cargo_desempenado }}</td>
           <td><span class="badge bg-secondary">{{ ex.area_o_proyecto }}</span></td>
@@ -96,14 +80,4 @@
   </div>
 </section>
 
-<script>
-function filtrarExcolab() {
-  const query = document.getElementById('buscador-excolab').value.toLowerCase();
-  const rows = document.querySelectorAll('#tabla-excolab tbody tr');
-  rows.forEach(row => {
-    const text = row.innerText.toLowerCase();
-    row.style.display = text.includes(query) ? '' : 'none';
-  });
-}
-</script>
 {% endblock %}

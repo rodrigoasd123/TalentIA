@@ -23,7 +23,7 @@
       {% for fila in filas %}
         <tr>{% for clave, etiqueta in columnas %}<td>
           {% if modulo == 'evaluaciones' and clave == 'id' %}
-            <a href="/evaluaciones/{{ fila[clave] }}">{{ fila[clave] }}</a>
+            <a class="accion-registro" href="/evaluaciones/{{ fila[clave] }}">Revisar evaluacion <span aria-hidden="true">→</span></a>
           {% elif modulo == 'perfiles' and clave == 'codigo' %}
             <a href="/perfiles/{{ fila['id'] }}"><strong>{{ fila[clave] }}</strong></a>
           {% elif modulo == 'perfiles' and clave == 'titulo' %}
@@ -32,7 +32,13 @@
             <a class="btn btn-outline-primary btn-sm me-1" href="/perfiles/{{ fila[clave] }}">Ver vacante</a>
             <a class="btn btn-outline-secondary btn-sm" href="/perfiles/{{ fila[clave] }}/versiones/nueva">+ Versión</a>
           {% elif modulo == 'revisiones' and clave == 'evaluacion_id' %}
-            <a href="/evaluaciones/{{ fila[clave] }}">{{ fila[clave] }}</a>
+            <a class="accion-registro" href="/evaluaciones/{{ fila[clave] }}">Abrir evaluacion <span aria-hidden="true">→</span></a>
+          {% elif clave == 'requiere_revision' %}
+            {% if fila[clave] %}<span class="estado estado-revision">Pendiente</span>{% else %}<span class="estado estado-completado">No requerida</span>{% endif %}
+          {% elif clave == 'activo' %}
+            {% if fila[clave] %}<span class="estado estado-activo">Activo</span>{% else %}<span class="estado estado-local">Inactivo</span>{% endif %}
+          {% elif clave == 'estado' %}
+            <span class="estado estado-{{ fila[clave] }}">{{ fila[clave] | replace('_', ' ') | title }}</span>
           {% elif modulo == 'trabajos' and clave == 'id' %}
             <a href="/trabajos/{{ fila[clave] }}">{{ fila[clave] }}</a>
           {% elif modulo == 'lotes' and clave == 'id' %}

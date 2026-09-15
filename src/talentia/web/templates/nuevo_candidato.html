@@ -15,7 +15,7 @@
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="titulo-seccion"><h2>Datos generales</h2><span class="estado">Identidad verificada al guardar</span></div>
   <div class="rejilla-formulario">
-    <label>Cliente<select class="form-select" name="cliente_id" required>{% for cliente in usuario.clientes %}<option value="{{ cliente }}">{{ cliente }}</option>{% endfor %}</select></label>
+    <label>Cliente<select class="form-select" name="cliente_id" required>{% for cliente in opciones.clientes %}<option value="{{ cliente.id }}" {% if datos.get('cliente_id') == cliente.id %}selected{% endif %}>{{ cliente.codigo }} · {{ cliente.nombre }}</option>{% endfor %}</select></label>
     <label>Nombres<input class="form-control" name="nombres" value="{{ datos.get('nombres', '') }}" required></label>
     <label>Apellidos<input class="form-control" name="apellidos" value="{{ datos.get('apellidos', '') }}" required></label>
     <label>Tipo de documento<input class="form-control" name="tipo_documento" value="{{ datos.get('tipo_documento', '') }}"></label>

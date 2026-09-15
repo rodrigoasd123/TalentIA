@@ -252,10 +252,11 @@ def candidatos(request: Request, q: str = "") -> Response:
 @router.get("/candidatos/nuevo", response_class=HTMLResponse)
 def nuevo_candidato(request: Request) -> Response:
     usuario = _usuario(request)
-    return PLANTILLAS.TemplateResponse(
-        request=request,
-        name="nuevo_candidato.html",
-        context=_contexto(request, usuario, error=None, datos={}),
+    return _respuesta_formulario(
+        request,
+        usuario,
+        "nuevo_candidato.html",
+        "candidatos",
     )
 
 
@@ -399,6 +400,7 @@ async def crear_candidato_web(request: Request) -> Response:
             usuario, datos, str(preflight["preflight_id"]), nuevo_id()
         )
     except (TalentIAError, ValueError) as error:
+        opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, "candidatos")
         return PLANTILLAS.TemplateResponse(
             request=request,
             name="nuevo_candidato.html",
@@ -408,6 +410,7 @@ async def crear_candidato_web(request: Request) -> Response:
                 error=str(error),
                 datos=entrada,
                 evidencia_identidad=evidencia_identidad,
+                opciones=opciones,
             ),
             status_code=422,
         )
@@ -1283,6 +1286,7 @@ def _pagina_nuevo_lote(
     error: str | None = None,
     resultado_excolaborador: dict[str, object] | None = None,
 ) -> Response:
+    opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, "lotes")
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="nuevo_lote.html",
@@ -1292,6 +1296,7 @@ def _pagina_nuevo_lote(
             error=error,
             resultado_excolaborador=resultado_excolaborador,
             clave_idempotencia=nuevo_id(),
+            opciones=opciones,
         ),
     )
 
@@ -1441,10 +1446,12 @@ def comprobar_excolaborador_web(
 
 @router.get("/exclusiones/nueva", response_class=HTMLResponse)
 def nueva_exclusion(request: Request) -> Response:
+    usuario = _usuario(request)
+    opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, "exclusiones")
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="nueva_exclusion.html",
-        context=_contexto(request, _usuario(request), error=None),
+        context=_contexto(request, usuario, error=None, opciones=opciones),
     )
 
 

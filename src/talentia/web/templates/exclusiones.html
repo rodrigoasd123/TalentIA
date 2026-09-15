@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Exclusiones y Vetados TCS | TalentIA{% endblock %}
-{% block heading %}Exclusiones y Cumplimiento (AG-05){% endblock %}
+{% block heading %}Exclusiones y cumplimiento{% endblock %}
 {% block breadcrumb %}Exclusiones{% endblock %}
 {% block subtitle %}Registro centralizado de vetos disciplinarios, inhabilitaciones ético-legales y períodos de carencia reglamentarios (cooling-off).{% endblock %}
 
@@ -8,8 +8,9 @@
 <section class="seccion modulo-operativo">
   <div class="titulo-seccion">
     <div>
-      <h2>Registros actuales de Excluidos y Vetados</h2>
-      <span class="subtitulo-seccion text-muted">Supervisión gobernada de idoneidad ética, períodos de enfriamiento y vetos permanentes</span>
+      <span class="sobrelinea">CONTROL AG-05</span>
+      <h2>Registros actuales: restricciones y antecedentes</h2>
+      <span class="subtitulo-seccion">Supervisión gobernada de idoneidad, periodos de carencia y vetos.</span>
     </div>
     <div class="acciones-cabecera">
       <span class="badge bg-danger fs-6">{{ vetados | length }} restricciones</span>
@@ -19,41 +20,20 @@
     </div>
   </div>
 
-  <!-- Métricas Rápidas -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm p-3 bg-light">
-        <div class="text-muted small">Total Restricciones</div>
-        <div class="fs-4 fw-bold text-dark">{{ vetados | length }}</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm p-3 bg-light">
-        <div class="text-muted small">Vetos Permanentes</div>
-        <div class="fs-4 fw-bold text-danger">{{ total_permanentes }}</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm p-3 bg-light">
-        <div class="text-muted small">Inhabilitación Ética / BGC</div>
-        <div class="fs-4 fw-bold text-warning">{{ total_eticas }}</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm p-3 bg-light">
-        <div class="text-muted small">Carencias (Cooling-off)</div>
-        <div class="fs-4 fw-bold text-info">{{ total_carencias }}</div>
-      </div>
-    </div>
+  <div class="panel-metricas-operativas panel-metricas-4">
+    <article class="metrica-operativa"><span>Total de restricciones</span><strong>{{ vetados | length }}</strong></article>
+    <article class="metrica-operativa metrica-alerta"><span>Vetos permanentes</span><strong>{{ total_permanentes }}</strong></article>
+    <article class="metrica-operativa metrica-advertencia"><span>Inhabilitación ética / BGC</span><strong>{{ total_eticas }}</strong></article>
+    <article class="metrica-operativa metrica-informativa"><span>Periodos de carencia</span><strong>{{ total_carencias }}</strong></article>
   </div>
 
-  <!-- Buscador rápido en vivo -->
-  <div class="mb-3">
-    <input type="text" id="buscador-vetados" class="form-control form-control-lg" placeholder="🔍 Filtrar en tiempo real por DNI, persona, tipo de restricción, motivo de descarte o responsable..." onkeyup="filtrarVetados()">
+  <div class="filtro-operativo">
+    <label for="buscador-vetados">Buscar en restricciones</label>
+    <input type="search" id="buscador-vetados" class="form-control" data-filter-table="tabla-vetados" placeholder="DNI, persona, tipo, motivo o responsable">
   </div>
 
   <div class="tabla-responsive">
-    <table class="table table-hover align-middle" id="tabla-vetados">
+    <table class="table table-hover align-middle tabla-control" id="tabla-vetados">
       <thead class="table-light">
         <tr>
           <th>DNI</th>
@@ -70,7 +50,7 @@
       <tbody>
         {% for v in vetados %}
         <tr>
-          <td><code class="fw-bold text-danger">{{ v.documento }}</code></td>
+          <td><span class="referencia-documento">{{ v.documento }}</span></td>
           <td><strong>{{ v.nombres }} {{ v.apellidos }}</strong></td>
           <td>{{ v.fecha_evento }}</td>
           <td>
@@ -119,14 +99,4 @@
   </div>
 </section>
 
-<script>
-function filtrarVetados() {
-  const query = document.getElementById('buscador-vetados').value.toLowerCase();
-  const rows = document.querySelectorAll('#tabla-vetados tbody tr');
-  rows.forEach(row => {
-    const text = row.innerText.toLowerCase();
-    row.style.display = text.includes(query) ? '' : 'none';
-  });
-}
-</script>
 {% endblock %}

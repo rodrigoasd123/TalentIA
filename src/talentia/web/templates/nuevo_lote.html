@@ -7,7 +7,7 @@
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="clave_idempotencia" value="{{ clave_idempotencia }}">
     <div class="row g-3">
-      <div class="col-md-4"><label class="form-label">Cliente</label><select class="form-select" name="cliente_id" required>{% for cliente in usuario.clientes | sort %}<option value="{{ cliente }}">{{ cliente }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label">Cliente</label><select class="form-select" name="cliente_id" required>{% for cliente in opciones.clientes %}<option value="{{ cliente.id }}">{{ cliente.codigo }} · {{ cliente.nombre }}</option>{% endfor %}</select></div>
       <div class="col-md-4"><label class="form-label">Tipo de datos</label><select class="form-select" name="tipo"><option value="candidatos">Candidatos</option><option value="excolaboradores">Excolaboradores TCS</option></select></div>
       <div class="col-md-4"><label class="form-label">Excel o CSV</label><input class="form-control" type="file" name="archivo" accept=".csv,.xlsx" required></div>
     </div><button class="btn btn-primary mt-3" type="submit">Cargar y revisar</button>
@@ -16,7 +16,7 @@
 <section class="seccion"><div class="titulo-seccion"><h2>Comprobar excolaborador</h2></div>
   <form method="post" action="/excolaboradores/comprobar" class="row g-3">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <div class="col-md-4"><label class="form-label">Cliente</label><select class="form-select" name="cliente_id" required>{% for cliente in usuario.clientes | sort %}<option value="{{ cliente }}">{{ cliente }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label">Cliente</label><select class="form-select" name="cliente_id" required>{% for cliente in opciones.clientes %}<option value="{{ cliente.id }}">{{ cliente.codigo }} · {{ cliente.nombre }}</option>{% endfor %}</select></div>
     <div class="col-md-5"><label class="form-label">Documento</label><input class="form-control" name="documento" required></div>
     <div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary" type="submit">Comprobar</button></div>
   </form>

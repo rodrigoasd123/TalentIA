@@ -324,6 +324,27 @@ button, input, select, textarea { font: inherit; }
 .aviso-ahorro strong { font-size: 1.45rem; color: var(--color-accent-500); }
 .reporte-cruce .table small { display: block; }
 
+.accion-registro { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; text-decoration: none; }
+.accion-registro:hover { text-decoration: underline; }
+.subtitulo-seccion { display: block; margin-top: 3px; color: var(--color-neutral-500); font-size: .78rem; }
+.panel-metricas-operativas { display: grid; gap: 12px; margin: 18px 0; }
+.panel-metricas-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.panel-metricas-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.metrica-operativa { display: grid; gap: 7px; padding: 17px 18px; background: var(--color-white); border: 1px solid var(--color-neutral-200); border-top: 3px solid var(--color-primary-500); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+.metrica-operativa span { color: var(--color-neutral-500); font-size: .76rem; font-weight: 650; }
+.metrica-operativa strong { color: var(--color-primary-950); font-size: 1.45rem; line-height: 1; }
+.metrica-positiva { border-top-color: var(--color-success-700); }
+.metrica-alerta { border-top-color: var(--color-danger-700); }
+.metrica-advertencia { border-top-color: var(--color-warning-700); }
+.metrica-informativa { border-top-color: var(--color-accent-500); }
+.filtro-operativo { display: grid; gap: 6px; margin: 18px 0 13px; }
+.filtro-operativo label { color: var(--color-primary-900); font-size: .78rem; font-weight: 700; }
+.filtro-operativo input { padding-left: 14px; }
+.tabla-control { font-size: .8rem; }
+.tabla-control thead th { position: sticky; top: 0; z-index: 1; background: var(--color-neutral-50); }
+.tabla-control td { vertical-align: top; }
+.referencia-documento { color: var(--color-primary-700); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-weight: 700; letter-spacing: .02em; }
+
 .bg-primary { background-color: var(--color-primary-700) !important; }
 .text-primary { color: var(--color-primary-700) !important; }
 .btn-success { background-color: var(--color-success-700); border-color: var(--color-success-700); }
@@ -502,6 +523,7 @@ input[type="range"] { padding: 0; box-shadow: none; accent-color: var(--color-pr
   .panel-confianza { grid-template-columns: repeat(3, 1fr); }
   .diagnostico-ia { grid-template-columns: auto 1fr; }
   .metricas-cruce { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .panel-metricas-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .detalle-diagnostico { grid-column: 1 / -1; }
 }
 
@@ -559,6 +581,7 @@ input[type="range"] { padding: 0; box-shadow: none; accent-color: var(--color-pr
   .acceso-mlflow .btn { width: 100%; }
   .hero-inicio { padding: 24px 20px; border-radius: var(--radius-md); }
   .metricas-cruce { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel-metricas-3, .panel-metricas-4 { grid-template-columns: 1fr; }
   .acciones-hero { flex-direction: column; }
   .acciones-hero .btn { width: 100%; }
   .pagina-acceso { padding: 14px; }

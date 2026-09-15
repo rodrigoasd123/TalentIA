@@ -1290,8 +1290,9 @@ class ServicioTalentIA:
                 ("creado_en", "Creado"),
             ),
             "postulaciones": (
-                ("id", "Postulacion"),
-                ("candidato", "Candidato"),
+                ("candidato", "Persona candidata"),
+                ("perfil", "Vacante"),
+                ("cliente", "Cliente"),
                 ("fuente", "Fuente"),
                 ("estado", "Estado"),
                 ("creado_en", "Creada"),
@@ -1305,8 +1306,9 @@ class ServicioTalentIA:
             "evaluaciones": (
                 ("id", "Evaluacion"),
                 ("candidato", "Candidato"),
+                ("perfil", "Vacante evaluada"),
                 ("puntaje", "Puntaje"),
-                ("requiere_revision", "Revision"),
+                ("requiere_revision", "Revision humana"),
             ),
             "revisiones": (
                 ("id", "Revision"),
@@ -1353,10 +1355,13 @@ class ServicioTalentIA:
         self, usuario: UsuarioActual, formulario: str
     ) -> dict[str, list[dict[str, object]]]:
         permisos = {
+            "candidatos": ("candidatos:escribir",),
             "perfiles": ("perfiles:escribir",),
             "postulaciones": ("postulaciones:escribir",),
             "evaluaciones": ("documentos:escribir", "evaluaciones:solicitar"),
             "importar_cvs": ("candidatos:escribir", "documentos:escribir"),
+            "lotes": ("lotes:escribir",),
+            "exclusiones": ("reportes:leer",),
         }
         requeridos = permisos.get(formulario)
         if requeridos is None:

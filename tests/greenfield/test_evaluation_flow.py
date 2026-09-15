@@ -210,6 +210,10 @@ def test_web_muestra_evidencia_y_registra_ingles_verificado(cliente_api) -> None
     detalle = cliente.get(f"/evaluaciones/{trabajo_id}")
     assert listado.status_code == 200
     assert f"/evaluaciones/{trabajo_id}" in listado.text
+    assert f">{trabajo_id}</a>" not in listado.text
+    assert "Revisar evaluacion" in listado.text
+    assert "Vacante evaluada" in listado.text
+    assert "Revision humana" in listado.text
     assert detalle.status_code == 200
     assert "Requisitos y evidencia" in detalle.text
     assert "Python" in detalle.text

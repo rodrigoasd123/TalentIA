@@ -227,6 +227,19 @@ def test_postulacion_web_es_idempotente_y_valida_rbac_idor(cliente_api) -> None:
     assert segunda.status_code == 303
     assert primera.headers["location"] == segunda.headers["location"]
 
+    listado = cliente.get("/modulo/postulaciones")
+    formulario_lote = cliente.get("/lotes/nuevo")
+    formulario_candidato = cliente.get("/candidatos/nuevo")
+    assert listado.status_code == 200
+    assert f">{primera.headers['location'].split('=', 1)[-1]}<" not in listado.text
+    assert "Persona candidata" in listado.text
+    assert "Vacante" in listado.text
+    assert "TCS · TCS" in listado.text
+    assert f">{cliente_api['cliente_id']}</option>" not in formulario_lote.text
+    assert f">{cliente_api['cliente_id']}</option>" not in formulario_candidato.text
+    assert ">TCS · TCS</option>" in formulario_lote.text
+    assert ">TCS · TCS</option>" in formulario_candidato.text
+
     fabrica = FabricaSesiones(crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}"))
     with fabrica.sesion() as sesion:
         assert sesion.scalar(select(func.count()).select_from(PostulacionModelo)) == 1

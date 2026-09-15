@@ -1114,11 +1114,19 @@ class RepositorioSqlalchemy:
             "postulaciones": select(
                 PostulacionModelo.id.label("id"),
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                (PerfilPuestoModelo.codigo + " · " + PerfilPuestoModelo.titulo).label("perfil"),
+                (ClienteModelo.codigo + " · " + ClienteModelo.nombre).label("cliente"),
                 PostulacionModelo.fuente.label("fuente"),
                 PostulacionModelo.estado.label("estado"),
                 PostulacionModelo.creado_en.label("creado_en"),
             )
             .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .join(
+                VersionPerfilPuestoModelo,
+                VersionPerfilPuestoModelo.id == PostulacionModelo.version_perfil_id,
+            )
+            .join(PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id)
+            .join(ClienteModelo, ClienteModelo.id == PostulacionModelo.cliente_id)
             .where(_filtro_clientes(PostulacionModelo.cliente_id, clientes)),
             "documentos": select(
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
@@ -1131,11 +1139,17 @@ class RepositorioSqlalchemy:
             "evaluaciones": select(
                 EvaluacionModelo.id.label("id"),
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                (PerfilPuestoModelo.codigo + " · " + PerfilPuestoModelo.titulo).label("perfil"),
                 EvaluacionModelo.puntaje_documental.label("puntaje"),
                 EvaluacionModelo.requiere_revision.label("requiere_revision"),
             )
             .join(PostulacionModelo, PostulacionModelo.id == EvaluacionModelo.postulacion_id)
             .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .join(
+                VersionPerfilPuestoModelo,
+                VersionPerfilPuestoModelo.id == PostulacionModelo.version_perfil_id,
+            )
+            .join(PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id)
             .where(_filtro_clientes(EvaluacionModelo.cliente_id, clientes)),
             "revisiones": select(
                 RevisionHumanaModelo.id.label("id"),
@@ -1189,8 +1203,10 @@ class RepositorioSqlalchemy:
             select(
                 CandidatoModelo.id,
                 CandidatoModelo.cliente_id,
+                ClienteModelo.nombre.label("cliente_nombre"),
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("nombre"),
             )
+            .join(ClienteModelo, ClienteModelo.id == CandidatoModelo.cliente_id)
             .where(_filtro_clientes(CandidatoModelo.cliente_id, clientes))
             .order_by(CandidatoModelo.apellidos, CandidatoModelo.nombres)
         ).mappings()

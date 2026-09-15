@@ -40,6 +40,20 @@ def test_plantillas_no_incorporan_recursos_remotos() -> None:
     assert 'href="https://' not in contenido
 
 
+def test_tablas_de_control_usan_filtro_local_compatible_con_csp() -> None:
+    base = (PLANTILLAS / "base.html").read_text(encoding="utf-8")
+    excolaboradores = (PLANTILLAS / "excolaboradores.html").read_text(encoding="utf-8")
+    exclusiones = (PLANTILLAS / "exclusiones.html").read_text(encoding="utf-8")
+
+    assert "/static/js/filtros_tablas.js" in base
+    assert 'data-filter-table="tabla-excolab"' in excolaboradores
+    assert 'data-filter-table="tabla-vetados"' in exclusiones
+    assert "onkeyup=" not in excolaboradores
+    assert "onkeyup=" not in exclusiones
+    assert "<script>" not in excolaboradores
+    assert "<script>" not in exclusiones
+
+
 def test_shell_marca_navegacion_activa_y_accesibilidad(cliente_api) -> None:
     cliente = cliente_api["cliente"]
     cliente.post(
