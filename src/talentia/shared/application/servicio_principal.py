@@ -948,6 +948,8 @@ class ServicioTalentIA:
         return {
             "archivo": nombre,
             "estado": "reutilizado" if reutilizado else "registrado",
+            "criterio_duplicado": preflight.get("criterio") if reutilizado else None,
+            "cv_reutilizado": bool(documento.get("reutilizado")),
             "candidato_id": candidato.id,
             "nombre": candidato.nombre_completo,
             "campos_extraidos": sorted(precarga.campos),

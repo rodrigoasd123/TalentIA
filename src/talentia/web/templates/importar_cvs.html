@@ -18,7 +18,8 @@
           {% for cliente in opciones.clientes %}<option value="{{ cliente.id }}">{{ cliente.codigo }} · {{ cliente.nombre }}</option>{% endfor %}
         </select>
       </label>
-      <label>Fuente opcional<input name="fuente" maxlength="80" placeholder="Se tomara del CV si esta disponible"></label>
+      <label>Fuente / proveedor<input name="fuente" maxlength="80" value="Adecco" placeholder="Adecco" required></label>
+      <label>Reclutador responsable<input name="reclutador" maxlength="120" placeholder="Equipo de selección TCS"></label>
       <label>Perfil / Vacante de destino (Opcional)
         <select name="version_perfil_id">
           <option value="">-- Sin asignar a vacante específica --</option>
@@ -40,6 +41,7 @@
 </section>
 
 {% if resultados %}
+{% include "fragmentos/reporte_cruce_cvs.html" %}
 <section class="seccion">
   <div class="titulo-seccion"><h2>Resultado de la carga</h2><span class="estado">{{ resultados | length }} archivos</span></div>
   <div class="resultados-cv">

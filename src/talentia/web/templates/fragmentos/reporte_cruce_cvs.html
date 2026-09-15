@@ -1,0 +1,29 @@
+{% if reporte_cruce %}
+<section class="seccion reporte-cruce" aria-labelledby="titulo-reporte-cruce">
+  <div class="titulo-seccion">
+    <div><span class="sobrelinea">CONTROL DE PROVEEDOR</span><h2 id="titulo-reporte-cruce">Reporte del cruce TCS · Adecco</h2></div>
+    <span class="estado">{{ reporte_cruce.total }} CV revisados</span>
+  </div>
+  <p class="ayuda">El cruce informa coincidencias; no descarta ni modifica decisiones de selección automáticamente.</p>
+  <div class="metricas-cruce">
+    <div><span>Nuevos</span><strong>{{ reporte_cruce.nuevos }}</strong></div>
+    <div><span>Ya procesados</span><strong>{{ reporte_cruce.ya_procesados }}</strong></div>
+    <div><span>CV idénticos</span><strong>{{ reporte_cruce.cvs_repetidos }}</strong></div>
+    <div><span>Ex-TCS</span><strong>{{ reporte_cruce.ex_tcs }}</strong></div>
+    <div><span>Restricciones</span><strong>{{ reporte_cruce.restringidos }}</strong></div>
+    <div><span>Revisión manual</span><strong>{{ reporte_cruce.revision }}</strong></div>
+  </div>
+  {% if reporte_cruce.total %}<div class="aviso-ahorro"><strong>{{ reporte_cruce.porcentaje_repetidos }}%</strong><span>del lote ya había sido procesado por TCS y debe revisarse antes de validar el servicio del proveedor.</span></div>{% endif %}
+  <div class="tabla-responsive">
+    <table class="table"><thead><tr><th>CV recibido</th><th>Candidato</th><th>Resultado</th><th>Cruces de control</th><th>Acción</th></tr></thead><tbody>
+    {% for resultado in reporte_cruce.resultados %}<tr>
+      <td><strong>{{ resultado.archivo }}</strong>{% if resultado.cv_reutilizado %}<small>Mismo archivo cargado anteriormente</small>{% endif %}</td>
+      <td>{{ resultado.nombre or 'No identificado' }}</td>
+      <td><span class="estado estado-{{ resultado.estado }}">{{ resultado.estado | replace('_', ' ') }}</span>{% if resultado.criterio_duplicado %}<small>Coincidencia: {{ resultado.criterio_duplicado }}</small>{% endif %}</td>
+      <td>{% for alerta in resultado.alertas or [] %}<span class="estado {% if alerta.nivel == 'alta' %}estado-error{% else %}estado-revision{% endif %}">{{ 'Ex-TCS' if alerta.tipo == 'ex_tcs' else 'Restricción' }}</span>{% else %}<span class="texto-secundario">Sin alertas</span>{% endfor %}</td>
+      <td>{% if resultado.candidato_id %}<a href="/candidatos/{{ resultado.candidato_id }}">Revisar ficha</a>{% else %}<span class="texto-secundario">Revisión manual</span>{% endif %}</td>
+    </tr>{% endfor %}
+    </tbody></table>
+  </div>
+</section>
+{% endif %}

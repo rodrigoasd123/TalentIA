@@ -12,3 +12,24 @@ Fecha: 2026-09-14.
   automatica; listas TCS aisladas del resto de clientes.
 
 Resultado: AC-034-001 a AC-034-004 satisfechos.
+
+## Refinamiento: cruce TCS-Adecco
+
+Fecha: 2026-09-14.
+
+- Reporte consolidado incorporado al flujo general y al flujo asociado a un perfil.
+- Distingue altas nuevas, identidades ya procesadas, archivos identicos, ex-TCS, restricciones y
+  revisiones manuales; informa el porcentaje repetido sin tomar una decision automatica.
+- `pytest -q tests/greenfield/test_precarga_masiva_alertas.py tests/greenfield/test_frontend_visual.py
+  --basetemp=tmp/pytest-identidad-cruce`: 11 aprobadas.
+- `pytest -q --basetemp=tmp/pytest-identidad-cruce-full`: 125 aprobadas, 3 advertencias de
+  dependencias/cache sin impacto funcional.
+- `ruff check src/talentia tests/greenfield/test_precarga_masiva_alertas.py
+  tests/greenfield/test_frontend_visual.py`: aprobado.
+- `ruff format --check src/talentia tests/greenfield/test_precarga_masiva_alertas.py
+  tests/greenfield/test_frontend_visual.py`: 78 archivos formateados.
+- `mypy src/talentia`: 76 archivos sin errores.
+- `python scripts/check_repository.py`: repositorio seguro, 505 archivos revisados.
+- `git diff --check`: aprobado.
+
+Resultado: FR-034-006, FR-034-007 y SEC-034-004 satisfechos.

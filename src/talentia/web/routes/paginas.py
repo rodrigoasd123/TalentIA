@@ -14,6 +14,7 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from talentia.ai.agents.cruce_candidatos import construir_reporte_cruce
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
 from talentia.modules.recruitment.application.extractor_convocatoria import (
     extraer_bases_convocatoria,
@@ -263,6 +264,7 @@ def _pagina_importar_cvs(
     usuario: UsuarioActual,
     *,
     resultados: list[dict[str, object]] | None = None,
+    reporte_cruce: dict[str, object] | None = None,
     error: str | None = None,
     status_code: int = 200,
 ) -> Response:
@@ -272,6 +274,7 @@ def _pagina_importar_cvs(
         "importar_cvs.html",
         "importar_cvs",
         resultados=resultados or [],
+        reporte_cruce=reporte_cruce,
         error=error,
         status_code=status_code,
     )
@@ -333,7 +336,12 @@ async def importar_cvs_web(
                     "alertas": [],
                 }
             )
-    return _pagina_importar_cvs(request, usuario, resultados=resultados)
+    return _pagina_importar_cvs(
+        request,
+        usuario,
+        resultados=resultados,
+        reporte_cruce=construir_reporte_cruce(resultados),
+    )
 
 
 @router.post("/candidatos/nuevo", response_class=HTMLResponse)
@@ -1025,6 +1033,7 @@ async def importar_cvs_perfil_web(
             postulantes=detalle_actualizado["postulantes"],
             metricas=detalle_actualizado["metricas"],
             resultados=resultados,
+            reporte_cruce=construir_reporte_cruce(resultados),
             mensaje="cvs_procesados",
         ),
     )

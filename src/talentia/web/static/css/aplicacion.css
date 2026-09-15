@@ -90,12 +90,12 @@ button, input, select, textarea { font: inherit; }
 .marca {
   display: block;
   width: fit-content;
-  padding: 7px 10px;
+  padding: 9px 10px;
   background: var(--color-white);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
 }
-.marca img { display: block; width: 168px; max-width: 100%; height: auto; }
+.marca img { display: block; width: 190px; max-width: 100%; height: auto; }
 .descriptor-marca {
   display: block;
   margin: 10px 2px 0;
@@ -254,6 +254,8 @@ button, input, select, textarea { font: inherit; }
 .estado-manual, .estado-pendiente, .estado-revision, .estado-sin_evidencia, .estado-revision_manual { color: var(--color-warning-700); background: var(--color-warning-100); border-color: #f4d38a; }
 .estado-cargando { color: var(--color-info-700); background: var(--color-info-100); border-color: #b2d4ff; }
 .estado-completado, .estado-coincide { color: var(--color-success-700); background: var(--color-success-100); border-color: #a8dfc5; }
+.estado-registrado { color: var(--color-success-700); background: var(--color-success-100); border-color: #a8dfc5; }
+.estado-reutilizado { color: var(--color-info-700); background: var(--color-info-100); border-color: #b2d4ff; }
 .estado-error, .estado-no_coincide { color: var(--color-danger-700); background: var(--color-danger-100); border-color: #f1b8b2; }
 .estado-activo { color: var(--color-success-700); background: var(--color-success-100); border-color: #a8dfc5; }
 .estado-local { color: var(--color-neutral-600); background: var(--color-neutral-100); border-color: var(--color-neutral-300); }
@@ -313,6 +315,18 @@ button, input, select, textarea { font: inherit; }
 .titulo-seccion, .barra-herramientas { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 13px; }
 .titulo-seccion h2 { margin: 0; color: var(--color-primary-950); font-size: 1.08rem; font-weight: 710; letter-spacing: -.01em; }
 .titulo-seccion h2::after { width: 28px; height: 2px; display: block; margin-top: 7px; content: ""; background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500)); border-radius: 2px; }
+
+.metricas-cruce { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+.metricas-cruce > div { display: grid; gap: 3px; padding: 14px; background: var(--color-white); border: 1px solid var(--color-neutral-200); border-top: 3px solid var(--color-accent-500); border-radius: var(--radius-sm); }
+.metricas-cruce span, .texto-secundario { color: var(--color-neutral-500); font-size: .73rem; }
+.metricas-cruce strong { color: var(--color-primary-950); font-size: 1.4rem; }
+.aviso-ahorro { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; padding: 14px 16px; color: var(--color-primary-950); background: var(--color-accent-100); border-left: 4px solid var(--color-accent-500); border-radius: var(--radius-sm); }
+.aviso-ahorro strong { font-size: 1.45rem; color: var(--color-accent-500); }
+.reporte-cruce .table small { display: block; }
+
+.bg-primary { background-color: var(--color-primary-700) !important; }
+.text-primary { color: var(--color-primary-700) !important; }
+.btn-success { background-color: var(--color-success-700); border-color: var(--color-success-700); }
 .acciones-cabecera { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .barra-herramientas > .btn { flex: 0 0 auto; white-space: nowrap; }
 .busqueda { width: min(660px, 100%); display: flex; gap: 9px; }
@@ -487,6 +501,7 @@ input[type="range"] { padding: 0; box-shadow: none; accent-color: var(--color-pr
   .hero-inicio { grid-template-columns: 1fr; }
   .panel-confianza { grid-template-columns: repeat(3, 1fr); }
   .diagnostico-ia { grid-template-columns: auto 1fr; }
+  .metricas-cruce { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .detalle-diagnostico { grid-column: 1 / -1; }
 }
 
@@ -543,6 +558,7 @@ input[type="range"] { padding: 0; box-shadow: none; accent-color: var(--color-pr
   .tarjeta-configuracion .titulo-seccion form { align-items: stretch; flex-direction: column; }
   .acceso-mlflow .btn { width: 100%; }
   .hero-inicio { padding: 24px 20px; border-radius: var(--radius-md); }
+  .metricas-cruce { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .acciones-hero { flex-direction: column; }
   .acciones-hero .btn { width: 100%; }
   .pagina-acceso { padding: 14px; }

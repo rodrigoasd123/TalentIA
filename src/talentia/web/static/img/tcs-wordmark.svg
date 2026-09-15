@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 138" role="img" aria-labelledby="titulo descripcion">
+  <title id="titulo">TCS</title>
+  <desc id="descripcion">Marca visual de Tata Consultancy Services para TalentIA</desc>
+  <g fill="#102a43">
+    <text x="8" y="104" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="112" font-weight="500" letter-spacing="-12">tcs</text>
+    <text x="218" y="43" font-family="Arial, sans-serif" font-size="30" font-weight="800">TATA</text>
+    <text x="218" y="78" font-family="Arial, sans-serif" font-size="29" font-weight="500">CONSULTANCY</text>
+    <text x="218" y="113" font-family="Arial, sans-serif" font-size="29" font-weight="500">SERVICES</text>
+  </g>
+  <path d="M8 128h444" stroke="#18a8b8" stroke-width="5"/>
+</svg>

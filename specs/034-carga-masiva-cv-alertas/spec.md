@@ -24,11 +24,17 @@ el CV y muestra coincidencias con las listas TCS como alertas para revision huma
 - **FR-034-004:** comprobar cada identidad contra ex-TCS y vetados TCS por documento exacto o, si no
   existe documento, por nombre completo exacto.
 - **FR-034-005:** mostrar la alerta al terminar la carga y conservarla en la trazabilidad del candidato.
+- **FR-034-006:** generar al terminar cada lote un reporte consolidado que diferencie candidatos nuevos,
+  identidades ya procesadas, CV identicos, coincidencias ex-TCS, restricciones y revisiones manuales.
+- **FR-034-007:** mostrar el porcentaje del lote ya procesado para que RR. HH. pueda validar el servicio
+  recibido de Adecco antes de aprobarlo.
 - **NFR-034-001:** extraccion y cruce locales, deterministas y sin llamadas de red.
 - **SEC-034-001:** contenido con instrucciones incrustadas se bloquea antes del alta.
 - **SEC-034-002:** las alertas no exponen causas sensibles ni producen rechazo automatico.
 - **SEC-034-003:** solo usuarios con permisos de escritura de candidatos y documentos pueden usar el
   flujo, con aislamiento por cliente y proteccion CSRF.
+- **SEC-034-004:** el reporte es informativo: no rechaza postulantes ni expone motivos sensibles de las
+  listas de control.
 
 ## Fuera de alcance
 

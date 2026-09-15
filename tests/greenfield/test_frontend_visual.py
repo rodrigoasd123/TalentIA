@@ -5,6 +5,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 PLANTILLAS = RAIZ / "src" / "talentia" / "web" / "templates"
 ESTILOS = RAIZ / "src" / "talentia" / "web" / "static" / "css" / "aplicacion.css"
+LOGO_TCS = RAIZ / "src" / "talentia" / "web" / "static" / "img" / "tcs-wordmark.svg"
 
 
 def test_sistema_visual_es_local_centralizado_y_responsive() -> None:
@@ -56,6 +57,9 @@ def test_shell_marca_navegacion_activa_y_accesibilidad(cliente_api) -> None:
     assert 'id="contenido-principal"' in pagina.text
     assert 'href="/candidatos" class="activo" aria-current="page"' in pagina.text
     assert "Talent acquisition workspace" in pagina.text
+    assert 'src="/static/img/tcs-wordmark.svg"' in pagina.text
+    assert 'alt="Tata Consultancy Services"' in pagina.text
+    assert LOGO_TCS.read_text(encoding="utf-8").lstrip().startswith("<svg")
     assert 'action="/logout"' in pagina.text
 
 

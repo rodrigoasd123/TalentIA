@@ -6,6 +6,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+from talentia.ai.agents.cruce_candidatos import construir_reporte_cruce
 from talentia.ai.agents.precarga_candidato import extraer_precarga_candidato
 from talentia.shared.infrastructure.modelos_orm import (
     CandidatoModelo,
@@ -62,6 +63,32 @@ def test_extrae_campos_generales_explicitos() -> None:
     assert resultado.campos["documento"] == "12345678"
     assert resultado.campos["correo"] == "ana@example.test"
     assert resultado.campos["expectativa_salarial"] == 5500
+
+
+def test_reporte_cruce_resume_sin_tomar_decisiones() -> None:
+    reporte = construir_reporte_cruce(
+        [
+            {"estado": "registrado", "alertas": []},
+            {
+                "estado": "reutilizado",
+                "cv_reutilizado": True,
+                "alertas": [{"tipo": "ex_tcs", "nivel": "informativa"}],
+            },
+            {
+                "estado": "requiere_revision",
+                "alertas": [{"tipo": "vetado", "nivel": "alta"}],
+            },
+        ]
+    )
+
+    assert reporte["total"] == 3
+    assert reporte["nuevos"] == 1
+    assert reporte["ya_procesados"] == 1
+    assert reporte["cvs_repetidos"] == 1
+    assert reporte["ex_tcs"] == 1
+    assert reporte["restringidos"] == 1
+    assert reporte["revision"] == 1
+    assert reporte["porcentaje_repetidos"] == 33.3
 
 
 def test_carga_masiva_crea_fichas_y_alertas_persistentes(cliente_api) -> None:
@@ -142,6 +169,46 @@ def test_repetir_cv_reutiliza_ficha_sin_duplicar_alertas(cliente_api) -> None:
             .where(EventoAuditoriaModelo.accion == "candidato.alerta_lista_control")
         )
     assert alertas == 2
+
+
+def test_lote_muestra_reporte_de_cvs_ya_procesados(cliente_api) -> None:
+    cliente, csrf = _sesion_web(cliente_api)
+    contenido = _cv("Elena Sofia Prado Luna", "80991234", "elena@example.test")
+    archivos = [
+        (
+            "archivos",
+            (
+                "cv-adecco-01.docx",
+                contenido,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        ),
+        (
+            "archivos",
+            (
+                "cv-adecco-repetido.docx",
+                contenido,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        ),
+    ]
+
+    respuesta = cliente.post(
+        "/candidatos/importar-cvs",
+        data={
+            "csrf": csrf,
+            "cliente_id": cliente_api["cliente_id"],
+            "fuente": "Adecco",
+        },
+        files=archivos,
+    )
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert "Reporte del cruce TCS · Adecco" in respuesta.text
+    assert "Ya procesados" in respuesta.text
+    assert "50.0%" in respuesta.text
+    assert "Mismo archivo cargado anteriormente" in respuesta.text
+    assert "no descarta ni modifica decisiones" in respuesta.text
 
 
 def test_carga_masiva_bloquea_instrucciones_incrustadas(cliente_api) -> None:
