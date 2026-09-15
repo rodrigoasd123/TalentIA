@@ -139,8 +139,9 @@ def test_formularios_crean_perfil_y_version_y_conservan_datos(cliente_api) -> No
         follow_redirects=False,
     )
     assert alta.status_code == 303
-    ruta_version = alta.headers["location"]
-    assert ruta_version.endswith("/versiones/nueva")
+    ruta_perfil = alta.headers["location"]
+    assert ruta_perfil.startswith("/perfiles/")
+    ruta_version = f"{ruta_perfil}/versiones/nueva"
 
     invalida = cliente.post(
         ruta_version,
@@ -178,9 +179,9 @@ def test_formularios_crean_perfil_y_version_y_conservan_datos(cliente_api) -> No
         )
         assert perfil is not None
         version = sesion.scalar(
-            select(VersionPerfilPuestoModelo).where(
-                VersionPerfilPuestoModelo.perfil_id == perfil.id
-            )
+            select(VersionPerfilPuestoModelo)
+            .where(VersionPerfilPuestoModelo.perfil_id == perfil.id)
+            .order_by(VersionPerfilPuestoModelo.numero.desc())
         )
         assert version is not None
         assert version.publicado
