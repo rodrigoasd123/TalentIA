@@ -25,17 +25,21 @@
       {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
       <form method="post" action="/login" class="formulario-acceso">
         <label class="form-label" for="correo">Correo</label>
-        <input class="form-control" id="correo" name="correo" type="email" autocomplete="username" placeholder="nombre@empresa.com" required>
-        <label class="form-label" for="contrasena">Contrasena</label>
+        <input class="form-control" id="correo" name="correo" type="email" autocomplete="username" value="{{ correo or '' }}" placeholder="admin@talentia.local" required>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <label class="form-label mb-0" for="contrasena">Contraseña</label>
+          <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 0.78rem;" onclick="const el=document.getElementById('contrasena'); el.type = el.type==='password'?'text':'password'; this.textContent = el.type==='password'?'👁 Mostrar':'🙈 Ocultar';">👁 Mostrar</button>
+        </div>
         <input class="form-control" id="contrasena" name="contrasena" type="password" autocomplete="current-password" placeholder="Ingresa tu contrasena" required>
-        <button class="btn btn-primary w-100" type="submit">Ingresar a TalentIA</button>
-        <div class="mt-3 p-2 text-start" style="background: rgba(13, 110, 253, 0.05); border: 1px solid rgba(13, 110, 253, 0.15); border-radius: 8px; font-size: 0.83rem;">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="text-muted fw-semibold">Credenciales del demo:</span>
-            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.75rem;" onclick="document.getElementById('correo').value='admin@talentia.local'; document.getElementById('contrasena').value='TalentIA-Demo-2026!';">Autocompletar</button>
+        <button class="btn btn-primary w-100 mt-3" type="submit">Ingresar a TalentIA</button>
+        <div class="mt-3 p-3 text-start" style="background: rgba(13, 110, 253, 0.06); border: 1px solid rgba(13, 110, 253, 0.2); border-radius: 8px; font-size: 0.84rem;">
+          <div class="fw-semibold text-primary mb-2">⚡ Acceso Rápido 1-Clic:</div>
+          <div class="d-flex gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-primary flex-fill" style="font-size: 0.78rem;" onclick="document.getElementById('correo').value='admin@talentia.local'; document.getElementById('contrasena').value='TalentIA-Demo-2026!'; document.querySelector('.formulario-acceso').submit();">Ingresar como Admin</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" style="font-size: 0.78rem;" onclick="document.getElementById('correo').value='reclutador@talentia.local'; document.getElementById('contrasena').value='TalentIA-Demo-2026!'; document.querySelector('.formulario-acceso').submit();">Ingresar como Reclutador</button>
           </div>
-          <div style="font-family: monospace; color: #212529;">
-            <div><strong>Correo:</strong> admin@talentia.local</div>
+          <div style="font-family: monospace; font-size: 0.78rem; color: #495057; border-top: 1px dashed #dee2e6; padding-top: 6px;">
+            <div><strong>Usuario:</strong> admin@talentia.local</div>
             <div><strong>Clave:</strong> TalentIA-Demo-2026!</div>
           </div>
         </div>

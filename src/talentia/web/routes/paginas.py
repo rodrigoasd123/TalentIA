@@ -178,6 +178,7 @@ def iniciar_sesion_web(
             context={
                 "error": "Credenciales invalidas",
                 "modo_manual": request.app.state.configuracion.modo_manual,
+                "correo": correo,
             },
             status_code=401,
         )
