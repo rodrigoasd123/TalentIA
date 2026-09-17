@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ perfil.titulo }} | TalentIA{% endblock %}
+{% block heading %}{{ perfil.titulo }}{% endblock %}
+{% block breadcrumb %}<a href="/cuentas">Cuentas</a> / <a href="/cuentas/{{ cuenta.id }}">{{ cuenta.nombre }}</a> / {{ perfil.codigo }}{% endblock %}
+{% block subtitle %}Paso 2: revisa el Job Description y abre una convocatoria para recibir candidatos.{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<section class="seccion">
+  <div class="grupo-estados" aria-label="Flujo operativo">
+    <span class="estado estado-apta">1. Cuenta</span>
+    <span class="estado estado-apta">2. Perfil + Job Description</span>
+    <span class="estado">3. Convocatoria</span>
+    <span class="estado">4. CV + matching</span>
+  </div>
+</section>
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Job Description vigente</h2><span class="estado">{% if version_activa %}Versión {{ version_activa.numero }}{% else %}Sin publicar{% endif %}</span></div>
+  {% if version_activa %}
+  <div class="tabla-responsive">
+    <table class="table">
+      <thead><tr><th>Requisito</th><th>Tipo</th><th>Peso</th></tr></thead>
+      <tbody>
+      {% for requisito in version_activa.requisitos %}
+      <tr><td>{{ requisito.descripcion }}</td><td>{% if requisito.obligatorio %}Obligatorio{% else %}Deseable{% endif %}</td><td>{{ requisito.peso }}</td></tr>
+      {% else %}<tr><td colspan="3" class="vacio">La versión no contiene requisitos.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-warning">Publica una versión con requisitos antes de crear la convocatoria.</div>
+  {% endif %}
+</section>
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Convocatorias de este perfil</h2><span class="estado">{{ convocatorias | length }}</span></div>
+  <div class="rejilla-tarjetas">
+    {% for convocatoria in convocatorias %}
+    <article class="tarjeta-resumen">
+      <span class="estado estado-{{ convocatoria.estado }}">{{ convocatoria.estado | title }}</span>
+      <h3>{{ convocatoria.codigo }}</h3>
+      <p>{{ convocatoria.vacantes_total }} vacante(s) · apertura {{ convocatoria.fecha_apertura }}</p>
+      <a class="btn btn-primary" href="/convocatorias/{{ convocatoria.id }}">Entrar a convocatoria</a>
+    </article>
+    {% else %}<p class="vacio">No hay convocatorias para este perfil.</p>{% endfor %}
+  </div>
+</section>
+{% if puede_crear and version_activa %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Crear convocatoria</h2></div>
+  <form method="post" action="/cuentas/{{ cuenta.id }}/convocatorias/nueva" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="perfil_id" value="{{ perfil.id }}">
+    <div class="rejilla-formulario">
+      <label>Versión del perfil
+        <select name="version_perfil_id" required>
+          {% for version in versiones %}{% if version.publicado %}<option value="{{ version.id }}" {% if datos.version_perfil_id == version.id %}selected{% endif %}>Versión {{ version.numero }}</option>{% endif %}{% endfor %}
+        </select>
+      </label>
+      <label>Código<input name="codigo" required maxlength="80" value="{{ datos.codigo or '' }}" placeholder="Ej. JAVA-BACK-2026-02"></label>
+      <label>Vacantes<input type="number" name="vacantes_total" min="1" max="100" required value="{{ datos.vacantes_total or 1 }}"></label>
+      <label>Fecha de apertura<input type="date" name="fecha_apertura" required value="{{ datos.fecha_apertura or '' }}"></label>
+      <label>Fecha objetivo<input type="date" name="fecha_objetivo" value="{{ datos.fecha_objetivo or '' }}"></label>
+      <label>Estado<select name="estado"><option value="abierta" selected>Abierta</option><option value="borrador">Borrador</option></select></label>
+    </div>
+    <button class="btn btn-primary" type="submit">Crear convocatoria</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

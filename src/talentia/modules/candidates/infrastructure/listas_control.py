@@ -15,6 +15,9 @@ class ListasControlTCS:
         vetados: Path,
         clientes_tcs: frozenset[str],
     ) -> None:
+        # Las cuentas son clientes finales, pero estas listas representan una
+        # politica corporativa de TCS y deben aplicar a todas las cuentas.
+        # Se conserva el parametro para mantener compatible el ensamblaje.
         self._clientes_tcs = clientes_tcs
         self._registros = self._leer(excolaboradores, "ex_tcs") + self._leer(vetados, "vetado")
 
@@ -31,8 +34,7 @@ class ListasControlTCS:
         documento: str | None,
         nombre_completo: str,
     ) -> list[dict[str, str]]:
-        if cliente_id not in self._clientes_tcs:
-            return []
+        del cliente_id
         documento_normalizado = normalizar_documento(documento)
         nombre_tokens = tokens_nombre(nombre_completo)
         alertas: list[dict[str, str]] = []
@@ -55,19 +57,15 @@ class ListasControlTCS:
                 continue
             criterio = "documento" if coincide_documento else "nombre"
             if registro["tipo_lista"] == "ex_tcs":
-                elegible = registro.get("elegible_reingreso", "").strip().casefold() in {"si", "sí"}
                 alertas.append(
                     {
                         "tipo": "ex_tcs",
-                        "nivel": "informativa" if elegible else "alta",
-                        "estado": "elegible" if elegible else "revision_requerida",
+                        "nivel": "alta",
+                        "estado": "bloqueada_politica",
                         "criterio": criterio,
                         "mensaje": (
-                            "Coincidencia con excolaborador TCS elegible para reingreso. "
-                            "Validar el historial con RR. HH."
-                            if elegible
-                            else "Coincidencia con excolaborador TCS no elegible. "
-                            "Revision de RR. HH. obligatoria."
+                            "Coincidencia con excolaborador TCS. La politica corporativa "
+                            "impide su reincorporacion y bloquea la candidatura."
                         ),
                     }
                 )

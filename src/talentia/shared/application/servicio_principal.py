@@ -29,6 +29,7 @@ from talentia.modules.candidates.domain.modelos import (
 )
 from talentia.modules.documents.domain.modelos import DocumentoLeido, LecturaDocumentoError
 from talentia.modules.recruitment.application.servicio_convocatorias import ServicioConvocatorias
+from talentia.modules.recruitment.domain.modelos import EstadoPostulacion
 from talentia.platform.security.contrasenas import hash_contrasena, verificar_contrasena
 from talentia.shared.application.errores import (
     ConflictoError,
@@ -722,7 +723,8 @@ class ServicioTalentIA:
         perfil_id: str,
         correlacion_id: str = "",
     ) -> dict[str, object]:
-        _exigir_permiso(usuario, "candidatos:leer")
+        if not usuario.tiene_permiso("perfiles:escribir", PERMISOS_POR_ROL):
+            _exigir_permiso(usuario, "candidatos:leer")
         with self._fabrica() as unidad:
             perfil = unidad.datos.obtener_perfil(perfil_id)
             if perfil is None:
@@ -901,6 +903,28 @@ class ServicioTalentIA:
         datos: dict[str, object],
         correlacion_id: str,
     ) -> dict[str, object]:
+        postulacion = self.obtener_postulacion(usuario, postulacion_id)
+        candidato = self.obtener_candidato(
+            usuario, str(postulacion["candidato_id"]), correlacion_id
+        )
+        alertas = (
+            self._verificador_listas_control.comprobar(
+                candidato.cliente_id,
+                candidato.documento_normalizado,
+                candidato.nombre_completo,
+            )
+            if self._verificador_listas_control is not None
+            else []
+        )
+        destino = str(datos.get("destino", ""))
+        if any(alerta.get("tipo") == "ex_tcs" for alerta in alertas) and destino not in {
+            EstadoPostulacion.NO_APTA.value,
+            EstadoPostulacion.RECHAZADA.value,
+            EstadoPostulacion.RETIRADA.value,
+        }:
+            raise ProhibidoError(
+                "La politica corporativa impide reincorporar a una persona Ex-TCS"
+            )
         return self._convocatorias.transicionar(usuario, postulacion_id, datos, correlacion_id)
 
     def vista_previa_cierre_convocatoria(
@@ -919,7 +943,12 @@ class ServicioTalentIA:
         return self._convocatorias.cerrar(usuario, convocatoria_id, version, motivo, correlacion_id)
 
     def crear_postulacion(
-        self, usuario: UsuarioActual, datos: dict[str, object], correlacion_id: str
+        self,
+        usuario: UsuarioActual,
+        datos: dict[str, object],
+        correlacion_id: str,
+        *,
+        estado_inicial: EstadoPostulacion = EstadoPostulacion.NUEVA,
     ) -> dict[str, object]:
         _exigir_permiso(usuario, "postulaciones:escribir")
         cliente_id = str(datos["cliente_id"])
@@ -930,6 +959,25 @@ class ServicioTalentIA:
         fuente = _texto(datos.get("fuente", "directa"))
         if not fuente or len(fuente) > 80:
             raise EntradaInvalidaError("Fuente de postulacion invalida")
+        alertas = (
+            self._verificador_listas_control.comprobar(
+                cliente_id,
+                candidato.documento_normalizado,
+                candidato.nombre_completo,
+            )
+            if self._verificador_listas_control is not None
+            else []
+        )
+        bloqueada_ex_tcs = any(alerta.get("tipo") == "ex_tcs" for alerta in alertas)
+        if bloqueada_ex_tcs and "politica-ex-tcs-bloqueado" not in candidato.etiquetas:
+            etiquetas = sorted({*candidato.etiquetas, "politica-ex-tcs-bloqueado"})
+            candidato = self.actualizar_candidato(
+                usuario,
+                candidato.id,
+                candidato.version,
+                {"etiquetas": etiquetas},
+                correlacion_id,
+            )
         with self._fabrica() as unidad:
             convocatoria_id, version_id = _resolver_convocatoria_postulacion(
                 unidad.datos, cliente_id, datos
@@ -945,21 +993,33 @@ class ServicioTalentIA:
                     "version_perfil_id": version_id,
                     "reclutador_id": usuario.id,
                     "fuente": fuente,
-                    "estado": "nueva",
+                    "estado": (
+                        EstadoPostulacion.NO_APTA.value
+                        if bloqueada_ex_tcs
+                        else estado_inicial.value
+                    ),
                     "clave_idempotencia": clave,
                 }
             )
-            if not postulacion.get("reutilizado"):
+            if not postulacion.get("reutilizado") or postulacion.get("bloqueo_aplicado"):
                 unidad.datos.registrar_evento(
                     cliente_id=cliente_id,
                     actor_id=usuario.id,
-                    accion="postulacion.creada",
+                    accion=(
+                        "postulacion.bloqueada_politica_ex_tcs"
+                        if bloqueada_ex_tcs
+                        else "postulacion.creada"
+                    ),
                     recurso_tipo="postulacion",
                     recurso_id=str(postulacion["id"]),
-                    detalle={"fuente": fuente, "convocatoria_id": convocatoria_id},
+                    detalle={
+                        "fuente": fuente,
+                        "convocatoria_id": convocatoria_id,
+                        "bloqueo_ex_tcs": bloqueada_ex_tcs,
+                    },
                     correlacion_id=correlacion_id,
                 )
-            return postulacion
+            return {**postulacion, "bloqueada_politica": bloqueada_ex_tcs}
 
     def obtener_postulacion(self, usuario: UsuarioActual, postulacion_id: str) -> dict[str, object]:
         _exigir_permiso(usuario, "candidatos:leer")
@@ -1001,6 +1061,8 @@ class ServicioTalentIA:
         reclutador: str | None,
         correlacion_id: str,
         version_perfil_id: str | None = None,
+        convocatoria_id: str | None = None,
+        evaluar_automaticamente: bool = False,
     ) -> dict[str, object]:
         """Crea una ficha desde un CV sin sobrescribir identidades ya registradas."""
 
@@ -1076,6 +1138,26 @@ class ServicioTalentIA:
             if self._verificador_listas_control is not None
             else []
         )
+        bloqueada_ex_tcs = any(alerta.get("tipo") == "ex_tcs" for alerta in alertas)
+        etiquetas_control = {
+            "politica-ex-tcs-bloqueado"
+            if bloqueada_ex_tcs
+            else "",
+            *(
+                "restriccion-vigente"
+                for alerta in alertas
+                if alerta.get("tipo") == "vetado" and alerta.get("nivel") == "alta"
+            ),
+        }
+        etiquetas_control.discard("")
+        if etiquetas_control.difference(candidato.etiquetas):
+            candidato = self.actualizar_candidato(
+                usuario,
+                candidato.id,
+                candidato.version,
+                {"etiquetas": sorted({*candidato.etiquetas, *etiquetas_control})},
+                correlacion_id,
+            )
         if alertas and not bool(documento.get("reutilizado")):
             with self._fabrica() as unidad:
                 for alerta in alertas:
@@ -1089,15 +1171,35 @@ class ServicioTalentIA:
                         correlacion_id=correlacion_id,
                     )
         postulacion = None
-        if version_perfil_id:
-            with contextlib.suppress(Exception):
-                postulacion = self.crear_postulacion(
+        trabajo = None
+        if version_perfil_id or convocatoria_id:
+            postulacion = self.crear_postulacion(
+                usuario,
+                {
+                    "cliente_id": cliente_id,
+                    "candidato_id": candidato.id,
+                    "version_perfil_id": version_perfil_id or "",
+                    "convocatoria_id": convocatoria_id or "",
+                    "fuente": _texto(fuente) or _texto(datos.get("fuente")) or "carga_cv",
+                },
+                correlacion_id,
+                estado_inicial=(
+                    EstadoPostulacion.EN_EVALUACION
+                    if evaluar_automaticamente else EstadoPostulacion.NUEVA
+                ),
+            )
+            if evaluar_automaticamente and not bool(postulacion.get("bloqueada_politica")):
+                clave_evaluacion = hashlib.sha256(
+                    f"{postulacion['id']}:{documento['id']}:{version_perfil_id}".encode()
+                ).hexdigest()[:40]
+                trabajo = self.solicitar_evaluacion(
                     usuario,
                     {
                         "cliente_id": cliente_id,
-                        "candidato_id": candidato.id,
+                        "postulacion_id": postulacion["id"],
+                        "documento_id": documento["id"],
                         "version_perfil_id": version_perfil_id,
-                        "fuente": _texto(fuente) or _texto(datos.get("fuente")) or "carga_cv",
+                        "clave_idempotencia": clave_evaluacion,
                     },
                     correlacion_id,
                 )
@@ -1114,6 +1216,9 @@ class ServicioTalentIA:
             "documento_id": documento["id"],
             "extraccion_estado": extraccion["estado"],
             "postulacion_id": postulacion["id"] if postulacion else None,
+            "postulacion_estado": postulacion["estado"] if postulacion else None,
+            "trabajo_id": trabajo["id"] if trabajo else None,
+            "bloqueada_politica": bloqueada_ex_tcs,
             "completitud": calcular_completitud_candidato(candidato),
             "alertas": alertas,
         }

@@ -10,6 +10,8 @@ from talentia.ai.agents.cruce_candidatos import construir_reporte_cruce
 from talentia.ai.agents.precarga_candidato import extraer_precarga_candidato
 from talentia.shared.infrastructure.modelos_orm import (
     CandidatoModelo,
+    PostulacionModelo,
+    TrabajoAgenteModelo,
     EventoAuditoriaModelo,
 )
 
@@ -234,3 +236,74 @@ def test_carga_masiva_bloquea_instrucciones_incrustadas(cliente_api) -> None:
     motor = create_engine(f"sqlite:///{cliente_api['base'].as_posix()}")
     with Session(motor) as sesion:
         assert sesion.scalar(select(func.count()).select_from(CandidatoModelo)) == 0
+
+def test_carga_en_convocatoria_crea_postulacion_y_encola_matching(cliente_api) -> None:
+    cliente, csrf = _sesion_web(cliente_api)
+    cabeceras = cliente_api["cabeceras"]
+    perfil = cliente.post(
+        "/api/v1/job-profiles",
+        headers=cabeceras,
+        json={
+            "cliente_id": cliente_api["cliente_id"],
+            "codigo": "JAVA-BACK-CUENTA",
+            "titulo": "Java Backend Developer",
+        },
+    )
+    assert perfil.status_code == 201, perfil.text
+    version = cliente.post(
+        f"/api/v1/job-profiles/{perfil.json()['id']}/versions",
+        headers=cabeceras,
+        json={
+            "publicado": True,
+            "requisitos": [
+                {
+                    "codigo": "JAVA",
+                    "descripcion": "Java y APIs REST",
+                    "obligatorio": True,
+                    "peso": "1",
+                }
+            ],
+        },
+    )
+    assert version.status_code == 201, version.text
+    convocatoria = cliente.post(
+        "/api/v1/campaigns",
+        headers=cabeceras,
+        json={
+            "cliente_id": cliente_api["cliente_id"],
+            "version_perfil_id": version.json()["id"],
+            "codigo": "JAVA-BACK-01",
+            "vacantes_total": 2,
+            "estado": "abierta",
+            "fecha_apertura": "2026-09-17",
+            "fecha_objetivo": "2026-10-17",
+        },
+    )
+    assert convocatoria.status_code == 201, convocatoria.text
+
+    respuesta = cliente.post(
+        f"/convocatorias/{convocatoria.json()['id']}/cvs",
+        data={"csrf": csrf, "fuente": "adecco", "reclutador": "Ana Recruiter"},
+        files={
+            "archivos": (
+                "cv-fullstack.docx",
+                _cv("Lucia Fernanda Mendez Rios", "70112233", "lucia@example.test"),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+    assert respuesta.status_code == 200, respuesta.text
+    assert "Evaluación en cola" in respuesta.text
+    assert "Lucia Fernanda Mendez Rios" in respuesta.text
+
+    motor = create_engine(f"sqlite:///{cliente_api['base'].as_posix()}")
+    with Session(motor) as sesion:
+        postulacion = sesion.scalar(
+            select(PostulacionModelo).where(
+                PostulacionModelo.convocatoria_id == convocatoria.json()["id"]
+            )
+        )
+        trabajos = sesion.scalar(select(func.count()).select_from(TrabajoAgenteModelo))
+    assert postulacion is not None
+    assert postulacion.estado == "en_evaluacion"
+    assert trabajos == 1

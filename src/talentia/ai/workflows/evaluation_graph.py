@@ -34,6 +34,38 @@ def _siguiente(estado: EstadoEvaluacion) -> str:
     return "fin"
 
 
+class _GrafoNativo:
+    """Ejecutor secuencial seguro cuando LangGraph no esta disponible."""
+
+    def __init__(
+        self,
+        contexto: ContextoNodosEvaluacion,
+        guardar_checkpoint: GuardarCheckpoint,
+        nodo_completado: NodoCompletado | None,
+    ) -> None:
+        self._funciones = {nombre: getattr(contexto, nombre) for nombre in NODOS}
+        self._guardar_checkpoint = guardar_checkpoint
+        self._nodo_completado = nodo_completado
+
+    def invoke(self, estado: EstadoEvaluacion) -> EstadoEvaluacion:
+        actual = estado
+        indice_veredicto = NODOS.index("veredicto_deterministico")
+        for indice, nombre in enumerate(NODOS):
+            if nombre in actual.get("nodos_completados", []):
+                continue
+            if actual.get("revision_requerida") and indice < indice_veredicto:
+                continue
+            salida: EstadoEvaluacion = self._funciones[nombre](actual)
+            completados = list(salida.get("nodos_completados", []))
+            completados.append(nombre)
+            salida["nodos_completados"] = completados
+            self._guardar_checkpoint(nombre, salida)
+            if self._nodo_completado is not None:
+                self._nodo_completado(nombre, salida)
+            actual = salida
+        return actual
+
+
 def _ruta_segura(estado: EstadoEvaluacion, siguiente: str) -> str:
     if estado.get("revision_requerida"):
         return "veredicto_deterministico"
@@ -45,7 +77,10 @@ def construir_grafo(
     guardar_checkpoint: GuardarCheckpoint,
     nodo_completado: NodoCompletado | None = None,
 ) -> Any:
-    from langgraph.graph import END, START, StateGraph
+    try:
+        from langgraph.graph import END, START, StateGraph
+    except ImportError:
+        return _GrafoNativo(contexto, guardar_checkpoint, nodo_completado)
 
     constructor = StateGraph(EstadoEvaluacion)
     funciones = {nombre: getattr(contexto, nombre) for nombre in NODOS}

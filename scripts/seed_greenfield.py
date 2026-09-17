@@ -15,12 +15,15 @@ from talentia.shared.infrastructure.base_datos import (  # noqa: E402
     crear_motor,
 )
 from talentia.shared.infrastructure.modelos_orm import (  # noqa: E402
+    AsignacionUsuarioClienteModelo,
     CandidatoModelo,
     ClienteModelo,
     DocumentoCandidatoModelo,
     EvaluacionModelo,
     PerfilPuestoModelo,
     PostulacionModelo,
+    RolModelo,
+    UsuarioRolModelo,
     VersionPerfilPuestoModelo,
 )
 
@@ -41,6 +44,42 @@ def run_seed():
             sesion.flush()
 
         # 2. Convocatorias (Perfiles de Puesto). Los usuarios se provisionan por entorno.
+
+        # Cuentas bancarias sinteticas para recorrer Cuenta -> Perfil -> Convocatoria.
+        cuentas_demo = [
+            ("BCP", "Banco de Credito del Peru"),
+            ("BBVA", "BBVA Peru"),
+            ("MIBANCO", "MiBanco"),
+            ("SCOTIA", "Scotiabank Peru"),
+        ]
+        clientes_demo: list[ClienteModelo] = []
+        for codigo_cuenta, nombre_cuenta in cuentas_demo:
+            cuenta = sesion.scalar(
+                select(ClienteModelo).where(ClienteModelo.codigo == codigo_cuenta)
+            )
+            if cuenta is None:
+                cuenta = ClienteModelo(
+                    id=nuevo_id(), codigo=codigo_cuenta, nombre=nombre_cuenta, activo=True
+                )
+                sesion.add(cuenta)
+                sesion.flush()
+            clientes_demo.append(cuenta)
+        gestores = sesion.scalars(
+            select(UsuarioRolModelo.usuario_id)
+            .join(RolModelo, RolModelo.id == UsuarioRolModelo.rol_id)
+            .where(RolModelo.codigo.in_(["administrador", "gestor_contratacion"]))
+        ).all()
+        for usuario_id in set(gestores):
+            for cuenta in clientes_demo:
+                if sesion.get(
+                    AsignacionUsuarioClienteModelo, (usuario_id, cuenta.id)
+                ) is None:
+                    sesion.add(
+                        AsignacionUsuarioClienteModelo(
+                            usuario_id=usuario_id, cliente_id=cuenta.id
+                        )
+                    )
+
         convocatorias_def = [
             {
                 "codigo": "CONV-2026-001",

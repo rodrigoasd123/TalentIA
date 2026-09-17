@@ -20,6 +20,44 @@
     {% else %}<span class="texto-secundario">Todavía no hay candidaturas.</span>{% endfor %}
   </div>
 </section>
+<section class="seccion" aria-labelledby="carga-cv">
+  <div class="titulo-seccion"><h2 id="carga-cv">Cargar CV y evaluar matching</h2><span class="estado">Paso 4</span></div>
+  <p>Los CV se registran en la base central de esta cuenta, se validan contra Ex‑TCS y exclusiones, y se evalúan automáticamente contra el Job Description de esta convocatoria.</p>
+  {% if convocatoria.perfil.requisitos %}
+  <details>
+    <summary>Ver criterios del Job Description</summary>
+    <ul>{% for requisito in convocatoria.perfil.requisitos %}<li><strong>{% if requisito.obligatorio %}Obligatorio{% else %}Deseable{% endif %}:</strong> {{ requisito.descripcion }} · peso {{ requisito.peso }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+  {% if puede_cargar and convocatoria.estado == 'abierta' %}
+  <form method="post" enctype="multipart/form-data" action="/convocatorias/{{ convocatoria.id }}/cvs" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="rejilla-formulario">
+      <label>CV de candidatos (PDF o DOCX)
+        <input type="file" name="archivos" accept=".pdf,.docx" multiple required>
+      </label>
+      <label>Fuente
+        <select name="fuente"><option value="carga_directa">Carga directa</option><option value="adecco">Adecco</option><option value="linkedin">LinkedIn</option><option value="referido">Referido</option></select>
+      </label>
+      <label>Reclutador<input name="reclutador" maxlength="120" placeholder="Nombre del reclutador"></label>
+    </div>
+    <button class="btn btn-primary" type="submit">Registrar y evaluar CV</button>
+  </form>
+  {% endif %}
+  {% if resultados %}
+  <div class="rejilla-tarjetas">
+    {% for resultado in resultados %}
+    <article class="tarjeta-resumen">
+      <strong>{{ resultado.archivo }}</strong>
+      {% if resultado.error %}<p class="alert alert-danger">{{ resultado.error }}</p>
+      {% elif resultado.bloqueada_politica %}<p><span class="estado estado-no_apta">Ex‑TCS · reincorporación bloqueada</span></p>
+      {% elif resultado.trabajo_id %}<p><span class="estado estado-en_evaluacion">Evaluación en cola</span></p><a href="/trabajos/{{ resultado.trabajo_id }}">Ver progreso</a>
+      {% else %}<p>{{ resultado.estado | title }}</p>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
 <section class="seccion" aria-labelledby="equipo-convocatoria">
   <div class="titulo-seccion"><h2 id="equipo-convocatoria">Responsables</h2><span class="estado">{{ convocatoria.responsables | length }} asignados</span></div>
   <div class="rejilla-tarjetas">
@@ -62,12 +100,27 @@
   {% endif %}
   <div class="tabla-responsive">
     <table class="table align-middle">
-      <thead><tr><th>Candidato</th><th>Fuente</th><th>Estado</th><th>Siguiente acción</th></tr></thead>
+      <thead><tr><th>Candidato</th><th>Fuente</th><th>Control</th><th>Matching</th><th>Estado</th><th>Siguiente acción</th></tr></thead>
       <tbody>
       {% for postulacion in convocatoria.candidaturas %}
       <tr>
-        <td><strong>{{ postulacion.candidato }}</strong><small>{{ postulacion.reclutador or 'Sin reclutador registrado' }}</small></td>
+        <td><strong>{{ postulacion.candidato }}</strong><small>{{ postulacion.documento_normalizado or 'Sin documento' }} · {{ postulacion.reclutador or 'Sin reclutador' }}</small></td>
         <td>{{ postulacion.fuente }}</td>
+        <td>
+          {% if postulacion.bloqueada_ex_tcs %}<span class="estado estado-no_apta">Ex‑TCS bloqueado</span>
+          {% elif postulacion.restriccion_vigente %}<span class="estado estado-no_apta">Exclusión vigente</span>
+          {% else %}<span class="estado estado-apta">Sin alertas</span>{% endif %}
+        </td>
+        <td>
+          {% if postulacion.puntaje_documental is not none %}
+          <strong>{{ postulacion.puntaje_documental | round(1) }}%</strong>
+          {% if postulacion.evaluacion_id %}<small><a href="/evaluaciones/{{ postulacion.evaluacion_id }}">Ver desglose y evidencia</a></small>{% endif %}
+          {% elif postulacion.bloqueada_ex_tcs %}
+          <span class="texto-secundario">No aplica por política</span>
+          {% elif postulacion.estado in ['nueva', 'en_evaluacion'] %}
+          <span class="estado estado-en_evaluacion">Procesando</span>
+          {% else %}<span class="texto-secundario">Sin evaluación</span>{% endif %}
+        </td>
         <td><span class="estado estado-{{ postulacion.estado }}">{{ postulacion.estado | replace('_', ' ') | title }}</span></td>
         <td>
           {% if acciones[postulacion.id] and convocatoria.estado == 'abierta' %}
@@ -81,7 +134,7 @@
           {% else %}<span class="texto-secundario">Sin acciones disponibles</span>{% endif %}
         </td>
       </tr>
-      {% else %}<tr><td colspan="4" class="vacio">No hay candidaturas en esta convocatoria.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="6" class="vacio">No hay candidaturas en esta convocatoria.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

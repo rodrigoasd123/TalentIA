@@ -19,7 +19,7 @@ from talentia.modules.documents.domain.modelos import (
     ReferenciaFuente,
 )
 from talentia.modules.evaluations.domain.modelos import Veredicto
-from talentia.modules.recruitment.domain.modelos import RequisitoPerfil
+from talentia.modules.recruitment.domain.modelos import EstadoPostulacion, RequisitoPerfil
 from talentia.platform.cliente_llm import ClienteLLM, ProveedorLLMError, RespuestaLLM
 from talentia.shared.infrastructure.base_datos import FabricaSesiones
 from talentia.shared.infrastructure.modelos_orm import (
@@ -404,6 +404,15 @@ class ContextoNodosEvaluacion:
                         comentario=None,
                     )
                 )
+                postulacion = sesion.get(PostulacionModelo, estado["postulacion_id"])
+                if postulacion is not None and postulacion.estado not in {
+                    EstadoPostulacion.NO_APTA.value,
+                    EstadoPostulacion.RECHAZADA.value,
+                    EstadoPostulacion.RETIRADA.value,
+                    EstadoPostulacion.CONTRATADA.value,
+                }:
+                    postulacion.estado = EstadoPostulacion.REVISION_HUMANA.value
+                    postulacion.version += 1
                 RepositorioSqlalchemy(sesion).registrar_evento(
                     cliente_id=estado["cliente_id"],
                     actor_id=None,

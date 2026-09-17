@@ -581,6 +581,7 @@ def _respuesta_detalle_convocatoria(
     *,
     error: str | None = None,
     datos: dict[str, str] | None = None,
+    resultados: list[dict[str, object]] | None = None,
     status_code: int = 200,
 ) -> Response:
     convocatoria = request.app.state.servicio.obtener_convocatoria(usuario, convocatoria_id)
@@ -595,6 +596,15 @@ def _respuesta_detalle_convocatoria(
         ]
         for postulacion in cast(list[dict[str, object]], convocatoria["candidaturas"])
     }
+    puede_cargar = all(
+        _puede(usuario, permiso)
+        for permiso in (
+            "candidatos:escribir",
+            "documentos:escribir",
+            "postulaciones:escribir",
+            "evaluaciones:solicitar",
+        )
+    )
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="detalle_convocatoria.html",
@@ -603,8 +613,106 @@ def _respuesta_detalle_convocatoria(
             usuario,
             convocatoria=convocatoria,
             acciones=acciones,
+            puede_cargar=puede_cargar,
             puede_seleccionar=_puede(usuario, "postulaciones:seleccionar"),
             puede_asignar=_puede(usuario, "convocatorias:asignar"),
+            error=error,
+            datos=datos or {},
+            resultados=resultados or [],
+        ),
+        status_code=status_code,
+    )
+
+
+def _espacio_cuenta(
+    request: Request, usuario: UsuarioActual, cliente_id: str
+) -> dict[str, object]:
+    opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, "espacio_cuentas")
+    cuenta = next(
+        (item for item in opciones["clientes"] if str(item["id"]) == cliente_id),
+        None,
+    )
+    if cuenta is None:
+        raise NoEncontradoError("Cuenta no encontrada")
+    versiones = [item for item in opciones["versiones"] if str(item["cliente_id"]) == cliente_id]
+    convocatorias = request.app.state.servicio.listar_convocatorias(usuario, cliente_id)
+    perfiles: list[dict[str, object]] = []
+    for perfil_base in opciones["perfiles"]:
+        if str(perfil_base["cliente_id"]) != cliente_id:
+            continue
+        perfil = dict(perfil_base)
+        ids_version = {
+            str(version["id"])
+            for version in versiones
+            if str(version["perfil_id"]) == str(perfil["id"])
+        }
+        procesos = [
+            convocatoria
+            for convocatoria in convocatorias
+            if str(convocatoria["version_perfil_id"]) in ids_version
+        ]
+        perfil["versiones_publicadas"] = len(ids_version)
+        perfil["convocatorias"] = len(procesos)
+        perfil["convocatorias_abiertas"] = sum(
+            str(convocatoria["estado"]) == "abierta" for convocatoria in procesos
+        )
+        perfiles.append(perfil)
+    return {
+        "cuenta": cuenta,
+        "perfiles": perfiles,
+        "versiones": versiones,
+        "convocatorias": convocatorias,
+    }
+
+
+def _respuesta_cuenta(request: Request, usuario: UsuarioActual, cliente_id: str) -> Response:
+    espacio = _espacio_cuenta(request, usuario, cliente_id)
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_cuenta.html",
+        context=_contexto(
+            request,
+            usuario,
+            **espacio,
+            puede_crear_perfil=_puede(usuario, "perfiles:escribir"),
+        ),
+    )
+
+
+def _respuesta_perfil_cuenta(
+    request: Request,
+    usuario: UsuarioActual,
+    cliente_id: str,
+    perfil_id: str,
+    *,
+    error: str | None = None,
+    datos: dict[str, str] | None = None,
+    status_code: int = 200,
+) -> Response:
+    espacio = _espacio_cuenta(request, usuario, cliente_id)
+    detalle = request.app.state.servicio.obtener_detalle_perfil(
+        usuario, perfil_id, request.state.correlacion_id
+    )
+    if str(detalle["perfil"]["cliente_id"]) != cliente_id:
+        raise NoEncontradoError("Perfil no encontrado")
+    ids_version = {str(version["id"]) for version in detalle["versiones"]}
+    convocatorias = [
+        convocatoria
+        for convocatoria in espacio["convocatorias"]
+        if str(convocatoria["version_perfil_id"]) in ids_version
+    ]
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="perfil_cuenta.html",
+        context=_contexto(
+            request,
+            usuario,
+            cuenta=espacio["cuenta"],
+            perfil=detalle["perfil"],
+            versiones=detalle["versiones"],
+            version_activa=detalle["version_activa"],
+            convocatorias=convocatorias,
+            puede_crear=_puede(usuario, "convocatorias:escribir"),
             error=error,
             datos=datos or {},
         ),
@@ -623,32 +731,19 @@ def cuentas(request: Request) -> Response:
     )
 
 
+@router.get("/cuentas/{cliente_id}", response_class=HTMLResponse)
+def detalle_cuenta(request: Request, cliente_id: str) -> Response:
+    return _respuesta_cuenta(request, _usuario(request), cliente_id)
+
+
 @router.get("/cuentas/{cliente_id}/convocatorias", response_class=HTMLResponse)
 def convocatorias_cuenta(request: Request, cliente_id: str) -> Response:
-    usuario = _usuario(request)
-    opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, "espacio_cuentas")
-    convocatorias = request.app.state.servicio.listar_convocatorias(usuario, cliente_id)
-    cuenta = next(
-        (item for item in opciones["clientes"] if str(item["id"]) == cliente_id),
-        None,
-    )
-    if cuenta is None:
-        raise NoEncontradoError("Cuenta no encontrada")
-    versiones = [item for item in opciones["versiones"] if str(item["cliente_id"]) == cliente_id]
-    return PLANTILLAS.TemplateResponse(
-        request=request,
-        name="convocatorias.html",
-        context=_contexto(
-            request,
-            usuario,
-            cuenta=cuenta,
-            convocatorias=convocatorias,
-            versiones=versiones,
-            puede_crear=_puede(usuario, "convocatorias:escribir"),
-            error=None,
-            datos={},
-        ),
-    )
+    return _respuesta_cuenta(request, _usuario(request), cliente_id)
+
+
+@router.get("/cuentas/{cliente_id}/perfiles/{perfil_id}", response_class=HTMLResponse)
+def perfil_cuenta(request: Request, cliente_id: str, perfil_id: str) -> Response:
+    return _respuesta_perfil_cuenta(request, _usuario(request), cliente_id, perfil_id)
 
 
 @router.post("/cuentas/{cliente_id}/convocatorias/nueva", response_class=HTMLResponse)
@@ -656,6 +751,7 @@ def crear_convocatoria_web(
     request: Request,
     cliente_id: str,
     csrf: str = Form(),
+    perfil_id: str = Form(),
     version_perfil_id: str = Form(),
     codigo: str = Form(),
     vacantes_total: int = Form(),
@@ -680,28 +776,13 @@ def crear_convocatoria_web(
             usuario, datos, request.state.correlacion_id
         )
     except (TalentIAError, ValueError) as error:
-        opciones = request.app.state.servicio.obtener_opciones_formulario(
-            usuario, "espacio_cuentas"
-        )
-        cuenta = next(
-            (item for item in opciones["clientes"] if str(item["id"]) == cliente_id),
-            None,
-        )
-        return PLANTILLAS.TemplateResponse(
-            request=request,
-            name="convocatorias.html",
-            context=_contexto(
-                request,
-                usuario,
-                cuenta=cuenta,
-                convocatorias=request.app.state.servicio.listar_convocatorias(usuario, cliente_id),
-                versiones=[
-                    item for item in opciones["versiones"] if str(item["cliente_id"]) == cliente_id
-                ],
-                puede_crear=True,
-                error=str(error),
-                datos={clave: str(valor or "") for clave, valor in datos.items()},
-            ),
+        return _respuesta_perfil_cuenta(
+            request,
+            usuario,
+            cliente_id,
+            perfil_id,
+            error=str(error),
+            datos={clave: str(valor or "") for clave, valor in datos.items()},
             status_code=getattr(error, "estado_http", 422),
         )
     return RedirectResponse(f"/convocatorias/{convocatoria['id']}", status_code=303)
@@ -712,6 +793,64 @@ def detalle_convocatoria(request: Request, convocatoria_id: str) -> Response:
     usuario = _usuario(request)
     return _respuesta_detalle_convocatoria(request, usuario, convocatoria_id)
 
+
+@router.post("/convocatorias/{convocatoria_id}/cvs", response_class=HTMLResponse)
+async def cargar_cvs_convocatoria(
+    request: Request,
+    convocatoria_id: str,
+    csrf: str = Form(),
+    archivos: list[UploadFile] = File(),
+    fuente: str = Form("carga_directa"),
+    reclutador: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    if not archivos or len(archivos) > 50:
+        return _respuesta_detalle_convocatoria(
+            request,
+            usuario,
+            convocatoria_id,
+            error="Seleccione entre 1 y 50 CV",
+            status_code=422,
+        )
+    convocatoria = request.app.state.servicio.obtener_convocatoria(usuario, convocatoria_id)
+    if str(convocatoria["estado"]) != "abierta":
+        return _respuesta_detalle_convocatoria(
+            request,
+            usuario,
+            convocatoria_id,
+            error="La convocatoria debe estar abierta para recibir CV",
+            status_code=409,
+        )
+    tipos = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    resultados: list[dict[str, object]] = []
+    for archivo in archivos:
+        nombre = archivo.filename or "cv"
+        tipo_mime = tipos.get(Path(nombre).suffix.casefold(), archivo.content_type or "")
+        try:
+            resultado = request.app.state.servicio.registrar_candidato_desde_cv(
+                usuario,
+                str(convocatoria["cliente_id"]),
+                nombre,
+                tipo_mime,
+                await archivo.read(),
+                fuente,
+                reclutador,
+                request.state.correlacion_id,
+                version_perfil_id=str(convocatoria["version_perfil_id"]),
+                convocatoria_id=convocatoria_id,
+                evaluar_automaticamente=True,
+            )
+            resultados.append(resultado)
+        except (TalentIAError, ValueError) as error:
+            resultados.append({"archivo": nombre, "estado": "error", "error": str(error)})
+    return _respuesta_detalle_convocatoria(
+        request, usuario, convocatoria_id, resultados=resultados
+    )
 
 @router.post("/convocatorias/{convocatoria_id}/responsables", response_class=HTMLResponse)
 def asignar_reclutador_convocatoria_web(
@@ -847,9 +986,15 @@ async def analizar_convocatoria_previa_ajax(
 
 
 @router.get("/perfiles/nuevo", response_class=HTMLResponse)
-def nuevo_perfil(request: Request) -> Response:
+def nuevo_perfil(request: Request, cliente_id: str = "", flujo_cuenta: str = "") -> Response:
     usuario = _usuario(request)
-    return _respuesta_formulario(request, usuario, "nuevo_perfil.html", "perfiles")
+    return _respuesta_formulario(
+        request,
+        usuario,
+        "nuevo_perfil.html",
+        "perfiles",
+        datos={"cliente_id": cliente_id, "flujo_cuenta": flujo_cuenta},
+    )
 
 
 @router.post("/perfiles/nuevo", response_class=HTMLResponse)
@@ -859,6 +1004,7 @@ async def crear_perfil_web(
     cliente_id: str = Form(),
     codigo: str = Form(""),
     titulo: str = Form(""),
+    flujo_cuenta: str = Form(""),
     archivo_convocatoria: Annotated[UploadFile | None, File()] = None,
 ) -> Response:
     usuario = _usuario(request)
@@ -883,7 +1029,12 @@ async def crear_perfil_web(
                     codigo = resultado_convocatoria.codigo
 
     if not codigo.strip() or not titulo.strip():
-        datos = {"cliente_id": cliente_id, "codigo": codigo, "titulo": titulo}
+        datos = {
+            "cliente_id": cliente_id,
+            "codigo": codigo,
+            "titulo": titulo,
+            "flujo_cuenta": flujo_cuenta,
+        }
         return _respuesta_formulario(
             request,
             usuario,
@@ -894,7 +1045,12 @@ async def crear_perfil_web(
             status_code=422,
         )
 
-    datos = {"cliente_id": cliente_id, "codigo": codigo, "titulo": titulo}
+    datos = {
+        "cliente_id": cliente_id,
+        "codigo": codigo,
+        "titulo": titulo,
+        "flujo_cuenta": flujo_cuenta,
+    }
     try:
         perfil = request.app.state.servicio.crear_perfil(
             usuario, datos, request.state.correlacion_id
@@ -925,7 +1081,11 @@ async def crear_perfil_web(
                 },
                 request.state.correlacion_id,
             )
-            return RedirectResponse(f"/perfiles/{perfil['id']}", status_code=303)
+            destino = (
+                f"/cuentas/{cliente_id}/perfiles/{perfil['id']}"
+                if flujo_cuenta == "si" else f"/perfiles/{perfil['id']}"
+            )
+            return RedirectResponse(destino, status_code=303)
     with contextlib.suppress(Exception):
         cod_clean = "".join(c for c in codigo if c.isalnum() or c == "-")[:8].upper() or "ROL"
         req_base = [
@@ -946,7 +1106,11 @@ async def crear_perfil_web(
             request.state.correlacion_id,
         )
 
-    return RedirectResponse(f"/perfiles/{perfil['id']}", status_code=303)
+    destino = (
+        f"/cuentas/{cliente_id}/perfiles/{perfil['id']}"
+        if flujo_cuenta == "si" else f"/perfiles/{perfil['id']}"
+    )
+    return RedirectResponse(destino, status_code=303)
 
 
 @router.get("/perfiles/{perfil_id}/versiones/nueva", response_class=HTMLResponse)

@@ -731,6 +731,8 @@ class RepositorioSqlalchemy:
                     PerfilPuestoModelo.codigo.label("perfil_codigo"),
                     PerfilPuestoModelo.titulo.label("perfil_titulo"),
                     VersionPerfilPuestoModelo.numero.label("perfil_version"),
+                    VersionPerfilPuestoModelo.requisitos.label("perfil_requisitos"),
+                    VersionPerfilPuestoModelo.ctc.label("perfil_ctc"),
                 )
                 .select_from(ConvocatoriaModelo)
                 .join(
@@ -757,6 +759,8 @@ class RepositorioSqlalchemy:
             "codigo": contexto["perfil_codigo"],
             "titulo": contexto["perfil_titulo"],
             "version": contexto["perfil_version"],
+            "requisitos": contexto["perfil_requisitos"],
+            "ctc": contexto["perfil_ctc"],
         }
         resultado["responsables"] = [
             {
@@ -954,6 +958,14 @@ class RepositorioSqlalchemy:
         }
 
     def listar_postulaciones_convocatoria(self, convocatoria_id: str) -> list[dict[str, object]]:
+        evaluacion_actual = (
+            select(EvaluacionModelo.id)
+            .where(EvaluacionModelo.postulacion_id == PostulacionModelo.id)
+            .order_by(EvaluacionModelo.creado_en.desc())
+            .limit(1)
+            .correlate(PostulacionModelo)
+            .scalar_subquery()
+        )
         filas = self.sesion.execute(
             select(
                 PostulacionModelo.id,
@@ -966,13 +978,26 @@ class RepositorioSqlalchemy:
                 PostulacionModelo.version,
                 PostulacionModelo.actualizado_en,
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                CandidatoModelo.documento_normalizado,
                 CandidatoModelo.reclutador,
+                CandidatoModelo.etiquetas,
+                EvaluacionModelo.id.label("evaluacion_id"),
+                EvaluacionModelo.puntaje_documental,
+                EvaluacionModelo.requiere_revision,
             )
             .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .outerjoin(EvaluacionModelo, EvaluacionModelo.id == evaluacion_actual)
             .where(PostulacionModelo.convocatoria_id == convocatoria_id)
             .order_by(PostulacionModelo.actualizado_en.desc())
         ).mappings()
-        return [dict(fila) for fila in filas]
+        resultados: list[dict[str, object]] = []
+        for fila in filas:
+            resultado = dict(fila)
+            etiquetas = set(resultado.pop("etiquetas") or [])
+            resultado["bloqueada_ex_tcs"] = "politica-ex-tcs-bloqueado" in etiquetas
+            resultado["restriccion_vigente"] = "restriccion-vigente" in etiquetas
+            resultados.append(resultado)
+        return resultados
 
     def vista_previa_cierre(self, convocatoria_id: str) -> dict[str, object]:
         convocatoria = self.sesion.get(ConvocatoriaModelo, convocatoria_id)
@@ -1067,6 +1092,15 @@ class RepositorioSqlalchemy:
             )
         )
         if existente is not None:
+            bloqueo_aplicado = False
+            if datos.get("estado") == EstadoPostulacion.NO_APTA.value and (
+                existente.estado != EstadoPostulacion.NO_APTA.value
+            ):
+                existente.estado = EstadoPostulacion.NO_APTA.value
+                existente.version += 1
+                existente.actualizado_en = datetime.now(UTC)
+                self.sesion.flush()
+                bloqueo_aplicado = True
             return {
                 "id": existente.id,
                 "estado": existente.estado,
@@ -1074,6 +1108,7 @@ class RepositorioSqlalchemy:
                 "convocatoria_id": existente.convocatoria_id,
                 "version": existente.version,
                 "reutilizado": True,
+                "bloqueo_aplicado": bloqueo_aplicado,
             }
         modelo = PostulacionModelo(id=nuevo_id(), **datos)
         self.sesion.add(modelo)

@@ -6,6 +6,7 @@
 
 <form method="post" enctype="multipart/form-data" action="/perfiles/nuevo" class="seccion formulario-operativo">
   <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="flujo_cuenta" value="{{ datos.flujo_cuenta or '' }}">
 
   <!-- Helper para autocompletar datos del perfil desde Job Description -->
   <div style="background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 8px; padding: 1.15rem 1.25rem; margin-bottom: 1.5rem;">
@@ -53,7 +54,7 @@
     </label>
   </div>
   <div class="acciones-formulario">
-    <a class="btn btn-outline-secondary" href="/modulo/perfiles">Cancelar</a>
+    <a class="btn btn-outline-secondary" href="{% if datos.flujo_cuenta == 'si' and datos.cliente_id %}/cuentas/{{ datos.cliente_id }}{% else %}/modulo/perfiles{% endif %}">Cancelar</a>
     <button class="btn btn-primary" type="submit">Crear y publicar vacante</button>
   </div>
 </form>

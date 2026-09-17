@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ cuenta.nombre }} | TalentIA{% endblock %}
+{% block heading %}{{ cuenta.nombre }}{% endblock %}
+{% block breadcrumb %}<a href="/cuentas">Cuentas</a> / {{ cuenta.codigo }}{% endblock %}
+{% block subtitle %}Paso 1 completado: seleccionaste la cuenta. Ahora elige el perfil de puesto.{% endblock %}
+{% block content %}
+<section class="seccion">
+  <div class="grupo-estados" aria-label="Flujo operativo">
+    <span class="estado estado-apta">1. Cuenta</span>
+    <span class="estado">2. Perfil + Job Description</span>
+    <span class="estado">3. Convocatoria</span>
+    <span class="estado">4. CV + matching</span>
+  </div>
+  <p class="texto-secundario">Cuenta → perfil publicado → convocatoria → responsables → candidaturas. Los datos de {{ cuenta.nombre }} permanecen aislados de otras cuentas.</p>
+</section>
+<section class="seccion">
+  <div class="titulo-seccion">
+    <h2>Perfiles de la cuenta</h2>
+    {% if puede_crear_perfil %}<a class="btn btn-primary" href="/perfiles/nuevo?cliente_id={{ cuenta.id }}&flujo_cuenta=si">Crear perfil y cargar Job Description</a>{% endif %}
+  </div>
+  <div class="rejilla-tarjetas">
+    {% for perfil in perfiles %}
+    <article class="tarjeta-resumen">
+      <span class="etiqueta">Perfil</span>
+      <h3>{{ perfil.codigo }} · {{ perfil.titulo }}</h3>
+      <p>{{ perfil.versiones_publicadas }} versión(es) · {{ perfil.convocatorias }} convocatoria(s) · {{ perfil.convocatorias_abiertas }} abierta(s)</p>
+      <a class="btn btn-primary" href="/cuentas/{{ cuenta.id }}/perfiles/{{ perfil.id }}">Abrir perfil</a>
+    </article>
+    {% else %}
+    <div class="alert alert-info">Todavía no hay perfiles en esta cuenta. Crea el primero y adjunta su Job Description.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

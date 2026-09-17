@@ -26,17 +26,13 @@
         <div class="grupo-nav">
           <span>Operacion</span>
           <a href="/" class="{% if ruta_actual == '/' %}activo{% endif %}" {% if ruta_actual == '/' %}aria-current="page"{% endif %}><i aria-hidden="true">⌂</i>Inicio</a>
-          <a href="/cuentas" class="{% if ruta_actual.startswith('/cuentas') or ruta_actual.startswith('/convocatorias') %}activo{% endif %}" {% if ruta_actual.startswith('/cuentas') or ruta_actual.startswith('/convocatorias') %}aria-current="page"{% endif %}><i aria-hidden="true">▣</i>Cuentas y convocatorias</a>
-          <a href="/candidatos" class="{% if ruta_actual.startswith('/candidatos') %}activo{% endif %}" {% if ruta_actual.startswith('/candidatos') %}aria-current="page"{% endif %}><i aria-hidden="true">●</i>Base general</a>
-          <a href="/modulo/perfiles" class="{% if ruta_actual.startswith('/modulo/perfiles') or ruta_actual.startswith('/perfiles') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/perfiles') or ruta_actual.startswith('/perfiles') %}aria-current="page"{% endif %}><i aria-hidden="true">◇</i>Perfiles</a>
-          <a href="/modulo/postulaciones" class="{% if ruta_actual.startswith('/modulo/postulaciones') or ruta_actual.startswith('/postulaciones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/postulaciones') or ruta_actual.startswith('/postulaciones') %}aria-current="page"{% endif %}><i aria-hidden="true">↗</i>Postulaciones</a>
-          <a href="/modulo/documentos" class="{% if ruta_actual.startswith('/modulo/documentos') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/documentos') %}aria-current="page"{% endif %}><i aria-hidden="true">▤</i>CV y precarga</a>
+          <a href="/cuentas" class="{% if ruta_actual.startswith('/cuentas') or ruta_actual.startswith('/convocatorias') %}activo{% endif %}" {% if ruta_actual.startswith('/cuentas') or ruta_actual.startswith('/convocatorias') %}aria-current="page"{% endif %}><i aria-hidden="true">▣</i>Cuentas y procesos</a>
         </div>
         <div class="grupo-nav">
           <span>Seguimiento</span>
           <a href="/modulo/evaluaciones" class="{% if ruta_actual.startswith('/modulo/evaluaciones') or ruta_actual.startswith('/evaluaciones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/evaluaciones') or ruta_actual.startswith('/evaluaciones') %}aria-current="page"{% endif %}><i aria-hidden="true">✓</i>Evaluaciones</a>
           <a href="/modulo/revisiones" class="{% if ruta_actual.startswith('/modulo/revisiones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/revisiones') %}aria-current="page"{% endif %}><i aria-hidden="true">◎</i>Revision humana</a>
-          <a href="/modulo/trabajos" class="{% if ruta_actual.startswith('/modulo/trabajos') or ruta_actual.startswith('/trabajos') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/trabajos') or ruta_actual.startswith('/trabajos') %}aria-current="page"{% endif %}><i aria-hidden="true">↻</i>Trabajos</a>
+          <a href="/candidatos" class="{% if ruta_actual.startswith('/candidatos') %}activo{% endif %}" {% if ruta_actual.startswith('/candidatos') %}aria-current="page"{% endif %}><i aria-hidden="true">●</i>Base general</a>
         </div>
         <div class="grupo-nav">
           <span>Control</span>
