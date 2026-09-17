@@ -23,13 +23,20 @@ from talentia.modules.candidates.domain.modelos import (
     tokens_nombre,
     ultimos_nueve_telefono,
 )
+from talentia.modules.recruitment.domain.modelos import (
+    EstadoPostulacion,
+    TransicionPostulacionInvalidaError,
+    validar_transicion_postulacion,
+)
 from talentia.platform.observabilidad.telemetria import registrar_metrica as persistir_metrica
 from talentia.shared.application.errores import ConflictoError, EntradaInvalidaError
 from talentia.shared.domain.modelos import nuevo_id
 from talentia.shared.infrastructure.modelos_orm import (
+    AsignacionReclutadorConvocatoriaModelo,
     AsignacionUsuarioClienteModelo,
     CandidatoModelo,
     ClienteModelo,
+    ConvocatoriaModelo,
     CorreccionCampoModelo,
     DocumentoCandidatoModelo,
     EntradaExclusionModelo,
@@ -85,6 +92,23 @@ def _candidato_desde_modelo(modelo: CandidatoModelo) -> Candidato:
 
 def _filtro_clientes(columna: Any, clientes: frozenset[str]) -> Any:
     return columna.in_(clientes) if clientes else true()
+
+
+def _criterio_identidad(
+    fila: Any,
+    documento: str | None,
+    correo: str | None,
+    telefono: str | None,
+    tokens: tuple[str, ...],
+) -> str:
+    nombre_tokens = tokens_nombre(f"{fila['nombres']} {fila['apellidos']}")
+    if documento and fila["documento_normalizado"] == documento:
+        return "documento"
+    if correo and fila["correo"] == correo:
+        return "correo"
+    if telefono and ultimos_nueve_telefono(fila["telefono"]) == telefono:
+        return "telefono"
+    return "nombre" if tokens and nombre_tokens == tokens else ""
 
 
 def _candidato_a_modelo(candidato: Candidato) -> CandidatoModelo:
@@ -272,33 +296,80 @@ class RepositorioSqlalchemy:
             condiciones.append(CandidatoModelo.correo == correo)
         if telefono:
             condiciones.append(CandidatoModelo.telefono.endswith(telefono))
-        sentencia = select(CandidatoModelo).where(CandidatoModelo.cliente_id == cliente_id)
+        sentencia = (
+            select(
+                CandidatoModelo.id.label("candidato_id"),
+                CandidatoModelo.nombres,
+                CandidatoModelo.apellidos,
+                CandidatoModelo.documento_normalizado,
+                CandidatoModelo.correo,
+                CandidatoModelo.telefono,
+                CandidatoModelo.estado.label("candidato_estado"),
+                CandidatoModelo.creado_en.label("candidato_creado_en"),
+                PostulacionModelo.id.label("postulacion_id"),
+                PostulacionModelo.convocatoria_id,
+                PostulacionModelo.estado.label("postulacion_estado"),
+                PostulacionModelo.creado_en.label("postulacion_creado_en"),
+                ConvocatoriaModelo.codigo.label("convocatoria_codigo"),
+                UsuarioModelo.nombre.label("reclutador_nombre"),
+                UsuarioModelo.correo.label("reclutador_correo"),
+            )
+            .outerjoin(
+                PostulacionModelo,
+                and_(
+                    PostulacionModelo.candidato_id == CandidatoModelo.id,
+                    PostulacionModelo.cliente_id == cliente_id,
+                ),
+            )
+            .outerjoin(
+                ConvocatoriaModelo,
+                ConvocatoriaModelo.id == PostulacionModelo.convocatoria_id,
+            )
+            .outerjoin(UsuarioModelo, UsuarioModelo.id == PostulacionModelo.reclutador_id)
+            .where(CandidatoModelo.cliente_id == cliente_id)
+            .order_by(CandidatoModelo.id, PostulacionModelo.creado_en.desc())
+        )
         if condiciones and not tokens:
             sentencia = sentencia.where(or_(*condiciones))
-        encontrados: list[dict[str, object]] = []
-        for modelo in self.sesion.scalars(sentencia):
-            nombre_tokens = tokens_nombre(f"{modelo.nombres} {modelo.apellidos}")
-            criterio = "nombre" if tokens and nombre_tokens == tokens else ""
-            if documento and modelo.documento_normalizado == documento:
-                criterio = "documento"
-            elif correo and modelo.correo == correo:
-                criterio = "correo"
-            elif telefono and ultimos_nueve_telefono(modelo.telefono) == telefono:
-                criterio = "telefono"
-            if criterio:
-                encontrados.append(
-                    {
-                        "id": modelo.id,
-                        "criterio": criterio,
-                        "identidad_enmascarada": " ".join(
-                            f"{parte[:1]}***" for parte in (modelo.nombres, modelo.apellidos)
-                        ),
-                        "estado": modelo.estado,
-                        "reclutador": modelo.reclutador or "sin_asignar",
-                        "fecha": modelo.creado_en.isoformat(),
-                    }
-                )
-        return encontrados
+        encontrados_por_id: dict[str, dict[str, object]] = {}
+        for fila in self.sesion.execute(sentencia).mappings():
+            candidato_id = str(fila["candidato_id"])
+            criterio = _criterio_identidad(fila, documento, correo, telefono, tokens)
+            if not criterio:
+                continue
+            encontrado = encontrados_por_id.setdefault(
+                candidato_id,
+                {
+                    "id": candidato_id,
+                    "criterio": criterio,
+                    "identidad_enmascarada": " ".join(
+                        f"{str(parte)[:1]}***" for parte in (fila["nombres"], fila["apellidos"])
+                    ),
+                    "estado": fila["candidato_estado"],
+                    "reclutador": "sin_asignar",
+                    "fecha": fila["candidato_creado_en"].isoformat(),
+                    "antecedentes": [],
+                },
+            )
+            if fila["postulacion_id"] is None:
+                continue
+            reclutador = str(
+                fila["reclutador_nombre"] or fila["reclutador_correo"] or "sin_asignar"
+            )
+            antecedentes = encontrados_por_id[candidato_id]["antecedentes"]
+            assert isinstance(antecedentes, list)
+            antecedentes.append(
+                {
+                    "convocatoria_id": fila["convocatoria_id"],
+                    "proceso": fila["convocatoria_codigo"],
+                    "estado": fila["postulacion_estado"],
+                    "fecha": fila["postulacion_creado_en"].isoformat(),
+                    "reclutador": reclutador,
+                }
+            )
+            if encontrado["reclutador"] == "sin_asignar":
+                encontrado["reclutador"] = reclutador
+        return list(encontrados_por_id.values())
 
     def agregar_candidato(self, candidato: Candidato) -> Candidato:
         self.sesion.add(_candidato_a_modelo(candidato))
@@ -599,6 +670,7 @@ class RepositorioSqlalchemy:
                     PostulacionModelo.id.label("postulacion_id"),
                     PostulacionModelo.cliente_id.label("cliente_id"),
                     PostulacionModelo.candidato_id.label("candidato_id"),
+                    PostulacionModelo.convocatoria_id.label("convocatoria_id"),
                     PostulacionModelo.version_perfil_id.label("version_perfil_id"),
                     PostulacionModelo.fuente.label("fuente"),
                     PostulacionModelo.estado.label("estado"),
@@ -618,6 +690,376 @@ class RepositorioSqlalchemy:
         )
         return [dict(f) for f in filas]
 
+    @staticmethod
+    def _convocatoria_a_dict(modelo: ConvocatoriaModelo) -> dict[str, object]:
+        return {
+            "id": modelo.id,
+            "cliente_id": modelo.cliente_id,
+            "version_perfil_id": modelo.version_perfil_id,
+            "codigo": modelo.codigo,
+            "vacantes_total": modelo.vacantes_total,
+            "fecha_apertura": modelo.fecha_apertura,
+            "fecha_objetivo": modelo.fecha_objetivo,
+            "estado": modelo.estado,
+            "motivo_cierre": modelo.motivo_cierre,
+            "es_compatibilidad": modelo.es_compatibilidad,
+            "cerrada_en": modelo.cerrada_en,
+            "version": modelo.version,
+        }
+
+    def crear_convocatoria(self, datos: dict[str, object]) -> dict[str, object]:
+        modelo = ConvocatoriaModelo(id=nuevo_id(), **datos)
+        self.sesion.add(modelo)
+        try:
+            self.sesion.flush()
+        except IntegrityError as exc:
+            raise ConflictoError("Ya existe una convocatoria con ese codigo en la cuenta") from exc
+        return self._convocatoria_a_dict(modelo)
+
+    def obtener_convocatoria(self, convocatoria_id: str) -> dict[str, object] | None:
+        modelo = self.sesion.get(ConvocatoriaModelo, convocatoria_id)
+        if modelo is None:
+            return None
+        resultado = self._convocatoria_a_dict(modelo)
+        contexto = (
+            self.sesion.execute(
+                select(
+                    ClienteModelo.id.label("cuenta_id"),
+                    ClienteModelo.codigo.label("cuenta_codigo"),
+                    ClienteModelo.nombre.label("cuenta_nombre"),
+                    PerfilPuestoModelo.id.label("perfil_id"),
+                    PerfilPuestoModelo.codigo.label("perfil_codigo"),
+                    PerfilPuestoModelo.titulo.label("perfil_titulo"),
+                    VersionPerfilPuestoModelo.numero.label("perfil_version"),
+                )
+                .select_from(ConvocatoriaModelo)
+                .join(
+                    VersionPerfilPuestoModelo,
+                    VersionPerfilPuestoModelo.id == ConvocatoriaModelo.version_perfil_id,
+                )
+                .join(
+                    PerfilPuestoModelo,
+                    PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id,
+                )
+                .join(ClienteModelo, ClienteModelo.id == ConvocatoriaModelo.cliente_id)
+                .where(ConvocatoriaModelo.id == convocatoria_id)
+            )
+            .mappings()
+            .one()
+        )
+        resultado["cuenta"] = {
+            "id": contexto["cuenta_id"],
+            "codigo": contexto["cuenta_codigo"],
+            "nombre": contexto["cuenta_nombre"],
+        }
+        resultado["perfil"] = {
+            "id": contexto["perfil_id"],
+            "codigo": contexto["perfil_codigo"],
+            "titulo": contexto["perfil_titulo"],
+            "version": contexto["perfil_version"],
+        }
+        resultado["responsables"] = [
+            {
+                "id": usuario.id,
+                "nombre": usuario.nombre,
+                "correo": usuario.correo,
+                "asignado_en": asignacion.asignado_en,
+            }
+            for asignacion, usuario in self.sesion.execute(
+                select(AsignacionReclutadorConvocatoriaModelo, UsuarioModelo)
+                .join(
+                    UsuarioModelo,
+                    UsuarioModelo.id == AsignacionReclutadorConvocatoriaModelo.usuario_id,
+                )
+                .where(AsignacionReclutadorConvocatoriaModelo.convocatoria_id == convocatoria_id)
+                .order_by(UsuarioModelo.nombre)
+            )
+        ]
+        return resultado
+
+    def listar_convocatorias(
+        self,
+        clientes: frozenset[str],
+        cliente_id: str | None = None,
+        limite: int = 100,
+        cursor: str | None = None,
+    ) -> list[dict[str, object]]:
+        sentencia = select(ConvocatoriaModelo)
+        if cliente_id is not None:
+            sentencia = sentencia.where(ConvocatoriaModelo.cliente_id == cliente_id)
+        elif clientes:
+            sentencia = sentencia.where(ConvocatoriaModelo.cliente_id.in_(clientes))
+        if cursor:
+            sentencia = sentencia.where(ConvocatoriaModelo.id > cursor)
+        filas = self.sesion.scalars(sentencia.order_by(ConvocatoriaModelo.id).limit(limite))
+        return [self._convocatoria_a_dict(modelo) for modelo in filas]
+
+    def obtener_o_crear_convocatoria_compatibilidad(
+        self, cliente_id: str, version_perfil_id: str
+    ) -> dict[str, object]:
+        modelo = self.sesion.scalar(
+            select(ConvocatoriaModelo).where(
+                ConvocatoriaModelo.cliente_id == cliente_id,
+                ConvocatoriaModelo.version_perfil_id == version_perfil_id,
+                ConvocatoriaModelo.es_compatibilidad.is_(True),
+                ConvocatoriaModelo.estado == "abierta",
+            )
+        )
+        if modelo is None:
+            base_codigo = f"COMPAT-{version_perfil_id[:16]}"
+            codigo = base_codigo
+            sufijo = 1
+            while self.sesion.scalar(
+                select(ConvocatoriaModelo.id).where(
+                    ConvocatoriaModelo.cliente_id == cliente_id,
+                    ConvocatoriaModelo.codigo == codigo,
+                )
+            ):
+                sufijo += 1
+                codigo = f"{base_codigo}-{sufijo}"
+            modelo = ConvocatoriaModelo(
+                id=nuevo_id(),
+                cliente_id=cliente_id,
+                version_perfil_id=version_perfil_id,
+                codigo=codigo,
+                vacantes_total=1,
+                fecha_apertura=datetime.now(UTC).date(),
+                fecha_objetivo=None,
+                estado="abierta",
+                es_compatibilidad=True,
+            )
+            self.sesion.add(modelo)
+            self.sesion.flush()
+        return self._convocatoria_a_dict(modelo)
+
+    def usuario_asignado_cliente(self, usuario_id: str, cliente_id: str) -> bool:
+        return self.sesion.get(AsignacionUsuarioClienteModelo, (usuario_id, cliente_id)) is not None
+
+    def asignar_reclutador_convocatoria(
+        self, convocatoria_id: str, usuario_id: str, asignado_por: str, asignar: bool
+    ) -> dict[str, object]:
+        convocatoria = self.sesion.get(ConvocatoriaModelo, convocatoria_id)
+        usuario = self.sesion.get(UsuarioModelo, usuario_id)
+        if convocatoria is None or usuario is None or not usuario.activo:
+            raise EntradaInvalidaError("Convocatoria o usuario activo inexistente")
+        rol_reclutador = self.sesion.scalar(
+            select(UsuarioRolModelo.usuario_id)
+            .join(RolModelo, RolModelo.id == UsuarioRolModelo.rol_id)
+            .where(
+                UsuarioRolModelo.usuario_id == usuario_id,
+                RolModelo.codigo == "reclutador",
+            )
+        )
+        if not self.usuario_asignado_cliente(usuario_id, convocatoria.cliente_id):
+            raise EntradaInvalidaError("El reclutador no tiene acceso a la cuenta")
+        if rol_reclutador is None:
+            raise EntradaInvalidaError("El responsable debe tener rol reclutador")
+        clave = (convocatoria_id, usuario_id)
+        existente = self.sesion.get(AsignacionReclutadorConvocatoriaModelo, clave)
+        if asignar and existente is None:
+            self.sesion.add(
+                AsignacionReclutadorConvocatoriaModelo(
+                    convocatoria_id=convocatoria_id,
+                    usuario_id=usuario_id,
+                    asignado_por=asignado_por,
+                )
+            )
+        elif not asignar and existente is not None:
+            self.sesion.delete(existente)
+        self.sesion.flush()
+        return {
+            "convocatoria_id": convocatoria_id,
+            "usuario_id": usuario_id,
+            "asignado": asignar,
+        }
+
+    def transicionar_postulacion(
+        self,
+        postulacion_id: str,
+        destino: str,
+        motivo: str | None,
+        version_esperada: int,
+    ) -> dict[str, object]:
+        modelo = self.sesion.get(PostulacionModelo, postulacion_id)
+        if modelo is None:
+            raise EntradaInvalidaError("Postulacion inexistente")
+        if modelo.version != version_esperada:
+            raise ConflictoError(
+                f"La candidatura cambio; version actual {modelo.version}, estado {modelo.estado}"
+            )
+        try:
+            origen_estado = EstadoPostulacion(modelo.estado)
+            destino_estado = EstadoPostulacion(destino)
+            validar_transicion_postulacion(origen_estado, destino_estado, motivo)
+        except (ValueError, TransicionPostulacionInvalidaError) as exc:
+            raise EntradaInvalidaError(str(exc)) from exc
+        convocatoria = self.sesion.get(ConvocatoriaModelo, modelo.convocatoria_id)
+        if convocatoria is None or convocatoria.estado != "abierta":
+            raise ConflictoError("La convocatoria no esta abierta")
+        if destino_estado is EstadoPostulacion.FINALISTA:
+            finalistas = (
+                self.sesion.scalar(
+                    select(func.count())
+                    .select_from(PostulacionModelo)
+                    .where(
+                        PostulacionModelo.convocatoria_id == modelo.convocatoria_id,
+                        PostulacionModelo.estado.in_(
+                            ["finalista", "entrevista", "oferta", "contratada"]
+                        ),
+                        PostulacionModelo.id != modelo.id,
+                    )
+                )
+                or 0
+            )
+            if int(finalistas) >= convocatoria.vacantes_total:
+                raise ConflictoError("Los cupos de finalistas ya estan cubiertos")
+        anterior = modelo.estado
+        ahora = datetime.now(UTC)
+        resultado_actualizacion = self.sesion.execute(
+            update(PostulacionModelo)
+            .where(
+                PostulacionModelo.id == postulacion_id,
+                PostulacionModelo.version == version_esperada,
+            )
+            .values(
+                estado=destino_estado.value,
+                version=version_esperada + 1,
+                actualizado_en=ahora,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if (
+            not isinstance(resultado_actualizacion, CursorResult)
+            or resultado_actualizacion.rowcount != 1
+        ):
+            self.sesion.expire_all()
+            actual = self.sesion.get(PostulacionModelo, postulacion_id)
+            detalle = (
+                f"version actual {actual.version}, estado {actual.estado}"
+                if actual is not None
+                else "candidatura inexistente"
+            )
+            raise ConflictoError(f"La candidatura cambio; {detalle}")
+        self.sesion.expire_all()
+        modelo_actualizado = self.sesion.get(PostulacionModelo, postulacion_id)
+        assert modelo_actualizado is not None
+        return {
+            "id": modelo_actualizado.id,
+            "cliente_id": modelo_actualizado.cliente_id,
+            "convocatoria_id": modelo_actualizado.convocatoria_id,
+            "estado_anterior": anterior,
+            "estado": modelo_actualizado.estado,
+            "version": modelo_actualizado.version,
+            "motivo": motivo,
+        }
+
+    def listar_postulaciones_convocatoria(self, convocatoria_id: str) -> list[dict[str, object]]:
+        filas = self.sesion.execute(
+            select(
+                PostulacionModelo.id,
+                PostulacionModelo.cliente_id,
+                PostulacionModelo.candidato_id,
+                PostulacionModelo.convocatoria_id,
+                PostulacionModelo.version_perfil_id,
+                PostulacionModelo.fuente,
+                PostulacionModelo.estado,
+                PostulacionModelo.version,
+                PostulacionModelo.actualizado_en,
+                (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
+                CandidatoModelo.reclutador,
+            )
+            .join(CandidatoModelo, CandidatoModelo.id == PostulacionModelo.candidato_id)
+            .where(PostulacionModelo.convocatoria_id == convocatoria_id)
+            .order_by(PostulacionModelo.actualizado_en.desc())
+        ).mappings()
+        return [dict(fila) for fila in filas]
+
+    def vista_previa_cierre(self, convocatoria_id: str) -> dict[str, object]:
+        convocatoria = self.sesion.get(ConvocatoriaModelo, convocatoria_id)
+        if convocatoria is None:
+            raise EntradaInvalidaError("Convocatoria inexistente")
+        conteos = {
+            str(estado): int(cantidad)
+            for estado, cantidad in self.sesion.execute(
+                select(PostulacionModelo.estado, func.count())
+                .where(PostulacionModelo.convocatoria_id == convocatoria_id)
+                .group_by(PostulacionModelo.estado)
+            )
+        }
+        cubiertas = conteos.get("contratada", 0)
+        return {
+            "convocatoria_id": convocatoria_id,
+            "version": convocatoria.version,
+            "vacantes_total": convocatoria.vacantes_total,
+            "cubiertas": cubiertas,
+            "pendientes": max(0, convocatoria.vacantes_total - cubiertas),
+            "aptas_para_backup": conteos.get("apta", 0),
+            "conteos": conteos,
+            "puede_cerrar": cubiertas >= convocatoria.vacantes_total,
+        }
+
+    def cerrar_convocatoria(
+        self, convocatoria_id: str, version_esperada: int, motivo: str
+    ) -> dict[str, object]:
+        convocatoria = self.sesion.get(ConvocatoriaModelo, convocatoria_id)
+        if convocatoria is None:
+            raise EntradaInvalidaError("Convocatoria inexistente")
+        if convocatoria.version != version_esperada:
+            raise ConflictoError(f"La convocatoria cambio; version actual {convocatoria.version}")
+        previa = self.vista_previa_cierre(convocatoria_id)
+        if not bool(previa["puede_cerrar"]):
+            raise ConflictoError("No se han cubierto todas las vacantes")
+        if not motivo.strip():
+            raise EntradaInvalidaError("El cierre requiere un motivo")
+        ahora = datetime.now(UTC)
+        resultado_cierre = self.sesion.execute(
+            update(ConvocatoriaModelo)
+            .where(
+                ConvocatoriaModelo.id == convocatoria_id,
+                ConvocatoriaModelo.version == version_esperada,
+                ConvocatoriaModelo.estado == "abierta",
+            )
+            .values(
+                estado="cerrada",
+                motivo_cierre=motivo.strip(),
+                cerrada_en=ahora,
+                version=version_esperada + 1,
+                actualizado_en=ahora,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if not isinstance(resultado_cierre, CursorResult) or resultado_cierre.rowcount != 1:
+            self.sesion.expire_all()
+            actual = self.sesion.get(ConvocatoriaModelo, convocatoria_id)
+            version_actual = actual.version if actual is not None else "desconocida"
+            raise ConflictoError(f"La convocatoria cambio; version actual {version_actual}")
+        resultado_respaldos = self.sesion.execute(
+            update(PostulacionModelo)
+            .where(
+                PostulacionModelo.convocatoria_id == convocatoria_id,
+                PostulacionModelo.estado == "apta",
+            )
+            .values(
+                estado="backup",
+                version=PostulacionModelo.version + 1,
+                actualizado_en=ahora,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        respaldos_generados = (
+            resultado_respaldos.rowcount
+            if isinstance(resultado_respaldos, CursorResult)
+            and resultado_respaldos.rowcount is not None
+            else 0
+        )
+        self.sesion.expire_all()
+        convocatoria_actualizada = self.sesion.get(ConvocatoriaModelo, convocatoria_id)
+        assert convocatoria_actualizada is not None
+        return {
+            **self._convocatoria_a_dict(convocatoria_actualizada),
+            "backups_generados": respaldos_generados,
+        }
+
     def crear_postulacion(self, datos: dict[str, object]) -> dict[str, object]:
         existente = self.sesion.scalar(
             select(PostulacionModelo).where(
@@ -629,6 +1071,8 @@ class RepositorioSqlalchemy:
                 "id": existente.id,
                 "estado": existente.estado,
                 "cliente_id": existente.cliente_id,
+                "convocatoria_id": existente.convocatoria_id,
+                "version": existente.version,
                 "reutilizado": True,
             }
         modelo = PostulacionModelo(id=nuevo_id(), **datos)
@@ -641,6 +1085,8 @@ class RepositorioSqlalchemy:
             "id": modelo.id,
             "estado": modelo.estado,
             "cliente_id": modelo.cliente_id,
+            "convocatoria_id": modelo.convocatoria_id,
+            "version": modelo.version,
             "reutilizado": False,
         }
 
@@ -1116,6 +1562,7 @@ class RepositorioSqlalchemy:
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
                 (PerfilPuestoModelo.codigo + " · " + PerfilPuestoModelo.titulo).label("perfil"),
                 (ClienteModelo.codigo + " · " + ClienteModelo.nombre).label("cliente"),
+                ConvocatoriaModelo.codigo.label("convocatoria"),
                 PostulacionModelo.fuente.label("fuente"),
                 PostulacionModelo.estado.label("estado"),
                 PostulacionModelo.creado_en.label("creado_en"),
@@ -1127,7 +1574,9 @@ class RepositorioSqlalchemy:
             )
             .join(PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id)
             .join(ClienteModelo, ClienteModelo.id == PostulacionModelo.cliente_id)
-            .where(_filtro_clientes(PostulacionModelo.cliente_id, clientes)),
+            .join(ConvocatoriaModelo, ConvocatoriaModelo.id == PostulacionModelo.convocatoria_id)
+            .where(_filtro_clientes(PostulacionModelo.cliente_id, clientes))
+            .order_by(PostulacionModelo.creado_en.desc()),
             "documentos": select(
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("candidato"),
                 DocumentoCandidatoModelo.nombre_original.label("archivo"),
@@ -1243,6 +1692,28 @@ class RepositorioSqlalchemy:
             )
             .order_by(PerfilPuestoModelo.codigo, VersionPerfilPuestoModelo.numero.desc())
         ).mappings()
+        convocatorias = self.sesion.execute(
+            select(
+                ConvocatoriaModelo.id,
+                ConvocatoriaModelo.cliente_id,
+                ConvocatoriaModelo.version_perfil_id,
+                ConvocatoriaModelo.codigo,
+                ConvocatoriaModelo.vacantes_total,
+                ConvocatoriaModelo.estado,
+                PerfilPuestoModelo.codigo.label("perfil_codigo"),
+                PerfilPuestoModelo.titulo.label("perfil_titulo"),
+            )
+            .join(
+                VersionPerfilPuestoModelo,
+                VersionPerfilPuestoModelo.id == ConvocatoriaModelo.version_perfil_id,
+            )
+            .join(PerfilPuestoModelo, PerfilPuestoModelo.id == VersionPerfilPuestoModelo.perfil_id)
+            .where(
+                _filtro_clientes(ConvocatoriaModelo.cliente_id, clientes),
+                ConvocatoriaModelo.es_compatibilidad.is_(False),
+            )
+            .order_by(ConvocatoriaModelo.codigo)
+        ).mappings()
         postulaciones = self.sesion.execute(
             select(
                 PostulacionModelo.id,
@@ -1267,6 +1738,7 @@ class RepositorioSqlalchemy:
             "candidatos": [dict(item) for item in candidatos],
             "perfiles": [dict(item) for item in perfiles],
             "versiones": [dict(item) for item in versiones],
+            "convocatorias": [dict(item) for item in convocatorias],
             "postulaciones": [dict(item) for item in postulaciones],
         }
 

@@ -53,6 +53,8 @@ def preparar_acceso(configuracion: Configuracion, fabrica: FabricaSesiones) -> N
             if modelo is None:
                 modelo = RolModelo(id=nuevo_id(), codigo=rol, permisos=sorted(permisos))
                 sesion.add(modelo)
+            else:
+                modelo.permisos = sorted(permisos)
             roles[Rol(rol)] = modelo
         cliente = sesion.scalar(select(ClienteModelo).where(ClienteModelo.codigo == "TCS"))
         if cliente is None:

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ convocatoria.codigo }} | TalentIA{% endblock %}
+{% block heading %}Convocatoria {{ convocatoria.codigo }}{% endblock %}
+{% block breadcrumb %}<a href="/cuentas">Cuentas</a> / <a href="/cuentas/{{ convocatoria.cuenta.id }}/convocatorias">{{ convocatoria.cuenta.nombre }}</a> / {{ convocatoria.perfil.titulo }} v{{ convocatoria.perfil.version }} / {{ convocatoria.codigo }}{% endblock %}
+{% block subtitle %}Selección humana con cupos, estados centralizados y trazabilidad por candidatura.{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}. Se conservaron los datos para que puedas revisar y reintentar.</div>{% endif %}
+<section class="rejilla-indicadores" aria-label="Resumen de convocatoria">
+  <article><span>Vacantes</span><strong>{{ convocatoria.resumen.vacantes_total }}</strong></article>
+  <article><span>Cubiertas</span><strong>{{ convocatoria.resumen.cubiertas }}</strong></article>
+  <article><span>Pendientes</span><strong>{{ convocatoria.resumen.pendientes }}</strong></article>
+  <article><span>Estado</span><strong>{{ convocatoria.estado | replace('_', ' ') | title }}</strong></article>
+</section>
+<section class="seccion" aria-labelledby="contexto-convocatoria">
+  <div class="titulo-seccion"><h2 id="contexto-convocatoria">Contexto del proceso</h2></div>
+  <p><strong>Cuenta:</strong> {{ convocatoria.cuenta.nombre }} ({{ convocatoria.cuenta.codigo }}) · <strong>Perfil:</strong> {{ convocatoria.perfil.titulo }} ({{ convocatoria.perfil.codigo }}, versión {{ convocatoria.perfil.version }})</p>
+  <div class="grupo-estados" aria-label="Cantidades por estado">
+    {% for estado, cantidad in convocatoria.resumen.conteos.items() %}
+    <span class="estado estado-{{ estado }}">{{ estado | replace('_', ' ') | title }}: {{ cantidad }}</span>
+    {% else %}<span class="texto-secundario">Todavía no hay candidaturas.</span>{% endfor %}
+  </div>
+</section>
+<section class="seccion" aria-labelledby="equipo-convocatoria">
+  <div class="titulo-seccion"><h2 id="equipo-convocatoria">Responsables</h2><span class="estado">{{ convocatoria.responsables | length }} asignados</span></div>
+  <div class="rejilla-tarjetas">
+    {% for responsable in convocatoria.responsables %}
+    <article class="tarjeta-resumen">
+      <strong>{{ responsable.nombre }}</strong>
+      <small>{{ responsable.correo }}</small>
+      {% if puede_asignar %}
+      <form method="post" action="/convocatorias/{{ convocatoria.id }}/responsables">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="hidden" name="usuario_id" value="{{ responsable.id }}">
+        <input type="hidden" name="accion" value="retirar">
+        <button class="btn btn-outline-danger btn-sm" type="submit">Retirar</button>
+      </form>
+      {% endif %}
+    </article>
+    {% else %}<p class="vacio">Aún no hay responsables asignados a esta convocatoria.</p>{% endfor %}
+  </div>
+  {% if puede_asignar %}
+  <form method="post" action="/convocatorias/{{ convocatoria.id }}/responsables" class="formulario-en-linea">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="accion" value="asignar">
+    <label>Reclutador de la cuenta
+      <select name="usuario_id" required>
+        <option value="">Seleccionar responsable</option>
+        {% for reclutador in convocatoria.reclutadores_disponibles %}<option value="{{ reclutador.id }}">{{ reclutador.nombre }} · {{ reclutador.correo }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="btn btn-outline-primary btn-sm" type="submit">Asignar a convocatoria</button>
+  </form>
+  {% endif %}
+</section>
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Candidaturas</h2><a class="btn btn-primary btn-sm" href="/postulaciones/nueva?convocatoria_id={{ convocatoria.id }}">Agregar candidatura</a></div>
+  {% if error and datos.postulacion_id %}
+  <div class="alert alert-warning" role="status">
+    <strong>Cambio no aplicado.</strong> Candidatura {{ datos.postulacion_id }}, destino solicitado: {{ datos.destino | replace('_', ' ') | title }}.
+    {% if datos.motivo %}<span>Comentario conservado: “{{ datos.motivo }}”.</span>{% endif %}
+  </div>
+  {% endif %}
+  <div class="tabla-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Candidato</th><th>Fuente</th><th>Estado</th><th>Siguiente acción</th></tr></thead>
+      <tbody>
+      {% for postulacion in convocatoria.candidaturas %}
+      <tr>
+        <td><strong>{{ postulacion.candidato }}</strong><small>{{ postulacion.reclutador or 'Sin reclutador registrado' }}</small></td>
+        <td>{{ postulacion.fuente }}</td>
+        <td><span class="estado estado-{{ postulacion.estado }}">{{ postulacion.estado | replace('_', ' ') | title }}</span></td>
+        <td>
+          {% if acciones[postulacion.id] and convocatoria.estado == 'abierta' %}
+          <form method="post" action="/convocatorias/{{ convocatoria.id }}/candidaturas/{{ postulacion.id }}/transicion" class="formulario-en-linea">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <input type="hidden" name="version" value="{{ postulacion.version }}">
+            <label><span class="visually-hidden">Nuevo estado para {{ postulacion.candidato }}</span><select name="destino" required>{% for accion in acciones[postulacion.id] %}<option value="{{ accion }}" {% if datos.postulacion_id == postulacion.id and datos.destino == accion %}selected{% endif %}>{{ accion | replace('_', ' ') | title }}</option>{% endfor %}</select></label>
+            <label><span class="visually-hidden">Motivo</span><input name="motivo" maxlength="2000" placeholder="Motivo de la decisión" value="{% if datos.postulacion_id == postulacion.id %}{{ datos.motivo }}{% endif %}"></label>
+            <button class="btn btn-outline-primary btn-sm" type="submit">Guardar estado</button>
+          </form>
+          {% else %}<span class="texto-secundario">Sin acciones disponibles</span>{% endif %}
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="4" class="vacio">No hay candidaturas en esta convocatoria.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% if puede_seleccionar and convocatoria.estado == 'abierta' %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Cierre bajo confirmación humana</h2></div>
+  <p>Al confirmar, las candidaturas aptas no elegidas pasarán a backup. La acción solo se habilita cuando los cupos estén cubiertos.</p>
+  <form method="post" action="/convocatorias/{{ convocatoria.id }}/cerrar" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="version" value="{{ convocatoria.version }}">
+    <label>Motivo del cierre<input name="motivo" required minlength="3" maxlength="1000" value="{{ datos.motivo_cierre or '' }}"></label>
+    <button class="btn btn-danger" type="submit" {% if not convocatoria.resumen.puede_cerrar %}disabled aria-describedby="bloqueo-cierre"{% endif %}>Confirmar cierre</button>
+    {% if not convocatoria.resumen.puede_cerrar %}<small id="bloqueo-cierre">Faltan {{ convocatoria.resumen.pendientes }} vacantes por cubrir.</small>{% endif %}
+  </form>
+</section>
+{% endif %}
+{% endblock %}

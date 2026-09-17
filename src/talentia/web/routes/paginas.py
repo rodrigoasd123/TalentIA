@@ -19,6 +19,10 @@ from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
 from talentia.modules.recruitment.application.extractor_convocatoria import (
     extraer_bases_convocatoria,
 )
+from talentia.modules.recruitment.domain.modelos import (
+    TRANSICIONES_POSTULACION,
+    EstadoPostulacion,
+)
 from talentia.platform.security.contrasenas import FirmadorSesion, nuevo_csrf
 from talentia.shared.application.errores import (
     EntradaInvalidaError,
@@ -518,7 +522,7 @@ def tabla_candidatos(request: Request, q: str = "") -> HTMLResponse:
 @router.get("/modulo/usuarios", response_class=HTMLResponse)
 def usuarios(request: Request) -> Response:
     usuario = _usuario(request)
-    accesos = request.app.state.servicio.listar_accesos(usuario)
+    accesos = request.app.state.servicio.listar_asignaciones_cuenta(usuario)
     mapa_clientes = {
         c["id"]: c.get("nombre") or c.get("codigo") or c["id"] for c in accesos.get("clientes", [])
     }
@@ -527,7 +531,12 @@ def usuarios(request: Request) -> Response:
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="usuarios.html",
-        context=_contexto(request, usuario, accesos=accesos),
+        context=_contexto(
+            request,
+            usuario,
+            accesos=accesos,
+            puede_administrar_roles="administrador" in usuario.roles,
+        ),
     )
 
 
@@ -563,6 +572,244 @@ def cambiar_cliente_web(
         usuario, usuario_id, cliente_id, accion == "asignar", nuevo_id()
     )
     return RedirectResponse("/modulo/usuarios", status_code=303)
+
+
+def _respuesta_detalle_convocatoria(
+    request: Request,
+    usuario: UsuarioActual,
+    convocatoria_id: str,
+    *,
+    error: str | None = None,
+    datos: dict[str, str] | None = None,
+    status_code: int = 200,
+) -> Response:
+    convocatoria = request.app.state.servicio.obtener_convocatoria(usuario, convocatoria_id)
+    acciones = {
+        str(postulacion["id"]): [
+            destino.value
+            for destino in TRANSICIONES_POSTULACION.get(
+                EstadoPostulacion(str(postulacion["estado"])), frozenset()
+            )
+            if destino is not EstadoPostulacion.FINALISTA
+            or _puede(usuario, "postulaciones:seleccionar")
+        ]
+        for postulacion in cast(list[dict[str, object]], convocatoria["candidaturas"])
+    }
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="detalle_convocatoria.html",
+        context=_contexto(
+            request,
+            usuario,
+            convocatoria=convocatoria,
+            acciones=acciones,
+            puede_seleccionar=_puede(usuario, "postulaciones:seleccionar"),
+            puede_asignar=_puede(usuario, "convocatorias:asignar"),
+            error=error,
+            datos=datos or {},
+        ),
+        status_code=status_code,
+    )
+
+
+@router.get("/cuentas", response_class=HTMLResponse)
+def cuentas(request: Request) -> Response:
+    usuario = _usuario(request)
+    opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, "espacio_cuentas")
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="cuentas.html",
+        context=_contexto(request, usuario, cuentas=opciones["clientes"]),
+    )
+
+
+@router.get("/cuentas/{cliente_id}/convocatorias", response_class=HTMLResponse)
+def convocatorias_cuenta(request: Request, cliente_id: str) -> Response:
+    usuario = _usuario(request)
+    opciones = request.app.state.servicio.obtener_opciones_formulario(usuario, "espacio_cuentas")
+    convocatorias = request.app.state.servicio.listar_convocatorias(usuario, cliente_id)
+    cuenta = next(
+        (item for item in opciones["clientes"] if str(item["id"]) == cliente_id),
+        None,
+    )
+    if cuenta is None:
+        raise NoEncontradoError("Cuenta no encontrada")
+    versiones = [item for item in opciones["versiones"] if str(item["cliente_id"]) == cliente_id]
+    return PLANTILLAS.TemplateResponse(
+        request=request,
+        name="convocatorias.html",
+        context=_contexto(
+            request,
+            usuario,
+            cuenta=cuenta,
+            convocatorias=convocatorias,
+            versiones=versiones,
+            puede_crear=_puede(usuario, "convocatorias:escribir"),
+            error=None,
+            datos={},
+        ),
+    )
+
+
+@router.post("/cuentas/{cliente_id}/convocatorias/nueva", response_class=HTMLResponse)
+def crear_convocatoria_web(
+    request: Request,
+    cliente_id: str,
+    csrf: str = Form(),
+    version_perfil_id: str = Form(),
+    codigo: str = Form(),
+    vacantes_total: int = Form(),
+    fecha_apertura: str = Form(),
+    fecha_objetivo: str = Form(),
+    estado: str = Form("borrador"),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    datos = {
+        "cliente_id": cliente_id,
+        "version_perfil_id": version_perfil_id,
+        "codigo": codigo,
+        "vacantes_total": vacantes_total,
+        "fecha_apertura": date.fromisoformat(fecha_apertura) if fecha_apertura else None,
+        "fecha_objetivo": date.fromisoformat(fecha_objetivo) if fecha_objetivo else None,
+        "estado": estado,
+    }
+    try:
+        convocatoria = request.app.state.servicio.crear_convocatoria(
+            usuario, datos, request.state.correlacion_id
+        )
+    except (TalentIAError, ValueError) as error:
+        opciones = request.app.state.servicio.obtener_opciones_formulario(
+            usuario, "espacio_cuentas"
+        )
+        cuenta = next(
+            (item for item in opciones["clientes"] if str(item["id"]) == cliente_id),
+            None,
+        )
+        return PLANTILLAS.TemplateResponse(
+            request=request,
+            name="convocatorias.html",
+            context=_contexto(
+                request,
+                usuario,
+                cuenta=cuenta,
+                convocatorias=request.app.state.servicio.listar_convocatorias(usuario, cliente_id),
+                versiones=[
+                    item for item in opciones["versiones"] if str(item["cliente_id"]) == cliente_id
+                ],
+                puede_crear=True,
+                error=str(error),
+                datos={clave: str(valor or "") for clave, valor in datos.items()},
+            ),
+            status_code=getattr(error, "estado_http", 422),
+        )
+    return RedirectResponse(f"/convocatorias/{convocatoria['id']}", status_code=303)
+
+
+@router.get("/convocatorias/{convocatoria_id}", response_class=HTMLResponse)
+def detalle_convocatoria(request: Request, convocatoria_id: str) -> Response:
+    usuario = _usuario(request)
+    return _respuesta_detalle_convocatoria(request, usuario, convocatoria_id)
+
+
+@router.post("/convocatorias/{convocatoria_id}/responsables", response_class=HTMLResponse)
+def asignar_reclutador_convocatoria_web(
+    request: Request,
+    convocatoria_id: str,
+    csrf: str = Form(),
+    usuario_id: str = Form(),
+    accion: str = Form("asignar"),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    try:
+        request.app.state.servicio.asignar_reclutador_convocatoria(
+            usuario,
+            convocatoria_id,
+            usuario_id,
+            accion == "asignar",
+            request.state.correlacion_id,
+        )
+    except TalentIAError as error:
+        return _respuesta_detalle_convocatoria(
+            request,
+            usuario,
+            convocatoria_id,
+            error=str(error),
+            status_code=error.estado_http,
+        )
+    return RedirectResponse(f"/convocatorias/{convocatoria_id}", status_code=303)
+
+
+@router.post(
+    "/convocatorias/{convocatoria_id}/candidaturas/{postulacion_id}/transicion",
+    response_class=HTMLResponse,
+)
+def transicionar_postulacion_web(
+    request: Request,
+    convocatoria_id: str,
+    postulacion_id: str,
+    csrf: str = Form(),
+    destino: str = Form(),
+    version: int = Form(),
+    motivo: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    datos = {
+        "postulacion_id": postulacion_id,
+        "destino": destino,
+        "version": version,
+        "motivo": motivo,
+    }
+    try:
+        request.app.state.servicio.transicionar_postulacion(
+            usuario, postulacion_id, datos, request.state.correlacion_id
+        )
+    except TalentIAError as error:
+        return _respuesta_detalle_convocatoria(
+            request,
+            usuario,
+            convocatoria_id,
+            error=str(error),
+            datos={clave: str(valor) for clave, valor in datos.items()},
+            status_code=error.estado_http,
+        )
+    return RedirectResponse(f"/convocatorias/{convocatoria_id}", status_code=303)
+
+
+@router.post("/convocatorias/{convocatoria_id}/cerrar", response_class=HTMLResponse)
+def cerrar_convocatoria_web(
+    request: Request,
+    convocatoria_id: str,
+    csrf: str = Form(),
+    version: int = Form(),
+    motivo: str = Form(),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    try:
+        request.app.state.servicio.cerrar_convocatoria(
+            usuario,
+            convocatoria_id,
+            version,
+            motivo,
+            request.state.correlacion_id,
+        )
+    except TalentIAError as error:
+        return _respuesta_detalle_convocatoria(
+            request,
+            usuario,
+            convocatoria_id,
+            error=str(error),
+            datos={"motivo_cierre": motivo},
+            status_code=error.estado_http,
+        )
+    return RedirectResponse(f"/convocatorias/{convocatoria_id}", status_code=303)
 
 
 @router.post("/perfiles/analizar-convocatoria-previa")
@@ -1105,7 +1352,8 @@ def crear_postulacion_web(
     csrf: str = Form(),
     cliente_id: str = Form(),
     candidato_id: str = Form(),
-    version_perfil_id: str = Form(),
+    version_perfil_id: str = Form(""),
+    convocatoria_id: str = Form(""),
     fuente: str = Form("directa"),
 ) -> Response:
     usuario = _usuario(request)
@@ -1115,6 +1363,7 @@ def crear_postulacion_web(
         "cliente_id": cliente_id,
         "candidato_id": candidato_id,
         "version_perfil_id": version_perfil_id,
+        "convocatoria_id": convocatoria_id,
         "fuente": fuente,
     }
     try:

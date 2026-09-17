@@ -26,6 +26,7 @@
         <div class="grupo-nav">
           <span>Operacion</span>
           <a href="/" class="{% if ruta_actual == '/' %}activo{% endif %}" {% if ruta_actual == '/' %}aria-current="page"{% endif %}><i aria-hidden="true">⌂</i>Inicio</a>
+          <a href="/cuentas" class="{% if ruta_actual.startswith('/cuentas') or ruta_actual.startswith('/convocatorias') %}activo{% endif %}" {% if ruta_actual.startswith('/cuentas') or ruta_actual.startswith('/convocatorias') %}aria-current="page"{% endif %}><i aria-hidden="true">▣</i>Cuentas y convocatorias</a>
           <a href="/candidatos" class="{% if ruta_actual.startswith('/candidatos') %}activo{% endif %}" {% if ruta_actual.startswith('/candidatos') %}aria-current="page"{% endif %}><i aria-hidden="true">●</i>Base general</a>
           <a href="/modulo/perfiles" class="{% if ruta_actual.startswith('/modulo/perfiles') or ruta_actual.startswith('/perfiles') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/perfiles') or ruta_actual.startswith('/perfiles') %}aria-current="page"{% endif %}><i aria-hidden="true">◇</i>Perfiles</a>
           <a href="/modulo/postulaciones" class="{% if ruta_actual.startswith('/modulo/postulaciones') or ruta_actual.startswith('/postulaciones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/postulaciones') or ruta_actual.startswith('/postulaciones') %}aria-current="page"{% endif %}><i aria-hidden="true">↗</i>Postulaciones</a>
@@ -43,7 +44,9 @@
           <a href="/modulo/excolaboradores" class="{% if ruta_actual.startswith('/modulo/excolaboradores') or ruta_actual.startswith('/excolaboradores') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/excolaboradores') or ruta_actual.startswith('/excolaboradores') %}aria-current="page"{% endif %}><i aria-hidden="true">◫</i>Ex-TCS</a>
           <a href="/modulo/exclusiones" class="{% if ruta_actual.startswith('/modulo/exclusiones') or ruta_actual.startswith('/exclusiones') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/exclusiones') or ruta_actual.startswith('/exclusiones') %}aria-current="page"{% endif %}><i aria-hidden="true">⊘</i>Exclusiones</a>
           <a href="/modulo/metricas" class="{% if ruta_actual.startswith('/modulo/metricas') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/metricas') %}aria-current="page"{% endif %}><i aria-hidden="true">▥</i>Metricas</a>
-          <a href="/modulo/usuarios" class="{% if ruta_actual.startswith('/modulo/usuarios') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/usuarios') %}aria-current="page"{% endif %}><i aria-hidden="true">⚙</i>Usuarios</a>
+          {% if 'administrador' in usuario.roles or 'gestor_contratacion' in usuario.roles %}
+          <a href="/modulo/usuarios" class="{% if ruta_actual.startswith('/modulo/usuarios') %}activo{% endif %}" {% if ruta_actual.startswith('/modulo/usuarios') %}aria-current="page"{% endif %}><i aria-hidden="true">⚙</i>Asignaciones</a>
+          {% endif %}
           {% if 'administrador' in usuario.roles %}
           <a href="/admin/configuracion-ia" class="{% if ruta_actual.startswith('/admin/configuracion-ia') %}activo{% endif %}" {% if ruta_actual.startswith('/admin/configuracion-ia') %}aria-current="page"{% endif %}><i aria-hidden="true">◉</i>Configuracion IA</a>
           {% endif %}

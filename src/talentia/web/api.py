@@ -18,12 +18,15 @@ from talentia.web.schemas import (
     ActualizacionCandidato,
     ActualizacionReporteExclusion,
     AltaCandidato,
+    AltaConvocatoria,
     AltaPerfil,
     AltaPostulacion,
     AltaVersionPerfil,
     AsignacionCliente,
+    AsignacionReclutadorConvocatoria,
     AsignacionRol,
     CambioContrasena,
+    CierreConvocatoria,
     ComprobacionExcolaborador,
     ComprobacionIdentidad,
     CorreccionFilaLote,
@@ -33,6 +36,7 @@ from talentia.web.schemas import (
     SolicitudEvaluacion,
     SolicitudReporteExclusion,
     TransicionCandidato,
+    TransicionPostulacion,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -315,6 +319,71 @@ def crear_version_perfil(
     )
 
 
+@router.post("/campaigns", status_code=201)
+def crear_convocatoria(
+    entrada: AltaConvocatoria,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.crear_convocatoria(usuario, entrada.model_dump(), correlacion_id)
+
+
+@router.get("/campaigns")
+def listar_convocatorias(
+    cliente_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    limit: int = 100,
+    cursor: str | None = None,
+) -> list[dict[str, object]]:
+    return servicio_actual.listar_convocatorias(usuario, cliente_id, limit, cursor)
+
+
+@router.get("/campaigns/{convocatoria_id}")
+def obtener_convocatoria(
+    convocatoria_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+) -> dict[str, object]:
+    return servicio_actual.obtener_convocatoria(usuario, convocatoria_id)
+
+
+@router.post("/campaigns/{convocatoria_id}/recruiters")
+def asignar_reclutador_convocatoria(
+    convocatoria_id: str,
+    entrada: AsignacionReclutadorConvocatoria,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.asignar_reclutador_convocatoria(
+        usuario, convocatoria_id, entrada.usuario_id, entrada.asignar, correlacion_id
+    )
+
+
+@router.get("/campaigns/{convocatoria_id}/close-preview")
+def vista_previa_cierre_convocatoria(
+    convocatoria_id: str,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+) -> dict[str, object]:
+    return servicio_actual.vista_previa_cierre_convocatoria(usuario, convocatoria_id)
+
+
+@router.post("/campaigns/{convocatoria_id}/close")
+def cerrar_convocatoria(
+    convocatoria_id: str,
+    entrada: CierreConvocatoria,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.cerrar_convocatoria(
+        usuario, convocatoria_id, entrada.version, entrada.motivo, correlacion_id
+    )
+
+
 @router.post("/applications", status_code=201)
 def crear_postulacion(
     entrada: AltaPostulacion,
@@ -323,6 +392,19 @@ def crear_postulacion(
     correlacion_id: CorrelacionDep,
 ) -> dict[str, object]:
     return servicio_actual.crear_postulacion(usuario, entrada.model_dump(), correlacion_id)
+
+
+@router.post("/applications/{postulacion_id}/transitions")
+def transicionar_postulacion(
+    postulacion_id: str,
+    entrada: TransicionPostulacion,
+    usuario: UsuarioDep,
+    servicio_actual: ServicioDep,
+    correlacion_id: CorrelacionDep,
+) -> dict[str, object]:
+    return servicio_actual.transicionar_postulacion(
+        usuario, postulacion_id, entrada.model_dump(), correlacion_id
+    )
 
 
 @router.post("/applications/{postulacion_id}/evaluation-jobs", status_code=202)

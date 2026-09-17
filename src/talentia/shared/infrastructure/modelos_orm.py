@@ -179,17 +179,68 @@ class VersionPerfilPuestoModelo(Base, MarcasTiempo):
     __table_args__ = (UniqueConstraint("perfil_id", "numero", name="uq_profile_version"),)
 
 
+class ConvocatoriaModelo(Base, MarcasTiempo):
+    __tablename__ = "recruitment_campaigns"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    cliente_id: Mapped[str] = mapped_column(String(32), ForeignKey("clients.id"), index=True)
+    version_perfil_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("job_profile_versions.id"), index=True
+    )
+    codigo: Mapped[str] = mapped_column(String(80))
+    vacantes_total: Mapped[int] = mapped_column(Integer)
+    fecha_apertura: Mapped[date | None] = mapped_column(Date)
+    fecha_objetivo: Mapped[date | None] = mapped_column(Date)
+    estado: Mapped[str] = mapped_column(String(32), index=True, default="borrador")
+    motivo_cierre: Mapped[str | None] = mapped_column(Text)
+    es_compatibilidad: Mapped[bool] = mapped_column(Boolean, default=False)
+    cerrada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint("cliente_id", "codigo", name="uq_campaign_client_code"),
+        Index("ix_campaign_client_status", "cliente_id", "estado"),
+        Index("ix_campaign_client_profile", "cliente_id", "version_perfil_id"),
+    )
+
+
+class AsignacionReclutadorConvocatoriaModelo(Base):
+    __tablename__ = "campaign_recruiter_assignments"
+    convocatoria_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("recruitment_campaigns.id", ondelete="CASCADE"), primary_key=True
+    )
+    usuario_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    asignado_por: Mapped[str] = mapped_column(String(32), ForeignKey("users.id"))
+    asignado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora_utc)
+    __table_args__ = (
+        Index("ix_campaign_recruiter_user_campaign", "usuario_id", "convocatoria_id"),
+    )
+
+
 class PostulacionModelo(Base, MarcasTiempo):
     __tablename__ = "applications"
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     cliente_id: Mapped[str] = mapped_column(String(32), ForeignKey("clients.id"), index=True)
     candidato_id: Mapped[str] = mapped_column(String(32), ForeignKey("candidates.id"), index=True)
+    convocatoria_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("recruitment_campaigns.id"), index=True
+    )
     version_perfil_id: Mapped[str] = mapped_column(
         String(32), ForeignKey("job_profile_versions.id"), index=True
+    )
+    reclutador_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("users.id"), index=True
     )
     fuente: Mapped[str] = mapped_column(String(80))
     estado: Mapped[str] = mapped_column(String(32), index=True)
     clave_idempotencia: Mapped[str] = mapped_column(String(80), unique=True)
+    __table_args__ = (
+        UniqueConstraint(
+            "convocatoria_id", "candidato_id", name="uq_application_campaign_candidate"
+        ),
+        Index("ix_application_campaign_status", "convocatoria_id", "estado"),
+        Index("ix_application_client_candidate", "cliente_id", "candidato_id"),
+        Index("ix_application_client_recruiter", "cliente_id", "reclutador_id"),
+    )
 
 
 class DocumentoCandidatoModelo(Base, MarcasTiempo):

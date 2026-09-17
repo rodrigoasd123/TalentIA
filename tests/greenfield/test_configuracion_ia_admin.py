@@ -194,9 +194,12 @@ def test_cliente_llm_registra_uso_sin_enviar_pii_cruda(cliente_api, monkeypatch)
 
     def responder(solicitud, **_kwargs):
         solicitudes.append(solicitud)
+        if len(solicitudes) == 1:
+            raise HTTPError("https://generativelanguage.googleapis.com", 503, "no", {}, None)
         return Respuesta()
 
     monkeypatch.setattr("talentia.platform.cliente_llm.urlopen", responder)
+    monkeypatch.setattr("talentia.platform.cliente_llm.time.sleep", lambda _segundos: None)
     resultado = ClienteLLM(gestor).evaluar(
         "Experiencia con Python. [CORREO_RETIRADO]",
         (("PY", "Experiencia Python"),),
@@ -204,6 +207,7 @@ def test_cliente_llm_registra_uso_sin_enviar_pii_cruda(cliente_api, monkeypatch)
     assert resultado is not None
     assert resultado.prompt_tokens == 23
     assert resultado.completion_tokens == 7
+    assert len(solicitudes) == 2
     cuerpo = solicitudes[0].data.decode()
     assert "persona@ejemplo.test" not in cuerpo
     assert "gemini-clave-prueba" not in cuerpo

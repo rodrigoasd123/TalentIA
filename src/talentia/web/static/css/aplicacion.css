@@ -593,3 +593,45 @@ input[type="range"] { padding: 0; box-shadow: none; accent-color: var(--color-pr
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* Flujo jerarquico de cuentas y convocatorias (SPEC-037). */
+.rejilla-tarjetas,
+.rejilla-indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.tarjeta-resumen,
+.rejilla-indicadores article {
+  border: 1px solid var(--color-neutral-200);
+  border-radius: .75rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.rejilla-indicadores article span,
+.tarjeta-resumen .etiqueta {
+  display: block;
+  color: var(--color-neutral-500);
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.rejilla-indicadores article strong {
+  display: block;
+  margin-top: .25rem;
+  font-size: 1.6rem;
+}
+
+.formulario-en-linea {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(180px, 1.5fr) auto;
+  gap: .5rem;
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .formulario-en-linea { grid-template-columns: 1fr; }
+}

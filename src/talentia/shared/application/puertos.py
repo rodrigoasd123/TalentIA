@@ -85,6 +85,46 @@ class DatosTalentIA(Protocol):
 
     def listar_postulaciones_perfil(self, perfil_id: str) -> list[dict[str, object]]: ...
 
+    def crear_convocatoria(self, datos: dict[str, object]) -> dict[str, object]: ...
+
+    def obtener_convocatoria(self, convocatoria_id: str) -> dict[str, object] | None: ...
+
+    def listar_convocatorias(
+        self,
+        clientes: frozenset[str],
+        cliente_id: str | None = None,
+        limite: int = 100,
+        cursor: str | None = None,
+    ) -> list[dict[str, object]]: ...
+
+    def obtener_o_crear_convocatoria_compatibilidad(
+        self, cliente_id: str, version_perfil_id: str
+    ) -> dict[str, object]: ...
+
+    def asignar_reclutador_convocatoria(
+        self, convocatoria_id: str, usuario_id: str, asignado_por: str, asignar: bool
+    ) -> dict[str, object]: ...
+
+    def usuario_asignado_cliente(self, usuario_id: str, cliente_id: str) -> bool: ...
+
+    def transicionar_postulacion(
+        self,
+        postulacion_id: str,
+        destino: str,
+        motivo: str | None,
+        version_esperada: int,
+    ) -> dict[str, object]: ...
+
+    def listar_postulaciones_convocatoria(
+        self, convocatoria_id: str
+    ) -> list[dict[str, object]]: ...
+
+    def vista_previa_cierre(self, convocatoria_id: str) -> dict[str, object]: ...
+
+    def cerrar_convocatoria(
+        self, convocatoria_id: str, version_esperada: int, motivo: str
+    ) -> dict[str, object]: ...
+
     def crear_postulacion(self, datos: dict[str, object]) -> dict[str, object]: ...
 
     def obtener_postulacion(self, postulacion_id: str) -> dict[str, object] | None: ...

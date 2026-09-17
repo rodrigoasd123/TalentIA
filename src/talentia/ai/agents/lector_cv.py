@@ -24,8 +24,23 @@ class ResultadoLectura:
     requiere_revision: bool
 
 
-def _buscar_linea(documento_id: str, texto: str, patron: str, campo: str) -> CampoExtraido:
-    coincidencia = re.search(patron, texto, re.I | re.M)
+PatronCampo = str | tuple[str, ...]
+
+
+def _coincidencia(texto: str, patrones: PatronCampo) -> re.Match[str] | None:
+    opciones = (patrones,) if isinstance(patrones, str) else patrones
+    return next(
+        (
+            coincidencia
+            for patron in opciones
+            if (coincidencia := re.search(patron, texto, re.I | re.M))
+        ),
+        None,
+    )
+
+
+def _buscar_linea(documento_id: str, texto: str, patron: PatronCampo, campo: str) -> CampoExtraido:
+    coincidencia = _coincidencia(texto, patron)
     if not coincidencia:
         return CampoExtraido(campo, None, 0.0, None)
     valor = coincidencia.group(1).strip()
@@ -38,15 +53,18 @@ def _buscar_linea_con_fuente(
     documento_id: str,
     texto_sanitizado: str,
     paginas_originales: tuple[tuple[int, str], ...],
-    patron: str,
+    patron: PatronCampo,
     campo: str,
 ) -> CampoExtraido:
-    coincidencia = re.search(patron, texto_sanitizado, re.I | re.M)
+    coincidencia = _coincidencia(texto_sanitizado, patron)
     if not coincidencia:
         return CampoExtraido(campo, None, 0.0, None)
     valor = coincidencia.group(1).strip()
     for pagina, original in paginas_originales:
         ubicada = re.search(re.escape(valor), original, re.I)
+        if not ubicada and "[DOCUMENTO_RETIRADO]" in valor:
+            patron_original = re.escape(valor).replace(re.escape("[DOCUMENTO_RETIRADO]"), r".+?")
+            ubicada = re.search(patron_original, original, re.I)
         if ubicada:
             inicio, fin = ubicada.span()
             return CampoExtraido(
@@ -89,10 +107,34 @@ def extraer_cv_paginas(documento_id: str, paginas: tuple[tuple[int, str], ...]) 
     texto_original = "\n".join(texto for _, texto in originales)
     limpio = sanitizar(texto_original)
     patrones = (
-        (r"(?:skills|habilidades)\s*:\s*(.+)", "skills"),
-        (r"(?:experiencia|experience)\s*:\s*(.+)", "experiencia"),
-        (r"(?:educacion|education)\s*:\s*(.+)", "educacion"),
-        (r"(?:empresa reciente|ultima empresa)\s*:\s*(.+)", "empresa_reciente"),
+        (
+            (
+                r"(?:skills|habilidades)\s*:\s*(.+)",
+                r"(?:^|\n)\s*(?:\d+\.\s*)?(?:competencias\s+y\s+)?habilidades\s+t[eé]cnicas\s*\n\s*[•\-]?\s*(?:(?:skills\s+principales|especialidad)\s*:\s*)?(.+)",
+            ),
+            "skills",
+        ),
+        (
+            (
+                r"(?:experiencia|experience)\s*:\s*(.+)",
+                r"(?:^|\n)\s*(?:\d+\.\s*)?experiencia(?:\s+laboral)?(?:\s+relevante)?\s*\n\s*[•\-]?\s*(.+)",
+            ),
+            "experiencia",
+        ),
+        (
+            (
+                r"(?:educacion|education)\s*:\s*(.+)",
+                r"(?:^|\n)\s*(?:\d+\.\s*)?educaci[oó]n(?:\s+y\s+(?:certificaciones|\[DOCUMENTO_RETIRADO\]))?\s*\n\s*[•\-]?\s*(.+)",
+            ),
+            "educacion",
+        ),
+        (
+            (
+                r"(?:empresa reciente|ultima empresa)\s*:\s*(.+)",
+                r"(?:^|\n)\s*(?:\d+\.\s*)?experiencia(?:\s+laboral)?(?:\s+relevante)?\s*\n[^\n]*?[|\-\u2013\u2014]\s*(.+?)\s*\(",
+            ),
+            "empresa_reciente",
+        ),
     )
     campos = tuple(
         _buscar_linea_con_fuente(documento_id, limpio.texto, originales, patron, campo)

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Cuentas | TalentIA{% endblock %}
+{% block heading %}Cuentas de reclutamiento{% endblock %}
+{% block breadcrumb %}Cuentas{% endblock %}
+{% block subtitle %}Selecciona primero una cuenta para trabajar con sus perfiles, convocatorias y candidaturas.{% endblock %}
+{% block content %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Mis cuentas</h2><span class="estado">{{ cuentas | length }} visibles</span></div>
+  <div class="rejilla-tarjetas">
+    {% for cuenta in cuentas %}
+    <article class="tarjeta-resumen">
+      <span class="etiqueta">Cuenta</span>
+      <h3>{{ cuenta.codigo }} · {{ cuenta.nombre }}</h3>
+      <p>Perfiles, convocatorias, responsables y candidatos permanecen aislados en esta cuenta.</p>
+      <a class="btn btn-primary" href="/cuentas/{{ cuenta.id }}/convocatorias">Abrir espacio de trabajo</a>
+    </article>
+    {% else %}
+    <div class="alert alert-info">No tienes cuentas asignadas. Solicita al hiring manager una asignación.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

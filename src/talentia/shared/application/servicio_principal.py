@@ -28,6 +28,7 @@ from talentia.modules.candidates.domain.modelos import (
     ultimos_nueve_telefono,
 )
 from talentia.modules.documents.domain.modelos import DocumentoLeido, LecturaDocumentoError
+from talentia.modules.recruitment.application.servicio_convocatorias import ServicioConvocatorias
 from talentia.platform.security.contrasenas import hash_contrasena, verificar_contrasena
 from talentia.shared.application.errores import (
     ConflictoError,
@@ -37,7 +38,7 @@ from talentia.shared.application.errores import (
     NoEncontradoError,
     ProhibidoError,
 )
-from talentia.shared.application.puertos import FabricaUnidadTrabajo
+from talentia.shared.application.puertos import DatosTalentIA, FabricaUnidadTrabajo
 from talentia.shared.domain.modelos import UsuarioActual, nuevo_id
 
 
@@ -74,8 +75,42 @@ def _exigir_cliente(usuario: UsuarioActual, cliente_id: str) -> None:
         raise ProhibidoError("El recurso pertenece a otro cliente")
 
 
+def _exigir_recurso_del_cliente(usuario: UsuarioActual, cliente_id: str) -> None:
+    """Oculta la existencia de recursos identificados por URL fuera del alcance."""
+    if not usuario.puede_acceder_cliente(cliente_id):
+        raise NoEncontradoError("Recurso no encontrado")
+
+
 def _texto(valor: object) -> str:
     return valor.strip() if isinstance(valor, str) else ""
+
+
+def _resolver_convocatoria_postulacion(
+    repositorio: DatosTalentIA,
+    cliente_id: str,
+    datos: dict[str, object],
+) -> tuple[str, str]:
+    convocatoria_id = _texto(datos.get("convocatoria_id"))
+    if convocatoria_id:
+        convocatoria = repositorio.obtener_convocatoria(convocatoria_id)
+        if convocatoria is None or str(convocatoria["cliente_id"]) != cliente_id:
+            raise NoEncontradoError("Convocatoria no encontrada")
+        if str(convocatoria["estado"]) != "abierta":
+            raise ConflictoError("La convocatoria no esta abierta")
+        version_id = str(convocatoria["version_perfil_id"])
+        solicitada = _texto(datos.get("version_perfil_id"))
+        if solicitada and solicitada != version_id:
+            raise EntradaInvalidaError("La version del perfil no coincide con la convocatoria")
+        return convocatoria_id, version_id
+
+    version_id = str(datos["version_perfil_id"])
+    version = repositorio.obtener_version_perfil(version_id)
+    if version is None or str(version["cliente_id"]) != cliente_id:
+        raise NoEncontradoError("Version de perfil no encontrada")
+    if not bool(version["publicado"]):
+        raise EntradaInvalidaError("La version del perfil debe estar publicada")
+    convocatoria = repositorio.obtener_o_crear_convocatoria_compatibilidad(cliente_id, version_id)
+    return str(convocatoria["id"]), version_id
 
 
 def _huella_preflight(datos: dict[str, object]) -> str:
@@ -131,6 +166,7 @@ class ServicioTalentIA:
         verificador_listas_control: VerificadorListasControl | None = None,
     ) -> None:
         self._fabrica = fabrica_unidad
+        self._convocatorias = ServicioConvocatorias(fabrica_unidad)
         self._almacen = almacen_documentos
         self._lector_lotes = lector_lotes
         self._extractor_documento = extractor_documento
@@ -248,6 +284,34 @@ class ServicioTalentIA:
         with self._fabrica() as unidad:
             return unidad.datos.listar_accesos()
 
+    def listar_asignaciones_cuenta(self, usuario: UsuarioActual) -> dict[str, object]:
+        """Expone al gestor solo reclutadores y cuentas dentro de su alcance."""
+
+        if "administrador" in usuario.roles:
+            return self.listar_accesos(usuario)
+        _exigir_permiso(usuario, "convocatorias:asignar")
+        with self._fabrica() as unidad:
+            accesos = unidad.datos.listar_accesos()
+        clientes = [
+            dict(cliente)
+            for cliente in cast(list[dict[str, object]], accesos.get("clientes", []))
+            if str(cliente["id"]) in usuario.clientes
+        ]
+        usuarios = []
+        for item in cast(list[dict[str, object]], accesos.get("usuarios", [])):
+            roles = {str(rol) for rol in cast(list[object], item.get("roles", []))}
+            if "reclutador" not in roles or not bool(item.get("activo", True)):
+                continue
+            visible = dict(item)
+            visible["clientes"] = [
+                cliente_id
+                for cliente_id in cast(list[str], item.get("clientes", []))
+                if cliente_id in usuario.clientes
+            ]
+            visible["roles"] = ["reclutador"]
+            usuarios.append(visible)
+        return {"usuarios": usuarios, "roles": [], "clientes": clientes}
+
     def asignar_rol(
         self, actor: UsuarioActual, usuario_id: str, rol: str, asignar: bool, correlacion_id: str
     ) -> dict[str, object]:
@@ -275,12 +339,35 @@ class ServicioTalentIA:
         asignar: bool,
         correlacion_id: str,
     ) -> dict[str, object]:
-        _exigir_permiso(actor, "usuarios:administrar")
+        es_administrador = "administrador" in actor.roles
+        if es_administrador:
+            _exigir_permiso(actor, "usuarios:administrar")
+        else:
+            _exigir_permiso(actor, "convocatorias:asignar")
+            _exigir_cliente(actor, cliente_id)
         if actor.id == usuario_id and asignar and cliente_id not in actor.clientes:
             raise ProhibidoError("No puede ampliar su propio alcance de clientes")
-        if "administrador" not in actor.roles:
-            _exigir_cliente(actor, cliente_id)
         with self._fabrica() as unidad:
+            if not es_administrador:
+                accesos = unidad.datos.listar_accesos()
+                objetivo = next(
+                    (
+                        item
+                        for item in cast(list[dict[str, object]], accesos["usuarios"])
+                        if str(item["id"]) == usuario_id
+                    ),
+                    None,
+                )
+                roles = (
+                    {str(rol) for rol in cast(list[object], objetivo.get("roles", []))}
+                    if objetivo
+                    else set()
+                )
+                if "reclutador" not in roles:
+                    raise EntradaInvalidaError(
+                        "El gestor solo puede asignar usuarios con rol reclutador"
+                    )
+            anterior = unidad.datos.usuario_asignado_cliente(usuario_id, cliente_id)
             resultado = unidad.datos.asignar_cliente(usuario_id, cliente_id, asignar)
             unidad.datos.registrar_evento(
                 cliente_id=cliente_id,
@@ -288,7 +375,12 @@ class ServicioTalentIA:
                 accion="acceso.cliente_asignado",
                 recurso_tipo="usuario",
                 recurso_id=usuario_id,
-                detalle={"cliente_id": cliente_id, "asignado": asignar},
+                detalle={
+                    "cliente_id": cliente_id,
+                    "asignado_anterior": anterior,
+                    "asignado_nuevo": asignar,
+                    "sesiones_revocadas": anterior != asignar,
+                },
                 correlacion_id=correlacion_id,
             )
             return resultado
@@ -458,9 +550,21 @@ class ServicioTalentIA:
         _exigir_permiso(usuario, "candidatos:leer")
         with self._fabrica() as unidad:
             candidato = unidad.datos.obtener_candidato(candidato_id)
-            if not candidato:
-                raise NoEncontradoError("Candidato no encontrado")
-            _exigir_cliente(usuario, candidato.cliente_id)
+        if not candidato:
+            raise NoEncontradoError("Candidato no encontrado")
+        if not usuario.puede_acceder_cliente(candidato.cliente_id):
+            with self._fabrica() as unidad:
+                unidad.datos.registrar_evento(
+                    cliente_id=candidato.cliente_id,
+                    actor_id=usuario.id,
+                    accion="seguridad.idor_bloqueado",
+                    recurso_tipo="seguridad",
+                    recurso_id=candidato.id,
+                    detalle={"motivo": "recurso_fuera_de_alcance"},
+                    correlacion_id=correlacion_id,
+                )
+            raise NoEncontradoError("Candidato no encontrado")
+        with self._fabrica() as unidad:
             unidad.datos.registrar_evento(
                 cliente_id=candidato.cliente_id,
                 actor_id=usuario.id,
@@ -497,7 +601,7 @@ class ServicioTalentIA:
             candidato = unidad.datos.obtener_candidato(candidato_id)
             if not candidato:
                 raise NoEncontradoError("Candidato no encontrado")
-            _exigir_cliente(usuario, candidato.cliente_id)
+            _exigir_recurso_del_cliente(usuario, candidato.cliente_id)
             for campo, valor in cambios.items():
                 if not hasattr(candidato, campo):
                     raise EntradaInvalidaError(f"Campo desconocido: {campo}")
@@ -759,6 +863,61 @@ class ServicioTalentIA:
             )
             return version
 
+    def crear_convocatoria(
+        self, usuario: UsuarioActual, datos: dict[str, object], correlacion_id: str
+    ) -> dict[str, object]:
+        return self._convocatorias.crear(usuario, datos, correlacion_id)
+
+    def listar_convocatorias(
+        self,
+        usuario: UsuarioActual,
+        cliente_id: str,
+        limite: int = 100,
+        cursor: str | None = None,
+    ) -> list[dict[str, object]]:
+        return self._convocatorias.listar(usuario, cliente_id, limite, cursor)
+
+    def obtener_convocatoria(
+        self, usuario: UsuarioActual, convocatoria_id: str
+    ) -> dict[str, object]:
+        return self._convocatorias.obtener(usuario, convocatoria_id)
+
+    def asignar_reclutador_convocatoria(
+        self,
+        usuario: UsuarioActual,
+        convocatoria_id: str,
+        reclutador_id: str,
+        asignar: bool,
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        return self._convocatorias.asignar_reclutador(
+            usuario, convocatoria_id, reclutador_id, asignar, correlacion_id
+        )
+
+    def transicionar_postulacion(
+        self,
+        usuario: UsuarioActual,
+        postulacion_id: str,
+        datos: dict[str, object],
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        return self._convocatorias.transicionar(usuario, postulacion_id, datos, correlacion_id)
+
+    def vista_previa_cierre_convocatoria(
+        self, usuario: UsuarioActual, convocatoria_id: str
+    ) -> dict[str, object]:
+        return self._convocatorias.vista_previa_cierre(usuario, convocatoria_id)
+
+    def cerrar_convocatoria(
+        self,
+        usuario: UsuarioActual,
+        convocatoria_id: str,
+        version: int,
+        motivo: str,
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        return self._convocatorias.cerrar(usuario, convocatoria_id, version, motivo, correlacion_id)
+
     def crear_postulacion(
         self, usuario: UsuarioActual, datos: dict[str, object], correlacion_id: str
     ) -> dict[str, object]:
@@ -771,22 +930,20 @@ class ServicioTalentIA:
         fuente = _texto(datos.get("fuente", "directa"))
         if not fuente or len(fuente) > 80:
             raise EntradaInvalidaError("Fuente de postulacion invalida")
-        clave = hashlib.sha256(
-            f"{cliente_id}:{datos['candidato_id']}:{datos['version_perfil_id']}".encode()
-        ).hexdigest()[:40]
         with self._fabrica() as unidad:
-            version = unidad.datos.obtener_version_perfil(str(datos["version_perfil_id"]))
-            if version is None:
-                raise NoEncontradoError("Version de perfil no encontrada")
-            if str(version["cliente_id"]) != cliente_id:
-                raise ProhibidoError("El perfil pertenece a otro cliente")
-            if not bool(version["publicado"]):
-                raise EntradaInvalidaError("La version del perfil debe estar publicada")
+            convocatoria_id, version_id = _resolver_convocatoria_postulacion(
+                unidad.datos, cliente_id, datos
+            )
+            clave = hashlib.sha256(
+                f"{cliente_id}:{datos['candidato_id']}:{convocatoria_id}".encode()
+            ).hexdigest()[:40]
             postulacion = unidad.datos.crear_postulacion(
                 {
                     "cliente_id": cliente_id,
                     "candidato_id": str(datos["candidato_id"]),
-                    "version_perfil_id": str(datos["version_perfil_id"]),
+                    "convocatoria_id": convocatoria_id,
+                    "version_perfil_id": version_id,
+                    "reclutador_id": usuario.id,
                     "fuente": fuente,
                     "estado": "nueva",
                     "clave_idempotencia": clave,
@@ -799,7 +956,7 @@ class ServicioTalentIA:
                     accion="postulacion.creada",
                     recurso_tipo="postulacion",
                     recurso_id=str(postulacion["id"]),
-                    detalle={"fuente": fuente},
+                    detalle={"fuente": fuente, "convocatoria_id": convocatoria_id},
                     correlacion_id=correlacion_id,
                 )
             return postulacion
@@ -1293,6 +1450,7 @@ class ServicioTalentIA:
                 ("candidato", "Persona candidata"),
                 ("perfil", "Vacante"),
                 ("cliente", "Cliente"),
+                ("convocatoria", "Convocatoria"),
                 ("fuente", "Fuente"),
                 ("estado", "Estado"),
                 ("creado_en", "Creada"),
@@ -1357,6 +1515,8 @@ class ServicioTalentIA:
         permisos = {
             "candidatos": ("candidatos:escribir",),
             "perfiles": ("perfiles:escribir",),
+            "convocatorias": ("convocatorias:escribir",),
+            "espacio_cuentas": ("convocatorias:leer",),
             "postulaciones": ("postulaciones:escribir",),
             "evaluaciones": ("documentos:escribir", "evaluaciones:solicitar"),
             "importar_cvs": ("candidatos:escribir", "documentos:escribir"),

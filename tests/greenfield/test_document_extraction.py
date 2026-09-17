@@ -125,6 +125,40 @@ def test_extrae_docx_con_fuentes_sanitiza_pii_y_reutiliza(cliente_api) -> None:
     assert sugerencias == 4
 
 
+def test_extrae_cv_con_secciones_del_formato_demo(cliente_api) -> None:
+    contenido = _docx(
+        "Valentina Ruiz",
+        "2. Competencias y Habilidades Técnicas",
+        "Skills Principales: Python, FastAPI, React, PostgreSQL, Docker, AWS",
+        "3. Experiencia Laboral Relevante",
+        "Full Stack Senior | Andes Digital Labs (2022 - Presente)",
+        "Desarrolló APIs REST y pruebas con Pytest.",
+        "4. Educación y Certificaciones",
+        "Universidad Nacional de Ingeniería | AWS Certified Developer Associate",
+    )
+    documento_id = _subir(
+        cliente_api,
+        contenido,
+        "cv-formato-demo.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "DNI-DOCX-DEMO",
+    )
+    respuesta = cliente_api["cliente"].post(
+        f"/api/v1/documents/{documento_id}/extraction",
+        headers=cliente_api["cabeceras"],
+    )
+    assert respuesta.status_code == 200, respuesta.text
+    datos = respuesta.json()
+    assert datos["estado"] == "completa"
+    assert {item["campo"] for item in datos["sugerencias"]} == {
+        "skills",
+        "experiencia",
+        "educacion",
+        "empresa_reciente",
+    }
+    assert all(item["fuente"]["pagina"] == 1 for item in datos["sugerencias"])
+
+
 def test_pdf_sin_texto_queda_en_revision_manual(cliente_api) -> None:
     documento_id = _subir(
         cliente_api,

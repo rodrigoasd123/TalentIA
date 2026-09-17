@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Convocatorias | TalentIA{% endblock %}
+{% block heading %}{{ cuenta.codigo }} · Convocatorias{% endblock %}
+{% block breadcrumb %}Cuenta / {{ cuenta.codigo }} / Convocatorias{% endblock %}
+{% block subtitle %}Cuenta → perfil publicado → convocatoria → responsables → candidaturas.{% endblock %}
+{% block content %}
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Convocatorias de la cuenta</h2><span class="estado">{{ convocatorias | length }} procesos</span></div>
+  <div class="tabla-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr><th>Código</th><th>Estado</th><th>Vacantes</th><th>Apertura</th><th>Acción</th></tr></thead>
+      <tbody>
+      {% for convocatoria in convocatorias %}
+      <tr>
+        <td><strong>{{ convocatoria.codigo }}</strong>{% if convocatoria.es_compatibilidad %}<small>Histórica</small>{% endif %}</td>
+        <td><span class="estado estado-{{ convocatoria.estado }}">{{ convocatoria.estado | title }}</span></td>
+        <td>{{ convocatoria.vacantes_total }}</td>
+        <td>{{ convocatoria.fecha_apertura or 'Pendiente' }}</td>
+        <td><a class="btn btn-outline-primary btn-sm" href="/convocatorias/{{ convocatoria.id }}">Abrir convocatoria</a></td>
+      </tr>
+      {% else %}<tr><td colspan="5" class="vacio">Aún no existen convocatorias en esta cuenta.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% if puede_crear %}
+<section class="seccion">
+  <div class="titulo-seccion"><h2>Nueva convocatoria</h2></div>
+  <form method="post" action="/cuentas/{{ cuenta.id }}/convocatorias/nueva" class="formulario-operativo">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="rejilla-formulario">
+      <label>Perfil publicado
+        <select name="version_perfil_id" required>
+          <option value="">Seleccione una versión aprobada</option>
+          {% for version in versiones %}<option value="{{ version.id }}" {% if datos.version_perfil_id == version.id %}selected{% endif %}>{{ version.codigo }} · {{ version.titulo }} · v{{ version.numero }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Código de convocatoria<input name="codigo" maxlength="80" required value="{{ datos.codigo or '' }}"></label>
+      <label>Número de vacantes<input name="vacantes_total" type="number" min="1" max="10000" required value="{{ datos.vacantes_total or 1 }}"></label>
+      <label>Estado inicial<select name="estado"><option value="borrador">Borrador</option><option value="abierta">Abierta</option></select></label>
+      <label>Fecha de apertura<input name="fecha_apertura" type="date" required value="{{ datos.fecha_apertura or '' }}"></label>
+      <label>Fecha objetivo<input name="fecha_objetivo" type="date" required value="{{ datos.fecha_objetivo or '' }}"></label>
+    </div>
+    <button class="btn btn-primary" type="submit">Crear convocatoria</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

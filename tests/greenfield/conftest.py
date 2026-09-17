@@ -30,6 +30,8 @@ def cliente_api(tmp_path, monkeypatch) -> Iterator[dict[str, object]]:
     monkeypatch.setenv("TALENTIA_ADMIN_EMAIL", "admin@pruebas.test")
     monkeypatch.setenv("TALENTIA_ADMIN_PASSWORD", "Contrasena-Pruebas-2026!")
     monkeypatch.setenv("TALENTIA_DOCUMENT_STORAGE", str(documentos))
+    for variable in ("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        monkeypatch.delenv(variable, raising=False)
     with TestClient(app) as cliente:
         acceso = cliente.post(
             "/api/v1/auth/login",

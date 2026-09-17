@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import cast
 from urllib.error import HTTPError, URLError
@@ -88,6 +89,23 @@ class ClienteLLM:
     def _entero(valor: object) -> int:
         return int(valor) if isinstance(valor, int | str) else 0
 
+    def _solicitar(self, solicitud: Request) -> dict[str, object]:
+        for intento in range(3):
+            try:
+                with urlopen(solicitud, timeout=self._timeout) as respuesta:  # noqa: S310
+                    return cast(dict[str, object], json.loads(respuesta.read(2_000_000)))
+            except HTTPError as error:
+                transitorio = error.code == 429 or 500 <= error.code < 600
+                if not transitorio or intento == 2:
+                    raise ProveedorLLMError("proveedor_no_disponible") from error
+            except (URLError, TimeoutError, OSError) as error:
+                if intento == 2:
+                    raise ProveedorLLMError("proveedor_no_disponible") from error
+            except json.JSONDecodeError as error:
+                raise ProveedorLLMError("respuesta_json_invalida") from error
+            time.sleep(2**intento)
+        raise ProveedorLLMError("proveedor_no_disponible")
+
     def evaluar(
         self, texto_sanitizado: str, requisitos: tuple[tuple[str, str], ...]
     ) -> RespuestaLLM | None:
@@ -137,11 +155,8 @@ class ClienteLLM:
                 headers={"x-goog-api-key": ajustes.api_key, "Content-Type": "application/json"},
                 method="POST",
             )
-        try:
-            with urlopen(solicitud, timeout=self._timeout) as respuesta:  # noqa: S310
-                datos = cast(dict[str, object], json.loads(respuesta.read(2_000_000)))
-        except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as error:
-            raise ProveedorLLMError("proveedor_no_disponible") from error
+        datos = self._solicitar(solicitud)
+
         if ajustes.proveedor == "openai":
             texto = self._texto_openai(datos)
             uso = cast(dict[str, object], datos.get("usage", {}))

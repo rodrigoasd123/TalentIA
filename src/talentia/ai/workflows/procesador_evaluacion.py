@@ -52,7 +52,12 @@ class ProcesadorEvaluacion:
         self._contexto = ContextoNodosEvaluacion(
             fabrica,
             extractor,
-            ClienteLLM(gestor_ia) if gestor_ia is not None else None,
+            ClienteLLM(
+                gestor_ia,
+                timeout=max(1.0, min(15.0, lease_segundos / 4)),
+            )
+            if gestor_ia is not None
+            else None,
         )
         self._lease_segundos = lease_segundos
         self._fallar_despues_de = fallar_despues_de

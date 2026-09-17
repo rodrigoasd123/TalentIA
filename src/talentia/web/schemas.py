@@ -87,10 +87,52 @@ class AltaVersionPerfil(Estricto):
     publicado: bool = False
 
 
+class AltaConvocatoria(Estricto):
+    cliente_id: str
+    version_perfil_id: str
+    codigo: str = Field(min_length=1, max_length=80)
+    vacantes_total: int = Field(ge=1, le=10000)
+    fecha_apertura: date
+    fecha_objetivo: date
+    estado: Literal["borrador", "abierta"] = "borrador"
+    motivo_cierre: str | None = Field(default=None, max_length=1000)
+
+
+class AsignacionReclutadorConvocatoria(Estricto):
+    usuario_id: str
+    asignar: bool = True
+
+
+class TransicionPostulacion(Estricto):
+    destino: Literal[
+        "contactada",
+        "cv_recibido",
+        "en_evaluacion",
+        "revision_humana",
+        "apta",
+        "finalista",
+        "entrevista",
+        "oferta",
+        "contratada",
+        "no_apta",
+        "rechazada",
+        "backup",
+        "retirada",
+    ]
+    version: int = Field(ge=1)
+    motivo: str | None = Field(default=None, max_length=2000)
+
+
+class CierreConvocatoria(Estricto):
+    version: int = Field(ge=1)
+    motivo: str = Field(min_length=3, max_length=1000)
+
+
 class AltaPostulacion(Estricto):
     cliente_id: str
     candidato_id: str
-    version_perfil_id: str
+    version_perfil_id: str = ""
+    convocatoria_id: str | None = None
     fuente: str = "directa"
 
 

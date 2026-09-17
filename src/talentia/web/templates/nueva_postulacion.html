@@ -18,12 +18,24 @@
         {% for candidato in opciones.candidatos %}<option value="{{ candidato.id }}" {% if datos.candidato_id == candidato.id %}selected{% endif %}>{{ candidato.nombre }} · {{ candidato.cliente_nombre }}</option>{% endfor %}
       </select>
     </label>
-    <label>Perfil publicado
+    {% if opciones.convocatorias %}
+    <label>Convocatoria
+      <select name="convocatoria_id" required>
+        <option value="">Seleccione la convocatoria</option>
+        {% set convocatoria_actual = datos.convocatoria_id or request.query_params.get('convocatoria_id', '') %}
+        {% for convocatoria in opciones.convocatorias %}<option value="{{ convocatoria.id }}" {% if convocatoria_actual == convocatoria.id %}selected{% endif %}>{{ convocatoria.codigo }} · {{ convocatoria.perfil_titulo }} · {{ convocatoria.estado | title }}</option>{% endfor %}
+      </select>
+    </label>
+    <input type="hidden" name="version_perfil_id" value="">
+    {% else %}
+    <label>Perfil publicado de compatibilidad
       <select name="version_perfil_id" required>
         <option value="">Seleccione</option>
         {% for version in opciones.versiones %}<option value="{{ version.id }}" {% if datos.version_perfil_id == version.id %}selected{% endif %}>{{ version.codigo }} · {{ version.titulo }} · v{{ version.numero }}</option>{% endfor %}
       </select>
     </label>
+    <input type="hidden" name="convocatoria_id" value="">
+    {% endif %}
     <label>Fuente
       <input name="fuente" maxlength="80" required value="{{ datos.fuente or 'directa' }}">
     </label>
