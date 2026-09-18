@@ -10,7 +10,7 @@ from decimal import Decimal
 from types import TracebackType
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select, true, update
+from sqlalchemy import and_, delete, func, literal, or_, select, true, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -995,7 +995,10 @@ class RepositorioSqlalchemy:
             resultado = dict(fila)
             etiquetas = set(resultado.pop("etiquetas") or [])
             resultado["bloqueada_ex_tcs"] = "politica-ex-tcs-bloqueado" in etiquetas
-            resultado["restriccion_vigente"] = "restriccion-vigente" in etiquetas
+            resultado["bloqueada_exclusion"] = "politica-exclusion-bloqueado" in etiquetas
+            resultado["bloqueada_politica"] = (
+                resultado["bloqueada_ex_tcs"] or resultado["bloqueada_exclusion"]
+            )
             resultados.append(resultado)
         return resultados
 
@@ -1653,7 +1656,7 @@ class RepositorioSqlalchemy:
             ).where(_filtro_clientes(LoteImportacionModelo.cliente_id, clientes)),
             "excolaboradores": select(
                 func.substr(ExcolaboradorModelo.documento_hash, 1, 10).label("referencia"),
-                ExcolaboradorModelo.elegible_reingreso.label("elegible"),
+                literal("Reingreso bloqueado").label("estado_politica"),
                 ExcolaboradorModelo.creado_en.label("creado_en"),
             ).where(_filtro_clientes(ExcolaboradorModelo.cliente_id, clientes)),
             "exclusiones": select(
@@ -1832,7 +1835,7 @@ class RepositorioSqlalchemy:
     @staticmethod
     def _columnas_permitidas(tipo: str) -> set[str]:
         if tipo == "excolaboradores":
-            return {"documento", "elegible_reingreso"}
+            return {"documento"}
         return {
             "nombres",
             "apellidos",

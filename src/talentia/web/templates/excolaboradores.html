@@ -2,14 +2,14 @@
 {% block title %}Excolaboradores TCS | TalentIA{% endblock %}
 {% block heading %}Excolaboradores TCS{% endblock %}
 {% block breadcrumb %}Excolaboradores{% endblock %}
-{% block subtitle %}Base histórica de excolaboradores de Tata Consultancy Services, fechas de contratación y elegibilidad de reingreso.{% endblock %}
+{% block subtitle %}Base histórica para aplicar la política corporativa que bloquea toda reincorporación Ex-TCS.{% endblock %}
 
 {% block content %}
 <section class="seccion modulo-operativo">
   <div class="titulo-seccion">
     <div>
       <h2>Registros actuales de Excolaboradores</h2>
-      <span class="subtitulo-seccion">Historial contractual y validación de políticas de recontratación.</span>
+      <span class="subtitulo-seccion">Historial contractual sujeto a bloqueo corporativo de reincorporación.</span>
     </div>
     <div class="acciones-cabecera">
       <span class="badge bg-primary fs-6">{{ excolaboradores | length }} colaboradores</span>
@@ -20,8 +20,8 @@
 
   <div class="panel-metricas-operativas panel-metricas-3">
     <article class="metrica-operativa"><span>Total registrado</span><strong>{{ excolaboradores | length }}</strong></article>
-    <article class="metrica-operativa metrica-positiva"><span>Elegibles para reingreso</span><strong>{{ total_elegibles }}</strong></article>
-    <article class="metrica-operativa metrica-alerta"><span>No elegibles</span><strong>{{ total_no_elegibles }}</strong></article>
+    <article class="metrica-operativa metrica-alerta"><span>Reincorporación bloqueada</span><strong>{{ total_bloqueados }}</strong></article>
+    <article class="metrica-operativa"><span>Política aplicable</span><strong>100%</strong></article>
   </div>
 
   <div class="filtro-operativo">
@@ -42,7 +42,7 @@
           <th>Permanencia</th>
           <th>Motivo de Salida</th>
           <th>Desempeño</th>
-          <th>Elegible</th>
+          <th>Estado corporativo</th>
         </tr>
       </thead>
       <tbody>
@@ -63,11 +63,7 @@
           </td>
           <td>{{ ex.calificacion_desempeno }}</td>
           <td>
-            {% if ex.elegible_reingreso == 'SI' or ex.elegible_reingreso == 'True' or ex.elegible_reingreso is true %}
-              <span class="badge bg-success">Elegible (SI)</span>
-            {% else %}
-              <span class="badge bg-danger">No Elegible (NO)</span>
-            {% endif %}
+            <span class="badge bg-danger">Reingreso bloqueado</span>
           </td>
         </tr>
         {% else %}

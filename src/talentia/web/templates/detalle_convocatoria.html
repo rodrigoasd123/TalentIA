@@ -50,7 +50,7 @@
     <article class="tarjeta-resumen">
       <strong>{{ resultado.archivo }}</strong>
       {% if resultado.error %}<p class="alert alert-danger">{{ resultado.error }}</p>
-      {% elif resultado.bloqueada_politica %}<p><span class="estado estado-no_apta">Ex‑TCS · reincorporación bloqueada</span></p>
+      {% elif resultado.bloqueada_politica %}<p><span class="estado estado-no_apta">Bloqueo corporativo · contratación no permitida</span></p>
       {% elif resultado.trabajo_id %}<p><span class="estado estado-en_evaluacion">Evaluación en cola</span></p><a href="/trabajos/{{ resultado.trabajo_id }}">Ver progreso</a>
       {% else %}<p>{{ resultado.estado | title }}</p>{% endif %}
     </article>
@@ -107,23 +107,23 @@
         <td><strong>{{ postulacion.candidato }}</strong><small>{{ postulacion.documento_normalizado or 'Sin documento' }} · {{ postulacion.reclutador or 'Sin reclutador' }}</small></td>
         <td>{{ postulacion.fuente }}</td>
         <td>
-          {% if postulacion.bloqueada_ex_tcs %}<span class="estado estado-no_apta">Ex‑TCS bloqueado</span>
-          {% elif postulacion.restriccion_vigente %}<span class="estado estado-no_apta">Exclusión vigente</span>
+          {% if postulacion.bloqueada_ex_tcs %}<span class="estado estado-no_apta">Ex‑TCS · contratación bloqueada</span>
+          {% elif postulacion.bloqueada_exclusion %}<span class="estado estado-no_apta">Exclusión corporativa · contratación bloqueada</span>
           {% else %}<span class="estado estado-apta">Sin alertas</span>{% endif %}
         </td>
         <td>
           {% if postulacion.puntaje_documental is not none %}
           <strong>{{ postulacion.puntaje_documental | round(1) }}%</strong>
           {% if postulacion.evaluacion_id %}<small><a href="/evaluaciones/{{ postulacion.evaluacion_id }}">Ver desglose y evidencia</a></small>{% endif %}
-          {% elif postulacion.bloqueada_ex_tcs %}
-          <span class="texto-secundario">No aplica por política</span>
+          {% elif postulacion.bloqueada_politica %}
+          <span class="texto-secundario">Evaluación omitida por bloqueo corporativo</span>
           {% elif postulacion.estado in ['nueva', 'en_evaluacion'] %}
           <span class="estado estado-en_evaluacion">Procesando</span>
           {% else %}<span class="texto-secundario">Sin evaluación</span>{% endif %}
         </td>
         <td><span class="estado estado-{{ postulacion.estado }}">{{ postulacion.estado | replace('_', ' ') | title }}</span></td>
         <td>
-          {% if acciones[postulacion.id] and convocatoria.estado == 'abierta' %}
+          {% if acciones[postulacion.id] and convocatoria.estado == 'abierta' and not postulacion.bloqueada_politica %}
           <form method="post" action="/convocatorias/{{ convocatoria.id }}/candidaturas/{{ postulacion.id }}/transicion" class="formulario-en-linea">
             <input type="hidden" name="csrf" value="{{ csrf }}">
             <input type="hidden" name="version" value="{{ postulacion.version }}">

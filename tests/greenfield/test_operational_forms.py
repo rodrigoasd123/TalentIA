@@ -126,6 +126,45 @@ def _crear_postulacion_api(
     return str(respuesta.json()["id"])
 
 
+def test_crear_perfil_admite_job_description_manual(cliente_api) -> None:
+    cliente, csrf = _login_web(cliente_api)
+    respuesta = cliente.post(
+        "/perfiles/nuevo",
+        data={
+            "csrf": csrf,
+            "cliente_id": cliente_api["cliente_id"],
+            "codigo": "FULLSTACK-MANUAL",
+            "titulo": "Desarrollador Fullstack Senior",
+            "modo_jd": "manual",
+            "descripcion_puesto": (
+                "Experiencia tecnica:\n"
+                "- Python y FastAPI en sistemas productivos\n"
+                "- React y TypeScript\n"
+                "Deseable:\n"
+                "- Despliegues en AWS"
+            ),
+        },
+        follow_redirects=False,
+    )
+
+    assert respuesta.status_code == 303
+    fabrica = FabricaSesiones(crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}"))
+    with fabrica.sesion() as sesion:
+        perfil = sesion.scalar(
+            select(PerfilPuestoModelo).where(PerfilPuestoModelo.codigo == "FULLSTACK-MANUAL")
+        )
+        assert perfil is not None
+        version = sesion.scalar(
+            select(VersionPerfilPuestoModelo).where(
+                VersionPerfilPuestoModelo.perfil_id == perfil.id
+            )
+        )
+        assert version is not None
+        assert version.publicado
+        assert len(version.requisitos) == 3
+        assert {bool(requisito["obligatorio"]) for requisito in version.requisitos} == {True, False}
+
+
 def test_formularios_crean_perfil_y_version_y_conservan_datos(cliente_api) -> None:
     cliente, csrf = _login_web(cliente_api)
     alta = cliente.post(

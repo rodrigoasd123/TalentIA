@@ -54,6 +54,18 @@ def test_tablas_de_control_usan_filtro_local_compatible_con_csp() -> None:
     assert "<script>" not in exclusiones
 
 
+def test_perfil_prioriza_jd_manual_y_ex_tcs_no_muestra_elegibilidad() -> None:
+    perfil = (PLANTILLAS / "nuevo_perfil.html").read_text(encoding="utf-8")
+    excolaboradores = (PLANTILLAS / "excolaboradores.html").read_text(encoding="utf-8")
+
+    assert 'name="modo_jd" value="manual"' in perfil
+    assert 'name="descripcion_puesto"' in perfil
+    assert 'inputArchivo.addEventListener("change"' not in perfil
+    assert "Reingreso bloqueado" in excolaboradores
+    assert "Elegible (SI)" not in excolaboradores
+    assert "No Elegible" not in excolaboradores
+
+
 def test_shell_marca_navegacion_activa_y_accesibilidad(cliente_api) -> None:
     cliente = cliente_api["cliente"]
     cliente.post(

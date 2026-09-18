@@ -71,19 +71,16 @@ class ListasControlTCS:
                 )
             else:
                 estado = registro.get("estado_restriccion", "desconocida").strip() or "desconocida"
-                vigente = estado.casefold() in {"activa", "permanente"}
                 alertas.append(
                     {
                         "tipo": "vetado",
-                        "nivel": "alta" if vigente else "media",
-                        "estado": estado,
+                        "nivel": "alta",
+                        "estado": "bloqueada_politica",
                         "criterio": criterio,
                         "mensaje": (
-                            "Coincidencia con una restriccion vigente. "
-                            "Revision de RR. HH. obligatoria."
-                            if vigente
-                            else "Coincidencia historica con la lista de restricciones. "
-                            "Validar vigencia con RR. HH."
+                            "Coincidencia con la lista corporativa de exclusiones "
+                            f"({estado}). La politica impide su contratacion y bloquea "
+                            "la candidatura."
                         ),
                     }
                 )

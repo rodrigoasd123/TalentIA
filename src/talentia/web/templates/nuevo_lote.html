@@ -20,6 +20,10 @@
     <div class="col-md-5"><label class="form-label">Documento</label><input class="form-control" name="documento" required></div>
     <div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary" type="submit">Comprobar</button></div>
   </form>
-  {% if resultado_excolaborador %}<div class="alert alert-info mt-3">{{ 'Requiere revision humana' if resultado_excolaborador.requiere_revision else 'Sin coincidencia' }}</div>{% endif %}
+  {% if resultado_excolaborador %}
+  <div class="alert {{ 'alert-danger' if resultado_excolaborador.bloqueada_politica else 'alert-success' }} mt-3">
+    {{ 'Coincidencia Ex-TCS: reincorporación bloqueada por política corporativa' if resultado_excolaborador.bloqueada_politica else 'Sin coincidencia Ex-TCS' }}
+  </div>
+  {% endif %}
 </section>
 {% endblock %}

@@ -8,32 +8,40 @@
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="flujo_cuenta" value="{{ datos.flujo_cuenta or '' }}">
 
-  <!-- Helper para autocompletar datos del perfil desde Job Description -->
-  <div style="background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 8px; padding: 1.15rem 1.25rem; margin-bottom: 1.5rem;">
-    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
-        <span style="font-size: 1.3rem;">📄</span>
-        <strong style="font-size: 1rem; color: #0f172a;">Cargar archivo de Convocatoria / Job Description</strong>
+  <fieldset class="mb-4">
+    <legend class="h6">¿Cómo registrarás el Job Description?</legend>
+    <p class="texto-secundario">Escríbelo directamente o, si ya tienes el documento corporativo, extráelo desde un archivo.</p>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1rem;">
+      <label class="opcion-check">
+        <input type="radio" name="modo_jd" value="manual" {% if datos.modo_jd != 'archivo' %}checked{% endif %}>
+        Escribir Job Description
+      </label>
+      <label class="opcion-check">
+        <input type="radio" name="modo_jd" value="archivo" {% if datos.modo_jd == 'archivo' %}checked{% endif %}>
+        Cargar PDF o Word
+      </label>
+    </div>
+
+    <div id="panel-jd-manual">
+      <label class="ancho-completo" for="descripcion_puesto">Job Description
+        <textarea name="descripcion_puesto" id="descripcion_puesto" rows="11" placeholder="Ejemplo:&#10;Nombre del rol: Desarrollador Fullstack Senior&#10;&#10;Experiencia técnica:&#10;- Python y FastAPI&#10;- React y TypeScript&#10;- PostgreSQL y Docker&#10;&#10;Deseable:&#10;- AWS o Azure">{{ datos.descripcion_puesto or '' }}</textarea>
+        <small>Incluye funciones, experiencia técnica, requisitos obligatorios y deseables. TalentIA los convertirá en criterios evaluables al guardar.</small>
+      </label>
+    </div>
+
+    <div id="panel-jd-archivo" hidden style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:1rem;">
+      <label for="archivo_convocatoria"><strong>Archivo de Job Description</strong></label>
+      <p class="texto-secundario">El análisis solo se ejecuta cuando presiones “Extraer datos”; seleccionar el archivo no inicia ninguna operación.</p>
+      <div style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
+        <input type="file" id="archivo_convocatoria" name="archivo_convocatoria" accept=".pdf,.docx" class="form-control" style="flex:1; min-width:240px;">
+        <button type="button" id="btn-autollenar-perfil" class="btn btn-outline-primary">
+          <span id="spinner-rapida" class="spinner-border spinner-border-sm" hidden role="status"></span>
+          Extraer datos
+        </button>
       </div>
-      <span class="badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px;">PDF o Word (.docx)</span>
+      <div id="resultado_convocatoria_rapida" role="status" aria-live="polite" style="margin-top:.75rem; display:none; padding:.65rem .75rem; border-radius:6px;"></div>
     </div>
-    <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 0.5rem;">
-      Al seleccionar el documento, se <strong>autocompletarán de inmediato el Título y Código del puesto</strong>, y al guardar se <strong>crearán y publicarán todos los requisitos técnicos</strong> automáticamente.
-    </p>
-    <div style="margin-bottom: 0.75rem; font-size: 0.825rem;">
-      <a href="/descargas/convocatorias-demo.zip" style="display: inline-flex; align-items: center; gap: 0.35rem; color: #0284c7; text-decoration: none; font-weight: 500;">
-        <span>📥</span> <span>Descargar lote de convocatorias de ejemplo (.zip)</span>
-      </a>
-    </div>
-    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-      <input type="file" id="archivo_convocatoria" name="archivo_convocatoria" accept=".pdf,.docx,.doc" class="form-control" style="flex: 1; min-width: 220px; font-size: 0.85rem; padding: 0.4rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px;">
-      <button type="button" id="btn-autollenar-perfil" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.45rem 0.9rem; display: inline-flex; align-items: center; gap: 0.35rem;">
-        <span id="spinner-rapida" class="spinner-border spinner-border-sm" style="display: none;" role="status"></span>
-        <span>✨ Analizar archivo</span>
-      </button>
-    </div>
-    <div id="resultado_convocatoria_rapida" style="font-size: 0.85rem; margin-top: 0.6rem; display: none; padding: 0.5rem 0.75rem; border-radius: 6px;"></div>
-  </div>
+  </fieldset>
 
   <div class="rejilla-formulario">
     <label>Cliente
@@ -44,94 +52,75 @@
         {% endfor %}
       </select>
     </label>
-    <label>Codigo
-      <input name="codigo" id="codigo_input" maxlength="50" placeholder="Ej. DEV-JAVA-01" value="{{ datos.codigo or '' }}">
-      <small style="color: #64748b;">Se autocompleta con el archivo o escríbelo manualmente</small>
+    <label>Código
+      <input name="codigo" id="codigo_input" maxlength="50" placeholder="Ej. DEV-JAVA-01" value="{{ datos.codigo or '' }}" required>
     </label>
-    <label>Titulo
-      <input name="titulo" id="titulo_input" maxlength="200" placeholder="Ej. Developer Java Microservicios APIS" value="{{ datos.titulo or '' }}">
-      <small style="color: #64748b;">Se autocompleta con el archivo o escríbelo manualmente</small>
+    <label>Título
+      <input name="titulo" id="titulo_input" maxlength="200" placeholder="Ej. Developer Java Microservicios" value="{{ datos.titulo or '' }}" required>
     </label>
   </div>
   <div class="acciones-formulario">
     <a class="btn btn-outline-secondary" href="{% if datos.flujo_cuenta == 'si' and datos.cliente_id %}/cuentas/{{ datos.cliente_id }}{% else %}/modulo/perfiles{% endif %}">Cancelar</a>
-    <button class="btn btn-primary" type="submit">Crear y publicar vacante</button>
+    <button class="btn btn-primary" type="submit">Crear y publicar perfil</button>
   </div>
 </form>
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
+  const radios = document.querySelectorAll('input[name="modo_jd"]');
+  const panelManual = document.getElementById("panel-jd-manual");
+  const panelArchivo = document.getElementById("panel-jd-archivo");
+  const descripcion = document.getElementById("descripcion_puesto");
+  const archivo = document.getElementById("archivo_convocatoria");
   const btn = document.getElementById("btn-autollenar-perfil");
-  const inputArchivo = document.getElementById("archivo_convocatoria");
   const spinner = document.getElementById("spinner-rapida");
   const resultado = document.getElementById("resultado_convocatoria_rapida");
-  const inputCodigo = document.getElementById("codigo_input");
-  const inputTitulo = document.getElementById("titulo_input");
+  const codigo = document.getElementById("codigo_input");
+  const titulo = document.getElementById("titulo_input");
 
-  if (!inputArchivo) return;
+  function actualizarModo() {
+    const modo = document.querySelector('input[name="modo_jd"]:checked').value;
+    const manual = modo === "manual";
+    panelManual.hidden = !manual;
+    panelArchivo.hidden = manual;
+    descripcion.required = manual;
+    archivo.required = !manual;
+  }
+  radios.forEach((radio) => radio.addEventListener("change", actualizarModo));
+  actualizarModo();
 
-  async function analizarDocumento() {
-    if (!inputArchivo.files || inputArchivo.files.length === 0) return;
-
-    const formData = new FormData();
-    formData.append("archivo", inputArchivo.files[0]);
-    formData.append("csrf", "{{ csrf }}");
-
-    if (btn) btn.disabled = true;
-    spinner.style.display = "inline-block";
-    resultado.style.display = "block";
-    resultado.style.background = "#e0f2fe";
-    resultado.style.color = "#0369a1";
-    resultado.style.border = "1px solid #bae6fd";
-    resultado.innerHTML = "⏳ Extrayendo datos del documento...";
-
-    try {
-      const resp = await fetch("/perfiles/analizar-convocatoria-previa", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await resp.json();
-      if (resp.ok && data.exito) {
-        if (data.titulo) inputTitulo.value = data.titulo;
-        if (data.codigo) inputCodigo.value = data.codigo;
-        resultado.style.background = "#dcfce7";
-        resultado.style.color = "#166534";
-        resultado.style.border = "1px solid #86efac";
-        resultado.innerHTML = `<strong>✓ Documento analizado:</strong> ${data.resumen}. Puedes presionar <strong>Crear y publicar vacante</strong> para dejarla lista de inmediato.`;
-      } else {
-        resultado.style.background = "#fee2e2";
-        resultado.style.color = "#991b1b";
-        resultado.style.border = "1px solid #fca5a5";
-        resultado.innerHTML = `✗ Error: ${data.error || "No se pudo extraer"}`;
-      }
-    } catch (e) {
-      resultado.style.background = "#fee2e2";
-      resultado.style.color = "#991b1b";
-      resultado.style.border = "1px solid #fca5a5";
-      resultado.innerHTML = `✗ Error de conexión: ${e.message}`;
-    } finally {
-      if (btn) btn.disabled = false;
-      spinner.style.display = "none";
+  btn.addEventListener("click", async function() {
+    if (!archivo.files.length) {
+      resultado.style.display = "block";
+      resultado.className = "alert alert-warning";
+      resultado.textContent = "Selecciona un archivo PDF o DOCX primero.";
+      archivo.focus();
+      return;
     }
-  }
-
-  // Análisis automático al seleccionar el archivo
-  inputArchivo.addEventListener("change", analizarDocumento);
-
-  if (btn) {
-    btn.addEventListener("click", function() {
-      if (!inputArchivo.files || inputArchivo.files.length === 0) {
-        resultado.style.display = "block";
-        resultado.style.background = "#fee2e2";
-        resultado.style.color = "#991b1b";
-        resultado.style.border = "1px solid #fca5a5";
-        resultado.innerHTML = "⚠️ Selecciona un archivo PDF o Word (.docx) primero.";
-        inputArchivo.focus();
-        return;
-      }
-      analizarDocumento();
-    });
-  }
+    const formData = new FormData();
+    formData.append("archivo", archivo.files[0]);
+    formData.append("csrf", "{{ csrf }}");
+    btn.disabled = true;
+    spinner.hidden = false;
+    resultado.style.display = "block";
+    resultado.className = "alert alert-info";
+    resultado.textContent = "Extrayendo datos del Job Description...";
+    try {
+      const response = await fetch("/perfiles/analizar-convocatoria-previa", {method: "POST", body: formData});
+      const data = await response.json();
+      if (!response.ok || !data.exito) throw new Error(data.error || "No se pudo extraer el documento");
+      if (data.titulo) titulo.value = data.titulo;
+      if (data.codigo) codigo.value = data.codigo;
+      resultado.className = "alert alert-success";
+      resultado.textContent = `Documento extraído correctamente: ${data.resumen}.`;
+    } catch (error) {
+      resultado.className = "alert alert-danger";
+      resultado.textContent = `No se pudo extraer el documento: ${error.message}`;
+    } finally {
+      btn.disabled = false;
+      spinner.hidden = true;
+    }
+  });
 });
 </script>
 {% endblock %}

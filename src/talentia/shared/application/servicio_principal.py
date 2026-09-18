@@ -917,13 +917,13 @@ class ServicioTalentIA:
             else []
         )
         destino = str(datos.get("destino", ""))
-        if any(alerta.get("tipo") == "ex_tcs" for alerta in alertas) and destino not in {
+        if any(alerta.get("tipo") in {"ex_tcs", "vetado"} for alerta in alertas) and destino not in {
             EstadoPostulacion.NO_APTA.value,
             EstadoPostulacion.RECHAZADA.value,
             EstadoPostulacion.RETIRADA.value,
         }:
             raise ProhibidoError(
-                "La politica corporativa impide reincorporar a una persona Ex-TCS"
+                "La politica corporativa impide contratar personas Ex-TCS o excluidas"
             )
         return self._convocatorias.transicionar(usuario, postulacion_id, datos, correlacion_id)
 
@@ -968,9 +968,18 @@ class ServicioTalentIA:
             if self._verificador_listas_control is not None
             else []
         )
-        bloqueada_ex_tcs = any(alerta.get("tipo") == "ex_tcs" for alerta in alertas)
-        if bloqueada_ex_tcs and "politica-ex-tcs-bloqueado" not in candidato.etiquetas:
-            etiquetas = sorted({*candidato.etiquetas, "politica-ex-tcs-bloqueado"})
+        tipos_bloqueo = {
+            str(alerta.get("tipo"))
+            for alerta in alertas
+            if alerta.get("tipo") in {"ex_tcs", "vetado"}
+        }
+        bloqueada_politica = bool(tipos_bloqueo)
+        etiquetas_bloqueo = {
+            "politica-ex-tcs-bloqueado" if tipo == "ex_tcs" else "politica-exclusion-bloqueado"
+            for tipo in tipos_bloqueo
+        }
+        if etiquetas_bloqueo.difference(candidato.etiquetas):
+            etiquetas = sorted({*candidato.etiquetas, *etiquetas_bloqueo})
             candidato = self.actualizar_candidato(
                 usuario,
                 candidato.id,
@@ -995,7 +1004,7 @@ class ServicioTalentIA:
                     "fuente": fuente,
                     "estado": (
                         EstadoPostulacion.NO_APTA.value
-                        if bloqueada_ex_tcs
+                        if bloqueada_politica
                         else estado_inicial.value
                     ),
                     "clave_idempotencia": clave,
@@ -1006,8 +1015,8 @@ class ServicioTalentIA:
                     cliente_id=cliente_id,
                     actor_id=usuario.id,
                     accion=(
-                        "postulacion.bloqueada_politica_ex_tcs"
-                        if bloqueada_ex_tcs
+                        "postulacion.bloqueada_politica"
+                        if bloqueada_politica
                         else "postulacion.creada"
                     ),
                     recurso_tipo="postulacion",
@@ -1015,11 +1024,11 @@ class ServicioTalentIA:
                     detalle={
                         "fuente": fuente,
                         "convocatoria_id": convocatoria_id,
-                        "bloqueo_ex_tcs": bloqueada_ex_tcs,
+                        "tipos_bloqueo": sorted(tipos_bloqueo),
                     },
                     correlacion_id=correlacion_id,
                 )
-            return {**postulacion, "bloqueada_politica": bloqueada_ex_tcs}
+            return {**postulacion, "bloqueada_politica": bloqueada_politica}
 
     def obtener_postulacion(self, usuario: UsuarioActual, postulacion_id: str) -> dict[str, object]:
         _exigir_permiso(usuario, "candidatos:leer")
@@ -1138,16 +1147,15 @@ class ServicioTalentIA:
             if self._verificador_listas_control is not None
             else []
         )
-        bloqueada_ex_tcs = any(alerta.get("tipo") == "ex_tcs" for alerta in alertas)
+        tipos_bloqueo = {
+            str(alerta.get("tipo"))
+            for alerta in alertas
+            if alerta.get("tipo") in {"ex_tcs", "vetado"}
+        }
+        bloqueada_politica = bool(tipos_bloqueo)
         etiquetas_control = {
-            "politica-ex-tcs-bloqueado"
-            if bloqueada_ex_tcs
-            else "",
-            *(
-                "restriccion-vigente"
-                for alerta in alertas
-                if alerta.get("tipo") == "vetado" and alerta.get("nivel") == "alta"
-            ),
+            "politica-ex-tcs-bloqueado" if "ex_tcs" in tipos_bloqueo else "",
+            "politica-exclusion-bloqueado" if "vetado" in tipos_bloqueo else "",
         }
         etiquetas_control.discard("")
         if etiquetas_control.difference(candidato.etiquetas):
@@ -1218,7 +1226,7 @@ class ServicioTalentIA:
             "postulacion_id": postulacion["id"] if postulacion else None,
             "postulacion_estado": postulacion["estado"] if postulacion else None,
             "trabajo_id": trabajo["id"] if trabajo else None,
-            "bloqueada_politica": bloqueada_ex_tcs,
+            "bloqueada_politica": bloqueada_politica,
             "completitud": calcular_completitud_candidato(candidato),
             "alertas": alertas,
         }
@@ -1583,7 +1591,7 @@ class ServicioTalentIA:
             "lotes": (("tipo", "Tipo"), ("estado", "Estado"), ("creado_en", "Creado")),
             "excolaboradores": (
                 ("referencia", "Referencia hash"),
-                ("elegible", "Elegible"),
+                ("estado_politica", "Estado corporativo"),
                 ("creado_en", "Creado"),
             ),
             "exclusiones": (
@@ -1794,13 +1802,14 @@ class ServicioTalentIA:
                 accion="excolaborador.consultado",
                 recurso_tipo="excolaborador",
                 recurso_id=None,
-                detalle={"coincidencia": encontrada, "requiere_revision": encontrada},
+                detalle={"coincidencia": encontrada, "bloqueada_politica": encontrada},
                 correlacion_id=correlacion_id,
             )
         return {
             "coincidencia": encontrada,
-            "requiere_revision": encontrada,
-            "resultado": "revision_requerida" if encontrada else "sin_coincidencia",
+            "requiere_revision": False,
+            "bloqueada_politica": encontrada,
+            "resultado": "bloqueada_politica" if encontrada else "sin_coincidencia",
         }
 
     def crear_reporte_exclusion(

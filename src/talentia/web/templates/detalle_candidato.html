@@ -6,7 +6,7 @@
 {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
 {% for alerta in alertas %}
 <div class="alert {% if alerta.nivel == 'alta' %}alert-danger{% else %}alert-warning{% endif %}" role="alert">
-  <strong>{% if alerta.tipo == 'ex_tcs' %}Alerta ex-TCS{% else %}Alerta de restriccion{% endif %}:</strong>
+  <strong>{% if alerta.tipo == 'ex_tcs' %}Bloqueo corporativo Ex-TCS{% else %}Bloqueo corporativo por exclusión{% endif %}:</strong>
   {{ alerta.mensaje }} Coincidencia por {{ alerta.criterio }}. La decision final corresponde a RR. HH.
 </div>
 {% endfor %}

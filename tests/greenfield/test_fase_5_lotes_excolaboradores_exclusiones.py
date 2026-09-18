@@ -207,8 +207,9 @@ def test_excolaborador_se_minimiza_y_solo_genera_revision(cliente_api) -> None:
     )
     assert comprobacion.json() == {
         "coincidencia": True,
-        "requiere_revision": True,
-        "resultado": "revision_requerida",
+        "requiere_revision": False,
+        "bloqueada_politica": True,
+        "resultado": "bloqueada_politica",
     }
     motor = crear_motor(f"sqlite:///{cliente_api['base'].as_posix()}")
     with Session(motor) as sesion:

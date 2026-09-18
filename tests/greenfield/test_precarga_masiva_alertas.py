@@ -140,8 +140,8 @@ def test_carga_masiva_crea_fichas_y_alertas_persistentes(cliente_api) -> None:
 
     detalle = cliente.get(f"/candidatos/{candidato_alerta.id}")
     assert detalle.status_code == 200
-    assert "Alerta ex-TCS" in detalle.text
-    assert "Alerta de restriccion" in detalle.text
+    assert "Bloqueo corporativo Ex-TCS" in detalle.text
+    assert "Bloqueo corporativo por exclusión" in detalle.text
 
 
 def test_repetir_cv_reutiliza_ficha_sin_duplicar_alertas(cliente_api) -> None:
@@ -307,3 +307,71 @@ def test_carga_en_convocatoria_crea_postulacion_y_encola_matching(cliente_api) -
     assert postulacion is not None
     assert postulacion.estado == "en_evaluacion"
     assert trabajos == 1
+
+
+def test_exclusion_corporativa_bloquea_postulacion_y_no_encola_matching(cliente_api) -> None:
+    cliente, csrf = _sesion_web(cliente_api)
+    cabeceras = cliente_api["cabeceras"]
+    perfil = cliente.post(
+        "/api/v1/job-profiles",
+        headers=cabeceras,
+        json={
+            "cliente_id": cliente_api["cliente_id"],
+            "codigo": "SECURITY-BLOCK",
+            "titulo": "Security Engineer",
+        },
+    )
+    version = cliente.post(
+        f"/api/v1/job-profiles/{perfil.json()['id']}/versions",
+        headers=cabeceras,
+        json={
+            "publicado": True,
+            "requisitos": [
+                {
+                    "codigo": "SEC",
+                    "descripcion": "Seguridad de aplicaciones",
+                    "obligatorio": True,
+                    "peso": "1",
+                }
+            ],
+        },
+    )
+    convocatoria = cliente.post(
+        "/api/v1/campaigns",
+        headers=cabeceras,
+        json={
+            "cliente_id": cliente_api["cliente_id"],
+            "version_perfil_id": version.json()["id"],
+            "codigo": "SECURITY-BLOCK-01",
+            "vacantes_total": 1,
+            "estado": "abierta",
+            "fecha_apertura": "2026-09-17",
+            "fecha_objetivo": "2026-10-17",
+        },
+    )
+
+    respuesta = cliente.post(
+        f"/convocatorias/{convocatoria.json()['id']}/cvs",
+        data={"csrf": csrf, "fuente": "directa", "reclutador": "Ana Recruiter"},
+        files={
+            "archivos": (
+                "cv-excluida.docx",
+                _cv("Camila Andrea Caceres Torres", "54890123", "camila@example.test"),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert "Bloqueo corporativo" in respuesta.text
+    motor = create_engine(f"sqlite:///{cliente_api['base'].as_posix()}")
+    with Session(motor) as sesion:
+        postulacion = sesion.scalar(
+            select(PostulacionModelo).where(
+                PostulacionModelo.convocatoria_id == convocatoria.json()["id"]
+            )
+        )
+        trabajos = sesion.scalar(select(func.count()).select_from(TrabajoAgenteModelo))
+    assert postulacion is not None
+    assert postulacion.estado == "no_apta"
+    assert trabajos == 0

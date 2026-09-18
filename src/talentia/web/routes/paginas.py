@@ -18,6 +18,7 @@ from talentia.ai.agents.cruce_candidatos import construir_reporte_cruce
 from talentia.modules.access.domain.modelos import PERMISOS_POR_ROL
 from talentia.modules.recruitment.application.extractor_convocatoria import (
     extraer_bases_convocatoria,
+    parsear_texto_convocatoria,
 )
 from talentia.modules.recruitment.domain.modelos import (
     TRANSICIONES_POSTULACION,
@@ -1005,42 +1006,72 @@ async def crear_perfil_web(
     codigo: str = Form(""),
     titulo: str = Form(""),
     flujo_cuenta: str = Form(""),
+    modo_jd: str = Form(""),
+    descripcion_puesto: str = Form(""),
     archivo_convocatoria: Annotated[UploadFile | None, File()] = None,
 ) -> Response:
     usuario = _usuario(request)
     if csrf != _csrf(request):
         raise NoAutorizadoError("CSRF invalido")
 
+    modo_explicito = modo_jd in {"manual", "archivo"}
+    if not modo_explicito:
+        modo_jd = (
+            "archivo"
+            if archivo_convocatoria and archivo_convocatoria.filename
+            else "manual"
+        )
     resultado_convocatoria = None
-    if archivo_convocatoria and archivo_convocatoria.filename:
+    gestor_ia = getattr(request.app.state, "gestor_ia", None)
+    if modo_jd == "manual":
+        if descripcion_puesto.strip():
+            resultado_convocatoria = parsear_texto_convocatoria(
+                descripcion_puesto.strip(), gestor_ia=gestor_ia
+            )
+    elif archivo_convocatoria and archivo_convocatoria.filename:
         contenido = await archivo_convocatoria.read()
         if contenido:
             with contextlib.suppress(Exception):
-                gestor_ia = getattr(request.app.state, "gestor_ia", None)
                 resultado_convocatoria = extraer_bases_convocatoria(
                     contenido,
                     archivo_convocatoria.content_type or "",
                     nombre_archivo=archivo_convocatoria.filename or "",
                     gestor_ia=gestor_ia,
                 )
-                if not titulo.strip() and resultado_convocatoria.titulo:
-                    titulo = resultado_convocatoria.titulo
-                if not codigo.strip() and resultado_convocatoria.codigo:
-                    codigo = resultado_convocatoria.codigo
+    if resultado_convocatoria is not None:
+        if not titulo.strip() and resultado_convocatoria.titulo:
+            titulo = resultado_convocatoria.titulo
+        if not codigo.strip() and resultado_convocatoria.codigo:
+            codigo = resultado_convocatoria.codigo
 
-    if not codigo.strip() or not titulo.strip():
+    entrada_jd_invalida = modo_explicito and (
+        (modo_jd == "manual" and not descripcion_puesto.strip())
+        or (
+            modo_jd == "archivo"
+            and not (archivo_convocatoria and archivo_convocatoria.filename)
+        )
+    )
+    if not codigo.strip() or not titulo.strip() or entrada_jd_invalida:
         datos = {
             "cliente_id": cliente_id,
             "codigo": codigo,
             "titulo": titulo,
             "flujo_cuenta": flujo_cuenta,
+            "modo_jd": modo_jd,
+            "descripcion_puesto": descripcion_puesto,
         }
         return _respuesta_formulario(
             request,
             usuario,
             "nuevo_perfil.html",
             "perfiles",
-            error="Debe indicar el código y título del rol, o adjuntar un archivo de convocatoria.",
+            error=(
+                "Escriba el Job Description completo."
+                if modo_jd == "manual" and not descripcion_puesto.strip()
+                else "Adjunte un archivo PDF o DOCX con el Job Description."
+                if modo_jd == "archivo" and entrada_jd_invalida
+                else "Debe indicar el código y título del perfil."
+            ),
             datos=datos,
             status_code=422,
         )
@@ -1050,6 +1081,8 @@ async def crear_perfil_web(
         "codigo": codigo,
         "titulo": titulo,
         "flujo_cuenta": flujo_cuenta,
+        "modo_jd": modo_jd,
+        "descripcion_puesto": descripcion_puesto,
     }
     try:
         perfil = request.app.state.servicio.crear_perfil(
@@ -1068,9 +1101,20 @@ async def crear_perfil_web(
 
     # Si se cargo la convocatoria y se extrajeron requisitos:
     # Creamos y publicamos la versión 1 automáticamente y vamos directo a la vacante
-    if resultado_convocatoria and resultado_convocatoria.requisitos:
+    if resultado_convocatoria:
         with contextlib.suppress(Exception):
-            reqs = _requisitos_desde_texto(resultado_convocatoria.requisitos_texto)
+            reqs = (
+                _requisitos_desde_texto(resultado_convocatoria.requisitos_texto)
+                if resultado_convocatoria.requisitos_texto.strip()
+                else [
+                    {
+                        "codigo": f"REQ-{codigo[:20].upper()}-01",
+                        "descripcion": descripcion_puesto.strip(),
+                        "obligatorio": True,
+                        "peso": "1",
+                    }
+                ]
+            )
             request.app.state.servicio.crear_version_perfil(
                 usuario,
                 perfil["id"],
@@ -1930,11 +1974,7 @@ def _leer_csv(ruta: Path) -> list[dict[str, str]]:
 def modulo_excolaboradores(request: Request) -> Response:
     usuario = _usuario(request)
     excolaboradores = _leer_csv(_CSV_EXCOLAB)
-    elegible_val = "SI"
-    total_elegibles = sum(
-        1 for ex in excolaboradores if str(ex.get("elegible_reingreso", "")).upper() == elegible_val
-    )
-    total_no_elegibles = len(excolaboradores) - total_elegibles
+    total_bloqueados = len(excolaboradores)
     return PLANTILLAS.TemplateResponse(
         request=request,
         name="excolaboradores.html",
@@ -1942,8 +1982,7 @@ def modulo_excolaboradores(request: Request) -> Response:
             request,
             usuario,
             excolaboradores=excolaboradores,
-            total_elegibles=total_elegibles,
-            total_no_elegibles=total_no_elegibles,
+            total_bloqueados=total_bloqueados,
         ),
     )
 
