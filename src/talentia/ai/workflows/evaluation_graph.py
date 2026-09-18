@@ -53,7 +53,7 @@ class _GrafoNativo:
         for indice, nombre in enumerate(NODOS):
             if nombre in actual.get("nodos_completados", []):
                 continue
-            if actual.get("revision_requerida") and indice < indice_veredicto:
+            if actual.get("error") and indice < indice_veredicto:
                 continue
             salida: EstadoEvaluacion = self._funciones[nombre](actual)
             completados = list(salida.get("nodos_completados", []))
@@ -62,6 +62,8 @@ class _GrafoNativo:
             self._guardar_checkpoint(nombre, salida)
             if self._nodo_completado is not None:
                 self._nodo_completado(nombre, salida)
+            if indice < 5 and salida.get("revision_requerida"):
+                desvio_temprano = True
             actual = salida
         return actual
 
