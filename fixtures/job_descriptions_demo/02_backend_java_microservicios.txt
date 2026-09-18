@@ -1,0 +1,25 @@
+Nombre del rol: Desarrollador Backend Senior Java / Microservicios
+Código: JAVA-BACK-SR-01
+Compensación Total (CTC): S/ 12,000.00
+
+Objetivo del puesto:
+Desarrollar servicios backend resilientes para plataformas financieras de alta disponibilidad.
+
+Experiencia técnica:
+- Cinco años o más de experiencia con Java
+- Java 17, Spring Boot, Spring Security y JPA
+- Diseño de microservicios y APIs REST documentadas con OpenAPI
+- PostgreSQL o SQL Server y optimización de consultas
+- Pruebas con JUnit y Mockito
+- Docker, Git y pipelines de integración continua
+- Seguridad con OAuth 2.0, JWT y gestión de secretos
+
+Deseable:
+- Kafka o mensajería asíncrona
+- Kubernetes y servicios administrados en Azure
+- Patrones Saga, Circuit Breaker e idempotencia
+
+Funciones:
+- Implementar y mantener servicios críticos
+- Participar en diseño técnico y revisión de código
+- Resolver incidencias y mejorar la observabilidad

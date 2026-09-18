@@ -249,6 +249,7 @@ def test_crear_perfil_con_convocatoria_directo_en_paso_1(cliente_api) -> None:
             "cliente_id": cliente_api["cliente_id"],
             "codigo": "",
             "titulo": "",
+            "modo_jd": "archivo",
         },
         files=[
             (
@@ -265,6 +266,37 @@ def test_crear_perfil_con_convocatoria_directo_en_paso_1(cliente_api) -> None:
     # Verificamos que redirige directamente a la vacante ya publicada con sus requisitos
     assert "versiones/nueva" not in str(resp.url)
     assert "Ingeniero DevOps Kubernetes Cloud" in resp.text or "DEVOPS-K8S-01" in resp.text
+
+
+def test_crear_perfil_rechaza_archivo_jd_invalido_sin_crear_registro(cliente_api) -> None:
+    cliente, csrf = _sesion_web(cliente_api)
+    respuesta = cliente.post(
+        "/perfiles/nuevo",
+        data={
+            "csrf": csrf,
+            "cliente_id": cliente_api["cliente_id"],
+            "codigo": "",
+            "titulo": "",
+            "modo_jd": "archivo",
+        },
+        files={
+            "archivo_convocatoria": (
+                "jd-invalido.pdf",
+                b"contenido que no es un PDF",
+                "application/pdf",
+            )
+        },
+    )
+
+    assert respuesta.status_code == 422
+    assert "No se pudo leer el Job Description" in respuesta.text
+    from sqlalchemy import text
+
+    with cliente.app.state.servicio._fabrica() as unidad:
+        total = unidad.datos.sesion.execute(
+            text("SELECT COUNT(*) FROM job_profiles")
+        ).scalar_one()
+    assert total == 0
 
 
 def test_version_con_archivo_adjunto_sin_escribir_requisitos(cliente_api) -> None:

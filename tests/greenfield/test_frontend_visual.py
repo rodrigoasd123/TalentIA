@@ -60,7 +60,13 @@ def test_perfil_prioriza_jd_manual_y_ex_tcs_no_muestra_elegibilidad() -> None:
 
     assert 'name="modo_jd" value="manual"' in perfil
     assert 'name="descripcion_puesto"' in perfil
+    assert 'id="panel-jd-archivo"' in perfil
+    assert "<script>" not in perfil
+    assert "style=" not in perfil
     assert 'inputArchivo.addEventListener("change"' not in perfil
+    css = ESTILOS.read_text(encoding="utf-8")
+    assert "#modo-jd-manual:checked ~ .panel-jd-manual" in css
+    assert "#modo-jd-archivo:checked ~ .panel-jd-archivo" in css
     assert "Reingreso bloqueado" in excolaboradores
     assert "Elegible (SI)" not in excolaboradores
     assert "No Elegible" not in excolaboradores

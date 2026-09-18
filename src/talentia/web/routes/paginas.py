@@ -1022,6 +1022,7 @@ async def crear_perfil_web(
             else "manual"
         )
     resultado_convocatoria = None
+    error_jd: str | None = None
     gestor_ia = getattr(request.app.state, "gestor_ia", None)
     if modo_jd == "manual":
         if descripcion_puesto.strip():
@@ -1030,13 +1031,22 @@ async def crear_perfil_web(
             )
     elif archivo_convocatoria and archivo_convocatoria.filename:
         contenido = await archivo_convocatoria.read()
-        if contenido:
-            with contextlib.suppress(Exception):
+        if not contenido:
+            error_jd = "El archivo de Job Description está vacío."
+        elif len(contenido) > 10 * 1024 * 1024:
+            error_jd = "El archivo de Job Description supera el límite de 10 MB."
+        else:
+            try:
                 resultado_convocatoria = extraer_bases_convocatoria(
                     contenido,
                     archivo_convocatoria.content_type or "",
                     nombre_archivo=archivo_convocatoria.filename or "",
                     gestor_ia=gestor_ia,
+                )
+            except Exception:
+                error_jd = (
+                    "No se pudo leer el Job Description. Use un PDF o DOCX válido "
+                    "con texto extraíble."
                 )
     if resultado_convocatoria is not None:
         if not titulo.strip() and resultado_convocatoria.titulo:
@@ -1044,14 +1054,25 @@ async def crear_perfil_web(
         if not codigo.strip() and resultado_convocatoria.codigo:
             codigo = resultado_convocatoria.codigo
 
-    entrada_jd_invalida = modo_explicito and (
-        (modo_jd == "manual" and not descripcion_puesto.strip())
-        or (
-            modo_jd == "archivo"
-            and not (archivo_convocatoria and archivo_convocatoria.filename)
+    entrada_jd_invalida = bool(error_jd) or (
+        modo_explicito
+        and (
+            (modo_jd == "manual" and not descripcion_puesto.strip())
+            or (
+                modo_jd == "archivo"
+                and not (archivo_convocatoria and archivo_convocatoria.filename)
+            )
         )
     )
     if not codigo.strip() or not titulo.strip() or entrada_jd_invalida:
+        if error_jd:
+            mensaje_error = error_jd
+        elif modo_jd == "manual" and not descripcion_puesto.strip():
+            mensaje_error = "Escriba el Job Description completo."
+        elif modo_jd == "archivo" and entrada_jd_invalida:
+            mensaje_error = "Adjunte un archivo PDF o DOCX con el Job Description."
+        else:
+            mensaje_error = "Debe indicar el código y título del perfil."
         datos = {
             "cliente_id": cliente_id,
             "codigo": codigo,
@@ -1065,13 +1086,7 @@ async def crear_perfil_web(
             usuario,
             "nuevo_perfil.html",
             "perfiles",
-            error=(
-                "Escriba el Job Description completo."
-                if modo_jd == "manual" and not descripcion_puesto.strip()
-                else "Adjunte un archivo PDF o DOCX con el Job Description."
-                if modo_jd == "archivo" and entrada_jd_invalida
-                else "Debe indicar el código y título del perfil."
-            ),
+            error=mensaje_error,
             datos=datos,
             status_code=422,
         )

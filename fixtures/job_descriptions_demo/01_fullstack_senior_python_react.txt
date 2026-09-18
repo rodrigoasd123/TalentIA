@@ -1,0 +1,24 @@
+Nombre del rol: Desarrollador Fullstack Senior Python / React
+Código: FULLSTACK-SR-01
+Compensación Total (CTC): S/ 11,500.00
+
+Objetivo del puesto:
+Diseñar, construir y mantener aplicaciones web empresariales seguras, escalables y observables.
+
+Experiencia técnica:
+- Cinco años o más desarrollando aplicaciones web en producción
+- Python 3.11, FastAPI y diseño de APIs REST
+- React, TypeScript y gestión de estado en frontend
+- PostgreSQL, modelado relacional y optimización de consultas
+- Pruebas unitarias, integración y automatización CI/CD
+- Docker, Git y prácticas de código seguro
+
+Deseable:
+- Experiencia con AWS o Azure
+- Kubernetes y arquitectura orientada a eventos
+- Conocimientos de observabilidad con métricas, logs y trazas
+
+Funciones:
+- Diseñar funcionalidades de extremo a extremo
+- Revisar código y acompañar técnicamente al equipo
+- Coordinar entregas con producto, QA y arquitectura
