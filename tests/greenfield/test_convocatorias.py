@@ -689,3 +689,57 @@ def test_flujo_completo_no_invoca_proveedores_llm(cliente_api, monkeypatch) -> N
     )
     assert cierre.status_code == 200
     assert cierre.json()["estado"] == "cerrada"
+
+
+def test_candidato_solo_puede_estar_en_una_convocatoria_activa(cliente_api) -> None:
+    version_id = _crear_version_publicada(cliente_api)
+    convocatoria_1 = _crear_convocatoria(cliente_api, version_id, codigo="CONV-UNICA-001")
+    convocatoria_2 = _crear_convocatoria(cliente_api, version_id, codigo="CONV-UNICA-002")
+    candidato_id = _crear_candidato(cliente_api, 901)
+
+    # 1. Postular a primera convocatoria debe tener éxito
+    primera = _crear_postulacion(cliente_api, candidato_id, version_id, str(convocatoria_1["id"]))
+    assert primera["id"]
+
+    # 2. Reintento idempotente con misma convocatoria debe funcionar
+    reintento = cliente_api["cliente"].post(
+        "/api/v1/applications",
+        headers=cliente_api["cabeceras"],
+        json={
+            "cliente_id": cliente_api["cliente_id"],
+            "candidato_id": candidato_id,
+            "version_perfil_id": version_id,
+            "convocatoria_id": str(convocatoria_1["id"]),
+            "fuente": "portal_tcs",
+        },
+    )
+    assert reintento.status_code == 201
+    assert reintento.json()["id"] == primera["id"]
+
+    # 3. Intentar postular a una segunda convocatoria activa debe ser rechazado con 409
+    segunda_intento = cliente_api["cliente"].post(
+        "/api/v1/applications",
+        headers=cliente_api["cabeceras"],
+        json={
+            "cliente_id": cliente_api["cliente_id"],
+            "candidato_id": candidato_id,
+            "version_perfil_id": version_id,
+            "convocatoria_id": str(convocatoria_2["id"]),
+            "fuente": "portal_tcs",
+        },
+    )
+    assert segunda_intento.status_code == 409
+    assert "ya se encuentra en un proceso activo" in segunda_intento.text
+    assert "CONV-UNICA-001" in segunda_intento.text
+
+    # 4. Si la primera postulación es descartada (rechazada), el candidato queda libre
+    post_contactada = _transicionar(cliente_api, primera, "contactada")
+    post_rechazada = _transicionar(
+        cliente_api, post_contactada, "rechazada", motivo="No cumple expectativas salariales"
+    )
+    assert post_rechazada["estado"] == "rechazada"
+
+    # 5. Ahora sí debe permitirse postular a la segunda convocatoria
+    segunda_valida = _crear_postulacion(cliente_api, candidato_id, version_id, str(convocatoria_2["id"]))
+    assert segunda_valida["id"]
+    assert segunda_valida["convocatoria_id"] == str(convocatoria_2["id"])

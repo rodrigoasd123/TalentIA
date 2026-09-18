@@ -24,6 +24,15 @@ class DatosTalentIA(Protocol):
 
     def actualizar_contrasena(self, usuario_id: str, hash_nuevo: str) -> int: ...
 
+    def crear_usuario(
+        self,
+        correo: str,
+        nombre: str,
+        hash_contrasena: str,
+        rol: str,
+        cliente_id: str | None,
+    ) -> dict[str, object]: ...
+
     def listar_accesos(self) -> dict[str, object]: ...
 
     def asignar_rol(self, usuario_id: str, rol: str, asignar: bool) -> dict[str, object]: ...
@@ -31,6 +40,10 @@ class DatosTalentIA(Protocol):
     def asignar_cliente(
         self, usuario_id: str, cliente_id: str, asignar: bool
     ) -> dict[str, object]: ...
+
+    def sincronizar_clientes_usuario(
+        self, usuario_id: str, clientes_ids: list[str]
+    ) -> None: ...
 
     def buscar_identidad(
         self,
@@ -128,6 +141,10 @@ class DatosTalentIA(Protocol):
     def crear_postulacion(self, datos: dict[str, object]) -> dict[str, object]: ...
 
     def obtener_postulacion(self, postulacion_id: str) -> dict[str, object] | None: ...
+
+    def obtener_postulacion_activa_candidato(
+        self, candidato_id: str, documento_normalizado: str | None = None
+    ) -> dict[str, object] | None: ...
 
     def guardar_documento(self, datos: dict[str, object]) -> dict[str, object]: ...
 

@@ -559,19 +559,75 @@ def cambiar_rol_web(
 
 
 @router.post("/modulo/usuarios/cliente")
-def cambiar_cliente_web(
+async def cambiar_cliente_web(
     request: Request,
-    csrf: str = Form(),
-    usuario_id: str = Form(),
-    cliente_id: str = Form(),
-    accion: str = Form(),
 ) -> RedirectResponse:
+    form = await request.form()
+    csrf = str(form.get("csrf", ""))
     usuario = _usuario(request)
     if csrf != _csrf(request):
         raise NoAutorizadoError("CSRF invalido")
-    request.app.state.servicio.asignar_cliente(
-        usuario, usuario_id, cliente_id, accion == "asignar", nuevo_id()
-    )
+    usuario_id = str(form.get("usuario_id", ""))
+    accion = str(form.get("accion", ""))
+    cliente_id = str(form.get("cliente_id", ""))
+    clientes_ids = [str(v) for v in form.getlist("clientes_ids")]
+
+    if accion in {"asignar", "retirar"} and cliente_id:
+        request.app.state.servicio.asignar_cliente(
+            usuario, usuario_id, cliente_id, accion == "asignar", nuevo_id()
+        )
+    else:
+        request.app.state.servicio.sincronizar_clientes_usuario(
+            usuario, usuario_id, clientes_ids, request.state.correlacion_id
+        )
+    return RedirectResponse("/modulo/usuarios", status_code=303)
+
+
+@router.post("/modulo/usuarios/crear")
+def crear_usuario_web(
+    request: Request,
+    csrf: str = Form(),
+    nombre: str = Form(),
+    correo: str = Form(),
+    contrasena: str = Form(),
+    rol: str = Form("reclutador"),
+    cliente_id: str = Form(""),
+) -> Response:
+    usuario = _usuario(request)
+    if csrf != _csrf(request):
+        raise NoAutorizadoError("CSRF invalido")
+    try:
+        request.app.state.servicio.crear_usuario(
+            actor=usuario,
+            correo=correo,
+            nombre=nombre,
+            contrasena=contrasena,
+            rol=rol,
+            cliente_id=cliente_id or None,
+            correlacion_id=request.state.correlacion_id,
+        )
+    except TalentIAError as error:
+        accesos = request.app.state.servicio.listar_asignaciones_cuenta(usuario)
+        mapa_clientes = {
+            c["id"]: c.get("nombre") or c.get("codigo") or c["id"]
+            for c in accesos.get("clientes", [])
+        }
+        for u in accesos.get("usuarios", []):
+            u["clientes_nombres"] = [
+                mapa_clientes.get(cid, cid) for cid in u.get("clientes", [])
+            ]
+        return PLANTILLAS.TemplateResponse(
+            request=request,
+            name="usuarios.html",
+            context=_contexto(
+                request,
+                usuario,
+                accesos=accesos,
+                puede_administrar_roles="administrador" in usuario.roles,
+                error=str(error),
+            ),
+            status_code=error.estado_http,
+        )
     return RedirectResponse("/modulo/usuarios", status_code=303)
 
 

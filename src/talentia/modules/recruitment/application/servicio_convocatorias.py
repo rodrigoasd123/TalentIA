@@ -170,7 +170,7 @@ class ServicioConvocatorias:
         destino = str(datos.get("destino", ""))
         permiso = (
             "postulaciones:seleccionar"
-            if destino in {"finalista", "backup"}
+            if destino == "finalista"
             else "postulaciones:transicionar"
         )
         _exigir_permiso(usuario, permiso)

@@ -24,6 +24,7 @@ from talentia.modules.candidates.domain.modelos import (
     ultimos_nueve_telefono,
 )
 from talentia.modules.recruitment.domain.modelos import (
+    EstadoConvocatoria,
     EstadoPostulacion,
     TransicionPostulacionInvalidaError,
     validar_transicion_postulacion,
@@ -221,7 +222,40 @@ class RepositorioSqlalchemy:
         usuario.bloqueado_hasta = None
         usuario.sesion_version += 1
         self.sesion.flush()
-        return usuario.sesion_version
+    def crear_usuario(
+        self,
+        correo: str,
+        nombre: str,
+        hash_contrasena: str,
+        rol: str,
+        cliente_id: str | None,
+    ) -> dict[str, object]:
+        correo_normalizado = correo.strip().casefold()
+        existente = self.sesion.scalar(
+            select(UsuarioModelo).where(UsuarioModelo.correo == correo_normalizado)
+        )
+        if existente is not None:
+            raise ConflictoError("El correo ya se encuentra registrado")
+        usr = UsuarioModelo(
+            id=nuevo_id(),
+            correo=correo_normalizado,
+            nombre=nombre.strip(),
+            hash_contrasena=hash_contrasena,
+            activo=True,
+        )
+        self.sesion.add(usr)
+        self.sesion.flush()
+        rol_modelo = self.sesion.scalar(select(RolModelo).where(RolModelo.codigo == rol))
+        if rol_modelo is not None:
+            self.sesion.add(UsuarioRolModelo(usuario_id=usr.id, rol_id=rol_modelo.id))
+        if cliente_id:
+            cliente = self.sesion.get(ClienteModelo, cliente_id)
+            if cliente is not None:
+                self.sesion.add(
+                    AsignacionUsuarioClienteModelo(usuario_id=usr.id, cliente_id=cliente.id)
+                )
+        self.sesion.flush()
+        return {"id": usr.id, "correo": usr.correo, "nombre": usr.nombre, "rol": rol}
 
     def listar_accesos(self) -> dict[str, object]:
         usuarios = []
@@ -280,6 +314,38 @@ class RepositorioSqlalchemy:
             usuario.sesion_version += 1
         self.sesion.flush()
         return {"usuario_id": usuario_id, "cliente_id": cliente_id, "asignado": asignar}
+
+    def sincronizar_clientes_usuario(
+        self, usuario_id: str, clientes_ids: list[str]
+    ) -> None:
+        usuario = self.sesion.get(UsuarioModelo, usuario_id)
+        if usuario is None:
+            raise EntradaInvalidaError("Usuario inexistente")
+        actuales = set(
+            self.sesion.scalars(
+                select(AsignacionUsuarioClienteModelo.cliente_id).where(
+                    AsignacionUsuarioClienteModelo.usuario_id == usuario_id
+                )
+            ).all()
+        )
+        nuevos = set(clientes_ids)
+        a_eliminar = actuales - nuevos
+        a_agregar = nuevos - actuales
+        if a_eliminar:
+            self.sesion.execute(
+                delete(AsignacionUsuarioClienteModelo).where(
+                    AsignacionUsuarioClienteModelo.usuario_id == usuario_id,
+                    AsignacionUsuarioClienteModelo.cliente_id.in_(a_eliminar),
+                )
+            )
+        for cid in a_agregar:
+            if self.sesion.get(ClienteModelo, cid) is not None:
+                self.sesion.add(
+                    AsignacionUsuarioClienteModelo(usuario_id=usuario_id, cliente_id=cid)
+                )
+        if a_eliminar or a_agregar:
+            usuario.sesion_version += 1
+        self.sesion.flush()
 
     def buscar_identidad(
         self,
@@ -1141,6 +1207,52 @@ class RepositorioSqlalchemy:
             "estado": modelo.estado,
         }
 
+    def obtener_postulacion_activa_candidato(
+        self, candidato_id: str, documento_normalizado: str | None = None
+    ) -> dict[str, object] | None:
+        estados_inactivos = [
+            EstadoPostulacion.NO_APTA.value,
+            EstadoPostulacion.RECHAZADA.value,
+            EstadoPostulacion.RETIRADA.value,
+        ]
+        estados_convocatoria_cerrada = [
+            EstadoConvocatoria.CERRADA.value,
+            EstadoConvocatoria.CANCELADA.value,
+        ]
+        condiciones_candidato = [PostulacionModelo.candidato_id == candidato_id]
+        if documento_normalizado and documento_normalizado.strip():
+            subquery_mismo_doc = (
+                select(CandidatoModelo.id)
+                .where(CandidatoModelo.documento_normalizado == documento_normalizado.strip())
+            )
+            condiciones_candidato.append(PostulacionModelo.candidato_id.in_(subquery_mismo_doc))
+
+        sentencia = (
+            select(
+                PostulacionModelo.id,
+                PostulacionModelo.clave_idempotencia,
+                PostulacionModelo.candidato_id,
+                PostulacionModelo.convocatoria_id,
+                PostulacionModelo.cliente_id,
+                PostulacionModelo.estado,
+                ConvocatoriaModelo.codigo.label("convocatoria_codigo"),
+                ClienteModelo.nombre.label("cliente_nombre"),
+            )
+            .join(ConvocatoriaModelo, ConvocatoriaModelo.id == PostulacionModelo.convocatoria_id)
+            .join(ClienteModelo, ClienteModelo.id == PostulacionModelo.cliente_id)
+            .where(
+                or_(*condiciones_candidato),
+                PostulacionModelo.estado.not_in(estados_inactivos),
+                ConvocatoriaModelo.estado.not_in(estados_convocatoria_cerrada),
+            )
+            .order_by(PostulacionModelo.actualizado_en.desc())
+            .limit(1)
+        )
+        fila = self.sesion.execute(sentencia).mappings().first()
+        if fila is None:
+            return None
+        return dict(fila)
+
     def guardar_documento(self, datos: dict[str, object]) -> dict[str, object]:
         modelo = DocumentoCandidatoModelo(id=nuevo_id(), **datos)
         self.sesion.add(modelo)
@@ -1686,14 +1798,42 @@ class RepositorioSqlalchemy:
             .where(ClienteModelo.activo.is_(True), _filtro_clientes(ClienteModelo.id, clientes))
             .order_by(ClienteModelo.nombre)
         ).mappings()
+        estados_inactivos = [
+            EstadoPostulacion.NO_APTA.value,
+            EstadoPostulacion.RECHAZADA.value,
+            EstadoPostulacion.RETIRADA.value,
+        ]
+        estados_convocatoria_cerrada = [
+            EstadoConvocatoria.CERRADA.value,
+            EstadoConvocatoria.CANCELADA.value,
+        ]
+        subconsulta_activos = (
+            select(
+                PostulacionModelo.candidato_id.label("candidato_id"),
+                ConvocatoriaModelo.codigo.label("convocatoria_codigo"),
+                PostulacionModelo.estado.label("postulacion_estado"),
+            )
+            .join(ConvocatoriaModelo, ConvocatoriaModelo.id == PostulacionModelo.convocatoria_id)
+            .where(
+                PostulacionModelo.estado.not_in(estados_inactivos),
+                ConvocatoriaModelo.estado.not_in(estados_convocatoria_cerrada),
+            )
+            .subquery()
+        )
         candidatos = self.sesion.execute(
             select(
                 CandidatoModelo.id,
                 CandidatoModelo.cliente_id,
                 ClienteModelo.nombre.label("cliente_nombre"),
                 (CandidatoModelo.nombres + " " + CandidatoModelo.apellidos).label("nombre"),
+                subconsulta_activos.c.convocatoria_codigo,
+                subconsulta_activos.c.postulacion_estado,
             )
             .join(ClienteModelo, ClienteModelo.id == CandidatoModelo.cliente_id)
+            .outerjoin(
+                subconsulta_activos,
+                subconsulta_activos.c.candidato_id == CandidatoModelo.id,
+            )
             .where(_filtro_clientes(CandidatoModelo.cliente_id, clientes))
             .order_by(CandidatoModelo.apellidos, CandidatoModelo.nombres)
         ).mappings()
@@ -1773,7 +1913,13 @@ class RepositorioSqlalchemy:
         ).mappings()
         return {
             "clientes": [dict(item) for item in clientes_disponibles],
-            "candidatos": [dict(item) for item in candidatos],
+            "candidatos": [
+                {
+                    **dict(item),
+                    "en_proceso": bool(item.get("convocatoria_codigo")),
+                }
+                for item in candidatos
+            ],
             "perfiles": [dict(item) for item in perfiles],
             "versiones": [dict(item) for item in versiones],
             "convocatorias": [dict(item) for item in convocatorias],

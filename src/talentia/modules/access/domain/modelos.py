@@ -24,6 +24,7 @@ PERMISOS_POR_ROL: dict[str, set[str]] = {
         "candidatos:escribir",
         "postulaciones:escribir",
         "postulaciones:transicionar",
+        "postulaciones:seleccionar",
         "convocatorias:leer",
         "documentos:escribir",
         "evaluaciones:solicitar",

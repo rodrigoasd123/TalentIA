@@ -73,6 +73,7 @@ TRANSICIONES_POSTULACION: dict[EstadoPostulacion, frozenset[EstadoPostulacion]] 
         {
             EstadoPostulacion.ENTREVISTA,
             EstadoPostulacion.APTA,
+            EstadoPostulacion.BACKUP,
             EstadoPostulacion.RECHAZADA,
             EstadoPostulacion.RETIRADA,
         }

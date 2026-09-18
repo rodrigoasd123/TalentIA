@@ -80,6 +80,35 @@ def preparar_acceso(configuracion: Configuracion, fabrica: FabricaSesiones) -> N
                 sesion.flush()
                 sesion.add(UsuarioRolModelo(usuario_id=usr.id, rol_id=roles[Rol.ADMINISTRADOR].id))
                 sesion.add(AsignacionUsuarioClienteModelo(usuario_id=usr.id, cliente_id=cliente.id))
+            elif configuracion.ambiente is Ambiente.DESARROLLO:
+                usr.hash_contrasena = hash_contrasena(contrasena)
+
+        if configuracion.ambiente is Ambiente.DESARROLLO:
+            usr_rec = sesion.scalar(
+                select(UsuarioModelo).where(UsuarioModelo.correo == "reclutador@talentia.local")
+            )
+            if usr_rec is None:
+                usr_rec = UsuarioModelo(
+                    id=nuevo_id(),
+                    correo="reclutador@talentia.local",
+                    nombre="Reclutador Demo",
+                    hash_contrasena=hash_contrasena("TalentIA-Admin-2026!"),
+                    activo=True,
+                )
+                sesion.add(usr_rec)
+                sesion.flush()
+                sesion.add(
+                    UsuarioRolModelo(
+                        usuario_id=usr_rec.id, rol_id=roles[Rol.RECLUTADOR].id
+                    )
+                )
+                sesion.add(
+                    AsignacionUsuarioClienteModelo(
+                        usuario_id=usr_rec.id, cliente_id=cliente.id
+                    )
+                )
+            else:
+                usr_rec.hash_contrasena = hash_contrasena("TalentIA-Admin-2026!")
 
         total_usuarios = sesion.scalar(select(func.count()).select_from(UsuarioModelo)) or 0
         if configuracion.ambiente is Ambiente.PILOTO and total_usuarios == 0:

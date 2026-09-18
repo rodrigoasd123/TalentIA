@@ -313,6 +313,41 @@ class ServicioTalentIA:
             usuarios.append(visible)
         return {"usuarios": usuarios, "roles": [], "clientes": clientes}
 
+    def crear_usuario(
+        self,
+        actor: UsuarioActual,
+        correo: str,
+        nombre: str,
+        contrasena: str,
+        rol: str,
+        cliente_id: str | None,
+        correlacion_id: str,
+    ) -> dict[str, object]:
+        _exigir_permiso(actor, "usuarios:administrar")
+        if not correo or "@" not in correo or len(contrasena) < 8:
+            raise EntradaInvalidaError("Datos de usuario invalidos (contrasena minimo 8 caracteres)")
+        from talentia.platform.security.contrasenas import hash_contrasena
+
+        hash_pass = hash_contrasena(contrasena)
+        with self._fabrica() as unidad:
+            resultado = unidad.datos.crear_usuario(
+                correo=correo,
+                nombre=nombre,
+                hash_contrasena=hash_pass,
+                rol=rol,
+                cliente_id=cliente_id,
+            )
+            unidad.datos.registrar_evento(
+                cliente_id=cliente_id,
+                actor_id=actor.id,
+                accion="acceso.usuario_creado",
+                recurso_tipo="usuario",
+                recurso_id=str(resultado["id"]),
+                detalle={"correo": correo, "rol": rol, "cliente_id": cliente_id},
+                correlacion_id=correlacion_id,
+            )
+            return resultado
+
     def asignar_rol(
         self, actor: UsuarioActual, usuario_id: str, rol: str, asignar: bool, correlacion_id: str
     ) -> dict[str, object]:
@@ -385,6 +420,30 @@ class ServicioTalentIA:
                 correlacion_id=correlacion_id,
             )
             return resultado
+
+    def sincronizar_clientes_usuario(
+        self,
+        actor: UsuarioActual,
+        usuario_id: str,
+        clientes_ids: list[str],
+        correlacion_id: str,
+    ) -> None:
+        es_administrador = "administrador" in actor.roles
+        if es_administrador:
+            _exigir_permiso(actor, "usuarios:administrar")
+        else:
+            _exigir_permiso(actor, "convocatorias:asignar")
+        with self._fabrica() as unidad:
+            unidad.datos.sincronizar_clientes_usuario(usuario_id, clientes_ids)
+            unidad.datos.registrar_evento(
+                cliente_id=None,
+                actor_id=actor.id,
+                accion="acceso.clientes_sincronizados",
+                recurso_tipo="usuario",
+                recurso_id=usuario_id,
+                detalle={"clientes_ids": clientes_ids},
+                correlacion_id=correlacion_id,
+            )
 
     def comprobar_identidad(
         self, usuario: UsuarioActual, datos: dict[str, object], correlacion_id: str
@@ -994,6 +1053,23 @@ class ServicioTalentIA:
             clave = hashlib.sha256(
                 f"{cliente_id}:{datos['candidato_id']}:{convocatoria_id}".encode()
             ).hexdigest()[:40]
+            postulacion_activa = unidad.datos.obtener_postulacion_activa_candidato(
+                candidato.id, candidato.documento_normalizado
+            )
+            if postulacion_activa is not None and postulacion_activa.get("clave_idempotencia") != clave:
+                conv_cod = postulacion_activa.get("convocatoria_codigo", "desconocida")
+                cli_nom = postulacion_activa.get("cliente_nombre", "")
+                est = postulacion_activa.get("estado", "")
+                detalle_cuenta = (
+                    f"{conv_cod}"
+                    if cliente_id == postulacion_activa.get("cliente_id")
+                    else f"{conv_cod} ({cli_nom})"
+                )
+                raise ConflictoError(
+                    f"El candidato ya se encuentra en un proceso activo de convocatoria "
+                    f"({detalle_cuenta}) en estado '{est}'. "
+                    f"Un candidato solo puede estar en un proceso de convocatoria a la vez."
+                )
             postulacion = unidad.datos.crear_postulacion(
                 {
                     "cliente_id": cliente_id,
