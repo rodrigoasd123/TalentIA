@@ -44,6 +44,9 @@
   <div class="rejilla-formulario ajustes-modelo">
     <label>Modelo activo
       <select name="modelo" id="modelo-ia" required>
+        <optgroup label="TCS GenAILab — modelos corporativos" data-provider="openai">
+          {% for item in modelos_openai_genailab %}<option value="{{ item }}" {% if ajustes_ia.modelo == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+        </optgroup>
         <optgroup label="OpenAI — catalogo de alto volumen" data-provider="openai">
           {% for item in modelos_openai_gratuitos %}<option value="{{ item }}" {% if ajustes_ia.modelo == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
         </optgroup>

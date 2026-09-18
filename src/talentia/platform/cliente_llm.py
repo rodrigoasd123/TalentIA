@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from talentia.ai.guardrails.privacidad import delimitar_documento
-from talentia.platform.configuracion_ia import GestorConfiguracionIA
+from talentia.platform.configuracion_ia import GestorConfiguracionIA, url_openai
 
 
 class ProveedorLLMError(RuntimeError):
@@ -55,6 +55,12 @@ class ClienteLLM:
                 texto = contenido.get("text")
                 if isinstance(texto, str):
                     return texto
+        choices = cast(list[dict[str, object]], datos.get("choices", []))
+        if choices:
+            msg = cast(dict[str, object], choices[0].get("message", {}))
+            content = msg.get("content")
+            if isinstance(content, str):
+                return content
         raise ProveedorLLMError("respuesta_estructurada_invalida")
 
     @staticmethod
@@ -129,7 +135,7 @@ class ClienteLLM:
             ):
                 cuerpo["temperature"] = ajustes.temperatura
             solicitud = Request(
-                "https://api.openai.com/v1/responses",
+                url_openai(ajustes.modelo),
                 data=json.dumps(cuerpo).encode(),
                 headers={
                     "Authorization": f"Bearer {ajustes.api_key}",
@@ -160,8 +166,8 @@ class ClienteLLM:
         if ajustes.proveedor == "openai":
             texto = self._texto_openai(datos)
             uso = cast(dict[str, object], datos.get("usage", {}))
-            entrada = self._entero(uso.get("input_tokens", 0))
-            salida = self._entero(uso.get("output_tokens", 0))
+            entrada = self._entero(uso.get("input_tokens", uso.get("prompt_tokens", 0)))
+            salida = self._entero(uso.get("output_tokens", uso.get("completion_tokens", 0)))
         else:
             texto = self._texto_gemini(datos)
             uso = cast(dict[str, object], datos.get("usageMetadata", {}))

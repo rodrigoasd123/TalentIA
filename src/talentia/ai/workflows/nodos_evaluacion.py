@@ -121,7 +121,7 @@ class ContextoNodosEvaluacion:
             if existente is not None:
                 salida["extraccion_id"] = existente.id
                 salida["estado_extraccion"] = existente.estado
-                if existente.estado != "completa":
+                if existente.error:
                     salida.update(error=existente.error, revision_requerida=True)
                 return cast(EstadoEvaluacion, salida)
         try:
@@ -174,7 +174,6 @@ class ContextoNodosEvaluacion:
                         )
         salida["extraccion_id"] = extraccion_id
         salida["estado_extraccion"] = "revision_manual" if lectura.requiere_revision else "completa"
-        salida["revision_requerida"] = lectura.requiere_revision
         return cast(EstadoEvaluacion, salida)
 
     def validar_fuentes(self, estado: EstadoEvaluacion) -> EstadoEvaluacion:
@@ -229,11 +228,13 @@ class ContextoNodosEvaluacion:
                     limpio.texto,
                     tuple((item.codigo, item.descripcion) for item in requisitos),
                 )
-            except (SanitizacionError, ProveedorLLMError):
-                salida.update(error="proveedor_ia_no_disponible", revision_requerida=True)
+                if sugerencia is not None:
+                    return self._resultado_llm(salida, texto_original, requisitos, sugerencia)
+            except SanitizacionError:
+                salida.update(error="contenido_no_confiable", revision_requerida=True)
                 return cast(EstadoEvaluacion, salida)
-            if sugerencia is not None:
-                return self._resultado_llm(salida, texto_original, requisitos, sugerencia)
+            except ProveedorLLMError:
+                pass
         resultado = evaluar(estado["documento_id"], texto_original, requisitos)
         salida["resultados_requisitos"] = [
             {
@@ -306,9 +307,19 @@ class ContextoNodosEvaluacion:
             )
         coincidencias = sum(1 for item in resultados if item["veredicto"] == "coincide")
         salida["resultados_requisitos"] = resultados
-        salida["puntaje_documental"] = (
-            str(round(coincidencias * 100 / len(resultados), 2)) if resultados else None
-        )
+        pesos_totales = sum((req.peso for req in requisitos), Decimal("0"))
+        if pesos_totales > Decimal("0"):
+            suma_ponderada = sum(
+                (req.peso * Decimal("100") if item.get("veredicto") == "coincide" else Decimal("0"))
+                for req, item in zip(requisitos, resultados)
+            )
+            salida["puntaje_documental"] = str(
+                (suma_ponderada / pesos_totales).quantize(Decimal("0.01"))
+            )
+        else:
+            salida["puntaje_documental"] = (
+                str(round(coincidencias * 100 / len(resultados), 2)) if resultados else None
+            )
         salida["revision_requerida"] = revision
         salida["proveedor_ia"] = respuesta.proveedor
         salida["modelo_ia"] = respuesta.modelo

@@ -332,6 +332,7 @@ async def importar_cvs_web(
                 reclutador,
                 request.state.correlacion_id,
                 version_perfil_id=version_perfil_id.strip() or None,
+                evaluar_automaticamente=bool(version_perfil_id.strip()),
             )
             resultados.append(resultado)
         except (TalentIAError, ValueError) as error:
@@ -1480,6 +1481,7 @@ async def importar_cvs_perfil_web(
                 reclutador,
                 correlacion_id,
                 version_perfil_id=version_id,
+                evaluar_automaticamente=True,
             )
             resultados.append(resultado)
         except (TalentIAError, ValueError) as error:
@@ -2072,6 +2074,32 @@ def descargar_convocatorias_demo(request: Request) -> Response:
         path=str(ruta_zip),
         media_type="application/zip",
         filename="convocatorias_tcs_demo.zip",
+    )
+
+
+@router.get("/descargas/lote-10-cvs.zip")
+def descargar_lote_10_cvs(request: Request) -> Response:
+    _usuario(request)
+    ruta_zip = Path("descargas_talento/05_Lote_Pruebas_10_CVs.zip")
+    if not ruta_zip.exists():
+        raise NoEncontradoError("Archivo ZIP de lote de pruebas no encontrado")
+    return FileResponse(
+        path=str(ruta_zip),
+        media_type="application/zip",
+        filename="05_Lote_Pruebas_10_CVs.zip",
+    )
+
+
+@router.get("/descargas/curriculums-25-postulantes.zip")
+def descargar_25_cvs(request: Request) -> Response:
+    _usuario(request)
+    ruta_zip = Path("descargas_talento/02_Curriculums_25_Postulantes.zip")
+    if not ruta_zip.exists():
+        raise NoEncontradoError("Archivo ZIP de 25 CVs no encontrado")
+    return FileResponse(
+        path=str(ruta_zip),
+        media_type="application/zip",
+        filename="02_Curriculums_25_Postulantes.zip",
     )
 
 

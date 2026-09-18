@@ -23,6 +23,16 @@ from talentia.shared.application.errores import ConflictoError, EntradaInvalidaE
 from talentia.shared.infrastructure.base_datos import FabricaSesiones
 from talentia.shared.infrastructure.modelos_orm import ConfiguracionIAModelo
 
+MODELOS_OPENAI_GENAILAB = (
+    "azure/genailab-maas-gpt-4o-mini",
+    "azure/genailab-maas-gpt-4.1-mini",
+    "azure/genailab-maas-gpt-4.1-nano",
+    "azure/genailab-maas-gpt-4.1",
+    "azure/genailab-maas-gpt-5-mini",
+    "genailab-maas-gpt-4o",
+    "genailab-maas-gpt-35-turbo",
+    "genailab-maas-sonnet-4.6",
+)
 MODELOS_OPENAI_GRATUITOS = (
     "gpt-4o-mini",
     "gpt-4.1-mini",
@@ -49,6 +59,10 @@ MODELOS_OPENAI_AVANZADOS = (
     "o3",
 )
 MODELOS_GEMINI = (
+    "gemini-flash-latest",
+    "gemini-pro-latest",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
     "gemini-3.6-flash",
     "gemini-3.7-flash",
     "gemini-3.8-flash",
@@ -57,10 +71,30 @@ MODELOS_GEMINI = (
     "gemini-1.5-pro",
 )
 MODELOS_POR_PROVEEDOR = {
-    "openai": frozenset((*MODELOS_OPENAI_GRATUITOS, *MODELOS_OPENAI_AVANZADOS)),
+    "openai": frozenset((
+        *MODELOS_OPENAI_GENAILAB,
+        *MODELOS_OPENAI_GRATUITOS,
+        *MODELOS_OPENAI_AVANZADOS,
+    )),
     "gemini": frozenset(MODELOS_GEMINI),
     "local": frozenset({"deterministico-local"}),
 }
+
+
+def url_openai(modelo: str) -> str:
+    base = (
+        os.getenv("TALENTIA_OPENAI_BASE_URL", os.getenv("OPENAI_BASE_URL", ""))
+        .strip()
+        .rstrip("/")
+    )
+    if not base:
+        if "genailab" in modelo.lower() or "azure/" in modelo.lower():
+            base = "https://genailab.tcs.in/v1"
+        else:
+            base = "https://api.openai.com/v1"
+    if base.endswith("/responses"):
+        return base
+    return f"{base}/responses"
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,7 +286,7 @@ class GestorConfiguracionIA:
                 "max_output_tokens": 16,
             }
             return Request(
-                "https://api.openai.com/v1/responses",
+                url_openai(ajustes.modelo),
                 data=json.dumps(cuerpo).encode(),
                 headers={
                     "Authorization": f"Bearer {ajustes.api_key}",

@@ -12,6 +12,7 @@ from talentia.modules.access.domain.modelos import Rol
 from talentia.platform.configuracion_ia import (
     MODELOS_GEMINI,
     MODELOS_OPENAI_AVANZADOS,
+    MODELOS_OPENAI_GENAILAB,
     MODELOS_OPENAI_GRATUITOS,
     GestorConfiguracionIA,
 )
@@ -44,6 +45,7 @@ def _contexto_panel(
         request,
         usuario,
         ajustes_ia=asdict(_gestor(request).obtener_publica()),
+        modelos_openai_genailab=MODELOS_OPENAI_GENAILAB,
         modelos_openai_gratuitos=MODELOS_OPENAI_GRATUITOS,
         modelos_openai_avanzados=MODELOS_OPENAI_AVANZADOS,
         modelos_gemini=MODELOS_GEMINI,

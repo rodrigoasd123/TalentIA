@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import threading
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,10 +14,15 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from talentia import __version__
+from talentia.ai.workflows.procesador_evaluacion import ProcesadorEvaluacion
 from talentia.bootstrap import construir_servicio
+from talentia.config import Ambiente
+from talentia.modules.documents.infrastructure.extractores import extraer_documento
+from talentia.platform.jobs.worker import procesar_siguiente
 from talentia.platform.security.contrasenas import FirmadorSesion
 from talentia.shared.application.errores import NoAutorizadoError, TalentIAError
 from talentia.shared.domain.modelos import nuevo_id
+from talentia.shared.infrastructure.base_datos import FabricaSesiones, crear_motor
 from talentia.web.api import router as api_router
 from talentia.web.routes.admin_ia import router as admin_ia_router
 from talentia.web.routes.paginas import router as paginas_router
@@ -32,7 +39,45 @@ async def ciclo_vida(app: FastAPI) -> AsyncIterator[None]:
     app.state.firmador = FirmadorSesion(
         configuracion.secreto_sesion, configuracion.tiempo_sesion_minutos
     )
-    yield
+
+    detener_worker = threading.Event()
+    worker_hilo: threading.Thread | None = None
+    if (
+        configuracion.ambiente is not Ambiente.PRUEBAS
+        and os.getenv("TALENTIA_WORKER_EMBEDDED", "1") == "1"
+    ):
+        def _bucle_worker() -> None:
+            fabrica_worker = FabricaSesiones(crear_motor(configuracion.url_base_datos))
+            procesador_worker = ProcesadorEvaluacion(
+                fabrica_worker,
+                extraer_documento,
+                lease_segundos=configuracion.timeout_ia_segundos,
+                gestor_ia=gestor_ia,
+                mlflow_tracking_uri=configuracion.mlflow_tracking_uri,
+            )
+            while not detener_worker.is_set():
+                try:
+                    trabajo = procesar_siguiente(
+                        fabrica_worker,
+                        procesador_worker,
+                        lease_segundos=configuracion.timeout_ia_segundos,
+                    )
+                    if trabajo is None:
+                        detener_worker.wait(1.0)
+                except Exception:
+                    detener_worker.wait(2.0)
+
+        worker_hilo = threading.Thread(
+            target=_bucle_worker, daemon=True, name="TalentIA-Worker-Embebido"
+        )
+        worker_hilo.start()
+
+    try:
+        yield
+    finally:
+        detener_worker.set()
+        if worker_hilo is not None:
+            worker_hilo.join(timeout=2.0)
 
 
 app = FastAPI(

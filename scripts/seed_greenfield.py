@@ -18,6 +18,7 @@ from talentia.shared.infrastructure.modelos_orm import (  # noqa: E402
     AsignacionUsuarioClienteModelo,
     CandidatoModelo,
     ClienteModelo,
+    ConvocatoriaModelo,
     DocumentoCandidatoModelo,
     EvaluacionModelo,
     PerfilPuestoModelo,
@@ -186,6 +187,7 @@ def run_seed():
 
         perfiles_map = {}
         versiones_map = {}
+        convocatorias_map = {}
 
         for c_def in convocatorias_def:
             perf = sesion.scalar(
@@ -224,6 +226,27 @@ def run_seed():
                 )
             perfiles_map[c_def["codigo"]] = perf
             versiones_map[c_def["codigo"]] = v_perf
+
+            conv = sesion.scalar(
+                select(ConvocatoriaModelo).where(
+                    ConvocatoriaModelo.cliente_id == cliente.id,
+                    ConvocatoriaModelo.codigo == c_def["codigo"],
+                )
+            )
+            if not conv:
+                conv = ConvocatoriaModelo(
+                    id=nuevo_id(),
+                    cliente_id=cliente.id,
+                    version_perfil_id=v_perf.id,
+                    codigo=c_def["codigo"],
+                    vacantes_total=1,
+                    fecha_apertura=date.today(),
+                    estado="abierta",
+                    es_compatibilidad=False,
+                )
+                sesion.add(conv)
+                sesion.flush()
+            convocatorias_map[c_def["codigo"]] = conv
 
         # 5. Candidatos (25 Postulantes)
         candidatos_raw = [
@@ -616,6 +639,7 @@ def run_seed():
                     id=nuevo_id(),
                     cliente_id=cliente.id,
                     candidato_id=cand.id,
+                    convocatoria_id=convocatorias_map[cod_conv].id,
                     version_perfil_id=v_perf.id,
                     fuente=fuente.lower(),
                     estado=estado_post,
