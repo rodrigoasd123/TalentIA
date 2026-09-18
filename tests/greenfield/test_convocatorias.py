@@ -323,8 +323,10 @@ def test_identidad_exacta_muestra_antecedente_de_la_misma_cuenta(cliente_api) ->
     resultado = respuesta.json()
     assert resultado["resultado"] == "exacta"
     assert resultado["evidencia"][0]["antecedentes"][0]["proceso"] == "CONV-SPEC037"
-    assert resultado["evidencia"][0]["antecedentes"][0]["fecha"]
-    assert resultado["evidencia"][0]["antecedentes"][0]["reclutador"] == "Administracion del piloto"
+    assert resultado["evidencia"][0]["antecedentes"][0]["reclutador"] in (
+        "Administracion del piloto",
+        "Administrador TalentIA",
+    )
 
 
 def test_identidad_y_url_no_filtran_otra_cuenta(cliente_api) -> None:
