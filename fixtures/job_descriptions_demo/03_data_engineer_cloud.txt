@@ -1,0 +1,25 @@
+Nombre del rol: Data Engineer Senior Cloud
+Código: DATA-ENG-SR-01
+Compensación Total (CTC): S/ 12,500.00
+
+Objetivo del puesto:
+Construir plataformas de datos confiables para analítica y toma de decisiones de negocio.
+
+Experiencia técnica:
+- Cuatro años o más en ingeniería de datos
+- Python, SQL avanzado y modelado dimensional
+- Desarrollo de pipelines ETL y ELT
+- Apache Spark y procesamiento distribuido
+- Orquestación con Airflow
+- Calidad, linaje y gobierno de datos
+- Servicios de datos en AWS, Azure o Google Cloud
+
+Deseable:
+- Databricks o Snowflake
+- Kafka y procesamiento en tiempo real
+- Terraform y prácticas DataOps
+
+Funciones:
+- Diseñar pipelines escalables y observables
+- Asegurar controles de calidad de datos
+- Optimizar costos y tiempos de procesamiento
